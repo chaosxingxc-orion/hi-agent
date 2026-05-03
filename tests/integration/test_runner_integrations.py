@@ -20,11 +20,11 @@ from hi_agent.contracts import (
 from hi_agent.contracts.policy import PolicyVersionSet
 from hi_agent.events import EventEmitter
 from hi_agent.evolve.contracts import EvolveResult, RunRetrospective
-from hi_agent.runtime.harness.contracts import ActionResult, ActionSpec, ActionState
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.runner import RunExecutor
+from hi_agent.runtime.harness.contracts import ActionResult, ActionSpec, ActionState
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
 

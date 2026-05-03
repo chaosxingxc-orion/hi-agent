@@ -10,6 +10,7 @@ Covers:
   - The CLI emits multistatus JSON when invoked with ``--json``.
   - The real repo passes at HEAD (post-N.6 annotation patch).
 """
+
 from __future__ import annotations
 
 import json
@@ -21,8 +22,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-import check_facade_seams as gate  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
-from _governance.multistatus import GateStatus  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+# expiry_wave: permanent  # added: W31 (governance utility/test helper)
+import check_facade_seams as gate
+from _governance.multistatus import (
+    GateStatus,  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+)
 
 
 @pytest.fixture()
@@ -52,7 +56,7 @@ def test_unannotated_hi_agent_import_fails(patched_facade_dir: Path) -> None:
 def test_same_line_seam_annotation_passes(patched_facade_dir: Path) -> None:
     fpath = patched_facade_dir / "ok_inline.py"
     fpath.write_text(
-        "from hi_agent.server.idempotency import IdempotencyStore  # r-as-1-seam: persistence boundary\n"
+        "from hi_agent.server.idempotency import IdempotencyStore  # r-as-1-seam: persistence boundary\n"  # noqa: E501  expiry_wave: permanent
         "_ = IdempotencyStore\n",
         encoding="utf-8",
     )
@@ -105,8 +109,7 @@ def test_bootstrap_module_exempt(tmp_path: Path, monkeypatch) -> None:
     fac_dir.mkdir(parents=True)
     bootstrap = tmp_path / "agent_server" / "bootstrap.py"
     bootstrap.write_text(
-        "from hi_agent.config.posture import Posture\n"
-        "_ = Posture\n",
+        "from hi_agent.config.posture import Posture\n_ = Posture\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(gate, "ROOT", tmp_path)

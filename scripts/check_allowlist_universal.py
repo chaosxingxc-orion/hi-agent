@@ -36,7 +36,7 @@ CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 sys.path.insert(0, str(ROOT / "scripts"))
 try:
     from _governance.wave import current_wave_number as _governance_current_wave_number
-except Exception:  # pragma: no cover  # noqa: BLE001  # expiry_wave: permanent  # added: W31-D D-3'
+except Exception:  # pragma: no cover  # expiry_wave: permanent  # added: W31-D D-3'
     _governance_current_wave_number = None  # type: ignore[assignment]
 
 _REQUIRED_FIELDS = frozenset({"owner", "risk", "reason", "expiry_wave"})

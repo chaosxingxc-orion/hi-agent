@@ -21,8 +21,8 @@ from typing import Any
 
 from hi_agent.config.posture import Posture
 from hi_agent.context.run_execution_context import RunExecutionContext
-from hi_agent.contracts.run import RunState
 from hi_agent.contracts.errors import RunQueueFullError
+from hi_agent.contracts.run import RunState
 from hi_agent.observability.metric_counter import Counter
 from hi_agent.observability.trace_context import TraceContextManager as _TraceCtxMgr
 from hi_agent.server.event_store import SQLiteEventStore, StoredEvent

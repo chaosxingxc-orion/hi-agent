@@ -15,6 +15,7 @@ Fix verified by these tests:
 
 Layer 2 — Integration: real route handler against a fake RunQueue.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -109,9 +110,7 @@ def queue_with_two_tenants():
 class TestStrictPostureDlqTenantIsolation:
     """Under research/prod posture, /ops/dlq must require + scope by TenantContext."""
 
-    def test_research_posture_rejects_unauthenticated(
-        self, monkeypatch, queue_with_two_tenants
-    ):
+    def test_research_posture_rejects_unauthenticated(self, monkeypatch, queue_with_two_tenants):
         """Missing TenantContext under research → 401."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         app = _build_app(queue_with_two_tenants, ctx=None)
@@ -122,9 +121,7 @@ class TestStrictPostureDlqTenantIsolation:
             f"got {resp.status_code}: {resp.text}"
         )
 
-    def test_prod_posture_rejects_unauthenticated(
-        self, monkeypatch, queue_with_two_tenants
-    ):
+    def test_prod_posture_rejects_unauthenticated(self, monkeypatch, queue_with_two_tenants):
         """Missing TenantContext under prod → 401."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "prod")
         app = _build_app(queue_with_two_tenants, ctx=None)
@@ -132,9 +129,7 @@ class TestStrictPostureDlqTenantIsolation:
             resp = client.get("/ops/dlq")
         assert resp.status_code == 401
 
-    def test_research_tenant_a_only_sees_own_rows(
-        self, monkeypatch, queue_with_two_tenants
-    ):
+    def test_research_tenant_a_only_sees_own_rows(self, monkeypatch, queue_with_two_tenants):
         """Tenant A authenticated → only tenant-A DLQ rows returned."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         ctx_a = TenantContext(tenant_id="tenant-A", user_id="user-a", session_id="s")
@@ -149,9 +144,7 @@ class TestStrictPostureDlqTenantIsolation:
         )
         assert len(rows) == 2
 
-    def test_research_tenant_b_only_sees_own_rows(
-        self, monkeypatch, queue_with_two_tenants
-    ):
+    def test_research_tenant_b_only_sees_own_rows(self, monkeypatch, queue_with_two_tenants):
         """Tenant B authenticated → only tenant-B DLQ rows returned."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         ctx_b = TenantContext(tenant_id="tenant-B", user_id="user-b", session_id="s")
@@ -195,23 +188,18 @@ class TestDevPostureDlqFallback:
         """Dev + no context → returns anonymous-scoped rows (empty for our fixture)."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
         app = _build_app(queue_with_two_tenants, ctx=None)
-        with caplog.at_level("WARNING"):
-            with TestClient(app, raise_server_exceptions=False) as client:
-                resp = client.get("/ops/dlq")
+        with caplog.at_level("WARNING"), TestClient(app, raise_server_exceptions=False) as client:
+            resp = client.get("/ops/dlq")
         assert resp.status_code == 200
         # Anonymous tenant has no DLQ rows in our fixture, so list is empty.
         assert resp.json()["dead_lettered_runs"] == []
         # WARNING about missing tenant context emitted.
-        warnings = [
-            rec for rec in caplog.records if rec.levelname == "WARNING"
-        ]
+        warnings = [rec for rec in caplog.records if rec.levelname == "WARNING"]
         assert any("tenant" in r.message.lower() for r in warnings), (
             f"Expected WARNING log mentioning tenant; got: {[r.message for r in warnings]}"
         )
 
-    def test_dev_posture_with_context_scoped_to_tenant(
-        self, monkeypatch, queue_with_two_tenants
-    ):
+    def test_dev_posture_with_context_scoped_to_tenant(self, monkeypatch, queue_with_two_tenants):
         """Dev + valid context → scoped to that tenant (no leak)."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
         ctx_a = TenantContext(tenant_id="tenant-A", user_id="user-a", session_id="s")

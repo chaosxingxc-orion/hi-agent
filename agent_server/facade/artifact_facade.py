@@ -14,7 +14,10 @@ import hashlib
 from collections.abc import Callable
 from typing import Any
 
-from hi_agent.config.posture import Posture  # r-as-1-seam: posture is platform-wide config; facade may reach
+# r-as-1-seam: posture is platform-wide config; facade may reach
+from hi_agent.config.posture import (
+    Posture,
+)
 
 from agent_server.contracts.errors import ContractError, NotFoundError
 from agent_server.contracts.tenancy import TenantContext

@@ -21,6 +21,7 @@ Scans tests/integration/ and tests/e2e/ for three anti-patterns:
 Exit 0: pass (no violations)
 Exit 1: fail (violations found)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,10 +34,26 @@ from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 _SUT_NAME_PATTERNS = {
-    "subject", "under_test", "sut", "system", "service",
-    "manager", "store", "executor", "worker", "runner",
-    "handler", "processor", "adapter", "engine", "gateway",
-    "scheduler", "dispatcher", "controller", "kernel", "client",
+    "subject",
+    "under_test",
+    "sut",
+    "system",
+    "service",
+    "manager",
+    "store",
+    "executor",
+    "worker",
+    "runner",
+    "handler",
+    "processor",
+    "adapter",
+    "engine",
+    "gateway",
+    "scheduler",
+    "dispatcher",
+    "controller",
+    "kernel",
+    "client",
 }
 
 _SUCCESS_STATES = {"completed", "succeeded", "done", "success", "passed"}
@@ -130,24 +147,34 @@ def _scan_file(path: pathlib.Path) -> list[dict]:
         source = path.read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(source, filename=str(path))
     except SyntaxError as exc:
-        return [{"file": str(path.relative_to(ROOT)), "line": exc.lineno or 0,
-                 "kind": "syntax_error", "description": str(exc)}]
+        return [
+            {
+                "file": str(path.relative_to(ROOT)),
+                "line": exc.lineno or 0,
+                "kind": "syntax_error",
+                "description": str(exc),
+            }
+        ]
 
     rel = str(path.relative_to(ROOT))
     for var_name, line in _collect_mock_assignments(tree):
-        violations.append({
-            "file": rel,
-            "line": line,
-            "kind": "mock_on_sut",
-            "description": f"MagicMock/Mock assigned to '{var_name}' (looks like SUT)",
-        })
+        violations.append(
+            {
+                "file": rel,
+                "line": line,
+                "kind": "mock_on_sut",
+                "description": f"MagicMock/Mock assigned to '{var_name}' (looks like SUT)",
+            }
+        )
     for desc, line in _collect_accept_failure_assertions(tree):
-        violations.append({
-            "file": rel,
-            "line": line,
-            "kind": "accept_failure_assertion",
-            "description": desc,
-        })
+        violations.append(
+            {
+                "file": rel,
+                "line": line,
+                "kind": "accept_failure_assertion",
+                "description": desc,
+            }
+        )
     return violations
 
 
@@ -160,6 +187,7 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
     """
     try:
         import importlib.util as _ilu
+
         audit_path = ROOT / "tests" / "integration" / "_mock_audit.py"
         if not audit_path.exists():
             return []
@@ -172,31 +200,42 @@ def _scan_file_b1(path: pathlib.Path) -> list[dict]:
         # Normalise: ensure each entry has required keys
         out = []
         for v in raw:
-            out.append({
-                "file": v.get("file", str(path.relative_to(ROOT))),
-                "line": v.get("line", 0),
-                "kind": v.get("kind", "sut_internal_mock"),
-                "description": v.get("description", v.get("target", "")),
-            })
+            out.append(
+                {
+                    "file": v.get("file", str(path.relative_to(ROOT))),
+                    "line": v.get("line", 0),
+                    "kind": v.get("kind", "sut_internal_mock"),
+                    "description": v.get("description", v.get("target", "")),
+                }
+            )
         return out
     except Exception:  # intentional broad catch: optional B1 gate must never crash the main gate
         return []
 
 
 # Syntax errors are encoding issues (BOM files), not honesty violations — excluded from count.
-_BASELINE_VIOLATIONS = 48  # expiry_wave: permanent — 47 B1 SUT-monkeypatches + 1 accept_failure (W31-D D-2': baseline preserved as Rule 17 tracked debt)
+# expiry_wave: permanent — 47 B1 SUT-monkeypatches + 1 accept_failure
+# (W31-D D-2': baseline preserved as Rule 17 tracked debt)
+_BASELINE_VIOLATIONS = 48
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Test honesty audit gate.")
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--baseline", type=int, default=_BASELINE_VIOLATIONS,
-                        help="Max allowed violations before failing (tightens each wave)")
-    parser.add_argument("--paths", nargs="*",
-                        default=["tests/integration", "tests/e2e"],
-                        help="Directories to scan")
-    parser.add_argument("--strict", action="store_true",
-                        help="Treat absent input as fail rather than not_applicable")
+    parser.add_argument(
+        "--baseline",
+        type=int,
+        default=_BASELINE_VIOLATIONS,
+        help="Max allowed violations before failing (tightens each wave)",
+    )
+    parser.add_argument(
+        "--paths", nargs="*", default=["tests/integration", "tests/e2e"], help="Directories to scan"
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat absent input as fail rather than not_applicable",
+    )
     args = parser.parse_args()
 
     all_violations: list[dict] = []
@@ -224,8 +263,11 @@ def main() -> int:
     # not_applicable: no integration/e2e test directories found
     if files_scanned == 0:
         if args.strict:
-            print("FAIL (strict): input absent at tests/integration and tests/e2e; "
-                  "in strict mode, absent input is a defect", file=sys.stderr)
+            print(
+                "FAIL (strict): input absent at tests/integration and tests/e2e; "
+                "in strict mode, absent input is a defect",
+                file=sys.stderr,
+            )
             return 1
         result_na = {
             "check": "test_honesty",

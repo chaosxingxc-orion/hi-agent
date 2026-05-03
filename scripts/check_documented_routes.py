@@ -24,6 +24,7 @@ Usage::
 
 Exit 0 = PASS; 1 = FAIL.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,7 +38,12 @@ CONTRACT_DOC = ROOT / "docs" / "platform" / "agent-server-northbound-contract-v1
 ROUTES_DIR = ROOT / "agent_server" / "api"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+# expiry_wave: permanent  # added: W31 (governance utility/test helper)
+from _governance.multistatus import (
+    GateResult,
+    GateStatus,
+    emit,
+)
 
 _DECORATOR_PATTERN = re.compile(r"^\s*@router\.(get|post|put|delete|patch)\((.+)\)")
 # Route table rows look like:
@@ -77,9 +83,7 @@ def _collect_decorated_routes_from_file(
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if not (
-            isinstance(node.func, ast.Name) and node.func.id == "APIRouter"
-        ):
+        if not (isinstance(node.func, ast.Name) and node.func.id == "APIRouter"):
             continue
         for kw in node.keywords:
             if kw.arg == "prefix" and isinstance(kw.value, ast.Constant):
@@ -230,9 +234,7 @@ def evaluate() -> GateResult:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="W31-N7: documented-route consistency gate."
-    )
+    parser = argparse.ArgumentParser(description="W31-N7: documented-route consistency gate.")
     parser.add_argument("--json", action="store_true", help="Emit multistatus JSON.")
     args = parser.parse_args()
 
@@ -245,13 +247,9 @@ def main() -> int:
         return 0
     print(f"FAIL (W31-N7): {result.reason}")
     for rec in result.evidence.get("released_without_handler", []):
-        print(
-            f"  released-without-handler: {rec['method']} {rec['path']}"
-        )
+        print(f"  released-without-handler: {rec['method']} {rec['path']}")
     for rec in result.evidence.get("undocumented_decorated", []):
-        print(
-            f"  decorated-but-undocumented: {rec['method']} {rec['path']}"
-        )
+        print(f"  decorated-but-undocumented: {rec['method']} {rec['path']}")
     print(
         "\nFix: align §2 'Released routes' with the @router.<method>"
         " decorators or move undecorated routes to §13 v1.1 backlog."

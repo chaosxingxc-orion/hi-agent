@@ -50,7 +50,7 @@ from agent_server.facade.run_facade import RunFacade
 
 # W31-N (N-12): export AGENT_SERVER_API_VERSION through the package
 # surface so callers don't need to reach into agent_server.config.
-__all__ = ["build_app", "AGENT_SERVER_API_VERSION"]
+__all__ = ["AGENT_SERVER_API_VERSION", "build_app"]
 
 
 def build_app(

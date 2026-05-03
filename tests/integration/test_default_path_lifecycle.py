@@ -1,4 +1,5 @@
 """Default path: run lifecycle completes successfully (AX-C C1)."""
+
 from __future__ import annotations
 
 import os
@@ -42,12 +43,16 @@ def test_run_lifecycle_completes(client):
 
     resp = client.post("/runs", json={"goal": "echo hello", "profile": "dev"})
     if resp.status_code == 422:
-        pytest.skip(reason="schema validation — adjust payload")  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
+        pytest.skip(
+            reason="schema validation — adjust payload"
+        )  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
     assert resp.status_code in (200, 201, 202), f"POST /runs returned {resp.status_code}"
 
-    run_id = (resp.json().get("run_id") or resp.json().get("id") or "")
+    run_id = resp.json().get("run_id") or resp.json().get("id") or ""
     if not run_id:
-        pytest.skip(reason="run_id not in response — adjust payload")  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
+        pytest.skip(
+            reason="run_id not in response — adjust payload"
+        )  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
 
     # Poll for terminal state
     deadline = time.time() + 30

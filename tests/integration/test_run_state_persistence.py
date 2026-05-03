@@ -6,8 +6,8 @@ from hi_agent.events import EventEmitter
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.l0_raw import RawMemoryStore
 from hi_agent.route_engine.acceptance import AcceptancePolicy
-from hi_agent.runner import RunExecutor
 from hi_agent.run_state_store import RunStateStore
+from hi_agent.runner import RunExecutor
 
 from tests.helpers.kernel_adapter_fixture import MockKernel
 

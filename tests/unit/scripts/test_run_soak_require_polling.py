@@ -61,7 +61,9 @@ def test_strict_mode_rejects_terminal_stages_only():
         _result(stage_first_seen_seconds=None, terminal_stage_count=3),
     ]
     inv = run_soak._compute_invariants(
-        results, 0, require_polling_observation=True,
+        results,
+        0,
+        require_polling_observation=True,
     )
     assert inv["invariants_held"] is False, (
         "L-15' strict mode: terminal_stages alone must NOT satisfy invariant"
@@ -77,7 +79,9 @@ def test_strict_mode_accepts_polling_observation():
         _result(stage_first_seen_seconds=5.0, terminal_stage_count=0),
     ]
     inv = run_soak._compute_invariants(
-        results, 0, require_polling_observation=True,
+        results,
+        0,
+        require_polling_observation=True,
     )
     assert inv["invariants_held"] is True
     assert inv["stage_observed_misses"] == []
@@ -91,7 +95,9 @@ def test_strict_mode_rejects_polling_outside_window():
         _result(stage_first_seen_seconds=45.0, terminal_stage_count=0),
     ]
     inv = run_soak._compute_invariants(
-        results, 0, require_polling_observation=True,
+        results,
+        0,
+        require_polling_observation=True,
     )
     assert inv["invariants_held"] is False
     assert inv["stage_observed_misses"] == [0]
@@ -109,7 +115,9 @@ def test_strict_mode_rejects_no_signals():
     assert inv["invariants_held"] is False
     # Strict
     inv = run_soak._compute_invariants(
-        results, 0, require_polling_observation=True,
+        results,
+        0,
+        require_polling_observation=True,
     )
     assert inv["invariants_held"] is False
 
@@ -118,7 +126,6 @@ def test_cli_flag_defaults_to_false():
     """Argparse: --require-polling-observation defaults to False."""
     import run_soak
 
-    parser_test = run_soak.argparse.ArgumentParser()
     # Re-derive the flag's default by parsing without the flag.
     # We invoke main with a tiny dry-run to confirm no exception.
     rc = run_soak.main(
@@ -126,5 +133,6 @@ def test_cli_flag_defaults_to_false():
     )
     # Cleanup
     import shutil
+
     shutil.rmtree(REPO_ROOT / ".tmp_soak_test", ignore_errors=True)
     assert rc == 0

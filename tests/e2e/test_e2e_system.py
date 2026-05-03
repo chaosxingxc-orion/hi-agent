@@ -29,6 +29,13 @@ from hi_agent.evolve.regression_detector import RegressionDetector
 from hi_agent.evolve.skill_extractor import SkillCandidate, SkillExtractor
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
+from hi_agent.memory.compressor import MemoryCompressor
+from hi_agent.memory.episode_builder import EpisodeBuilder
+from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
+from hi_agent.memory.l0_raw import RawMemoryStore
+from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
+from hi_agent.route_engine.acceptance import AcceptancePolicy
+from hi_agent.runner import STAGES, RunExecutor
 from hi_agent.runtime.harness.contracts import (
     ActionSpec,
     ActionState,
@@ -38,13 +45,6 @@ from hi_agent.runtime.harness.contracts import (
 from hi_agent.runtime.harness.evidence_store import EvidenceStore
 from hi_agent.runtime.harness.executor import HarnessExecutor
 from hi_agent.runtime.harness.governance import GovernanceEngine
-from hi_agent.memory.compressor import MemoryCompressor
-from hi_agent.memory.episode_builder import EpisodeBuilder
-from hi_agent.memory.episodic import EpisodeRecord, EpisodicMemoryStore
-from hi_agent.memory.l0_raw import RawMemoryStore
-from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
-from hi_agent.route_engine.acceptance import AcceptancePolicy
-from hi_agent.runner import STAGES, RunExecutor
 from hi_agent.server.app import AgentServer
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry

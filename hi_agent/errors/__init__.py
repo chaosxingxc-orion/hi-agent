@@ -16,4 +16,4 @@ warnings.warn(
     stacklevel=2,
 )
 
-from hi_agent.contracts.errors import *  # noqa: F401, F403, E402  # expiry_wave: Wave 34
+from hi_agent.contracts.errors import *  # noqa: F403  # expiry_wave: Wave 34

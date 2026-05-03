@@ -23,7 +23,10 @@ import logging
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
-from hi_agent.server.app import _rehydrate_runs  # r-as-1-seam: rehydration is a runtime-only operation, owned by AgentServer
+# r-as-1-seam: rehydration is a runtime-only operation, owned by AgentServer
+from hi_agent.server.app import (
+    _rehydrate_runs,
+)
 
 if TYPE_CHECKING:
     from agent_server.runtime.kernel_adapter import RealKernelBackend
@@ -31,7 +34,7 @@ if TYPE_CHECKING:
 _log = logging.getLogger("agent_server.runtime.lifespan")
 
 
-def build_real_kernel_lifespan(backend: "RealKernelBackend"):
+def build_real_kernel_lifespan(backend: RealKernelBackend):
     """Return an async context manager wrapping ``backend``'s lifecycle.
 
     Startup

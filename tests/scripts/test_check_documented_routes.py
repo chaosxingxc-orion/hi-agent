@@ -13,6 +13,7 @@ Covers:
   - app.get('/v1/health') in __init__.py is picked up.
   - The CLI emits multistatus JSON when invoked with --json.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,18 +21,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-import check_documented_routes as gate  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
-from _governance.multistatus import GateStatus  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+# expiry_wave: permanent  # added: W31 (governance utility/test helper)
+import check_documented_routes as gate
+from _governance.multistatus import (
+    GateStatus,  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+)
 
 
-def _make_doc(tmp_path: Path, released: list[tuple[str, str]], backlog: list[tuple[str, str]]) -> Path:
+def _make_doc(
+    tmp_path: Path, released: list[tuple[str, str]], backlog: list[tuple[str, str]]
+) -> Path:
     """Synthesize a contract doc with §2 + §13 sections."""
     doc = tmp_path / "doc.md"
-    lines = ["# Contract", "", "## 2. Released routes", "", "| Method | Path | M |", "|---|---|---|"]
+    lines = [
+        "# Contract",
+        "",
+        "## 2. Released routes",
+        "",
+        "| Method | Path | M |",
+        "|---|---|---|",
+    ]
     for method, path in released:
         lines.append(f"| {method} | {path} | x |")
     lines += ["", "## 13. v1.1 — not yet implemented", "", "| Method | Path | M |", "|---|---|---|"]
@@ -56,9 +67,7 @@ def _make_routes_dir(tmp_path: Path, files: dict[str, str]) -> Path:
 def test_real_repo_passes() -> None:
     """At HEAD post-N.7 reconciliation, the gate must PASS."""
     result = gate.evaluate()
-    assert result.status is GateStatus.PASS, (
-        f"Real-repo scan failed: {result.evidence}"
-    )
+    assert result.status is GateStatus.PASS, f"Real-repo scan failed: {result.evidence}"
 
 
 def test_decorated_but_undocumented_fails(tmp_path: Path, monkeypatch) -> None:

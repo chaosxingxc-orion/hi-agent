@@ -10,6 +10,7 @@ Covers:
   - The CLI emits JSON when invoked with ``--json``.
   - The real-repo scan PASSES at HEAD.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import check_layering as gate  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+# expiry_wave: permanent  # added: W31 (governance utility/test helper)
+import check_layering as gate
 
 
 def _make_pkg(parent: Path, name: str, source: str) -> Path:
@@ -96,9 +98,7 @@ def test_check_file_legacy_root_with_allowlist(tmp_path: Path, monkeypatch) -> N
 def test_real_repo_layering_passes() -> None:
     """At HEAD post-W31-N4, the gate must PASS against the real repo."""
     report = gate.run_check()
-    assert report.status == "pass", (
-        f"Real-repo scan failed: violations={report.violations}"
-    )
+    assert report.status == "pass", f"Real-repo scan failed: violations={report.violations}"
 
 
 def test_cli_json_output_pass() -> None:

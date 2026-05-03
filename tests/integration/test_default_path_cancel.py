@@ -1,4 +1,5 @@
 """Default path: run cancel round-trip (AX-C C1)."""
+
 from __future__ import annotations
 
 import time
@@ -21,11 +22,15 @@ def test_run_cancel_round_trip(client):
 
     resp = client.post("/runs", json={"goal": "sleep 60", "profile": "dev"})
     if resp.status_code not in (200, 201, 202):
-        pytest.skip(reason="POST /runs failed — check payload")  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
+        pytest.skip(
+            reason="POST /runs failed — check payload"
+        )  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
 
-    run_id = (resp.json().get("run_id") or resp.json().get("id") or "")
+    run_id = resp.json().get("run_id") or resp.json().get("id") or ""
     if not run_id:
-        pytest.skip(reason="no run_id in response")  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
+        pytest.skip(
+            reason="no run_id in response"
+        )  # expiry_wave: permanent (W31-D D-2': condition-bounded defensive skip)
 
     # Cancel
     cancel_resp = client.post(f"/runs/{run_id}/cancel")

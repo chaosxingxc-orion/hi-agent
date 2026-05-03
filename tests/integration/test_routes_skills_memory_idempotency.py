@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 from agent_server.api.middleware.idempotency import (
-    IDEMPOTENCY_HEADER,
     _DEFAULT_PREDICATES,
+    IDEMPOTENCY_HEADER,
     _is_gates_decide_mutation,
     _is_memory_write_mutation,
     _is_skills_mutation,
@@ -36,7 +36,6 @@ from agent_server.api.routes_skills_memory import (
 from agent_server.facade.idempotency_facade import IdempotencyFacade
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # Predicate-level tests

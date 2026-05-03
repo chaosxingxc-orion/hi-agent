@@ -30,6 +30,7 @@ Usage::
 
 Exit 0 = PASS; 1 = FAIL.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,7 +46,12 @@ SCAN_DIRS: tuple[Path, ...] = (FACADE_DIR, RUNTIME_DIR)
 EXEMPT_FILES = frozenset({"agent_server/bootstrap.py"})
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from _governance.multistatus import GateResult, GateStatus, emit  # noqa: E402  # expiry_wave: permanent  # added: W31 (governance utility/test helper)
+# expiry_wave: permanent  # added: W31 (governance utility/test helper)
+from _governance.multistatus import (
+    GateResult,
+    GateStatus,
+    emit,
+)
 
 _FROM_HI_AGENT_PATTERN = re.compile(r"^\s*from\s+hi_agent\.")
 _SEAM_ANNOTATION = re.compile(r"#\s*r-as-1-seam\s*:\s*(.+)$")
@@ -117,9 +123,7 @@ def evaluate() -> GateResult:
                 files_scanned += 1
                 all_violations.extend(_scan_file(Path(dirpath) / filename))
 
-    scan_root_labels = ", ".join(
-        d.relative_to(ROOT).as_posix() for d in existing_dirs
-    )
+    scan_root_labels = ", ".join(d.relative_to(ROOT).as_posix() for d in existing_dirs)
     if all_violations:
         return GateResult(
             status=GateStatus.FAIL,
@@ -151,9 +155,7 @@ def evaluate() -> GateResult:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="W31-N4: facade-seam annotation gate."
-    )
+    parser = argparse.ArgumentParser(description="W31-N4: facade-seam annotation gate.")
     parser.add_argument("--json", action="store_true", help="Emit multistatus JSON.")
     args = parser.parse_args()
 

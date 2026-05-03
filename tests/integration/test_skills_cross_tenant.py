@@ -8,6 +8,7 @@ per-tenant-aware overlay (tracked as TODO W5-G in app.py skill handlers).
 
 Layer 2 — Integration: tests wired to the skills handlers.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -23,7 +24,8 @@ pytestmark = pytest.mark.integration
         "for skills not accessible to that tenant."
     ),
     strict=False,
-    expiry_wave="Wave 33",  # W31-D D-2': per-tenant skill overlay deferred; ledger entry P0-W31-skills-tenant
+    # W31-D D-2': per-tenant skill overlay deferred; ledger entry P0-W31-skills-tenant
+    expiry_wave="Wave 33",
 )
 def test_skills_list_is_tenant_scoped():
     """GET /skills/list for Tenant B must not return skills scoped to Tenant A only.
@@ -43,7 +45,8 @@ def test_skills_list_is_tenant_scoped():
         "When per-tenant overlay lands, this should filter by requesting tenant."
     ),
     strict=False,
-    expiry_wave="Wave 33",  # W31-D D-2': per-tenant skill overlay deferred; ledger entry P0-W31-skills-tenant
+    # W31-D D-2': per-tenant skill overlay deferred; ledger entry P0-W31-skills-tenant
+    expiry_wave="Wave 33",
 )
 def test_skills_status_is_tenant_scoped():
     """GET /skills/status must be tenant-scoped when per-tenant overlay lands.

@@ -24,7 +24,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from hi_agent.server.idempotency import IdempotencyStore  # r-as-1-seam: idempotency persistence is the documented hi_agent boundary
+# r-as-1-seam: idempotency persistence is the documented hi_agent boundary
+from hi_agent.server.idempotency import (
+    IdempotencyStore,
+)
 
 # Identity metadata keys stripped from the persisted response so replays
 # never leak the original request's tracing fields (HD-7).

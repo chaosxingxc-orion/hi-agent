@@ -13,6 +13,7 @@ Exit 0: PASS
 Exit 1: FAIL (commits without owner tag)
 Exit 2: not_applicable (no git repo)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,14 +25,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-_OWNER_TRAILER = re.compile(r"^Owner:\s*(CO|RO|DX|TE|GOV|AS-CO|AS-RO)\s*$", re.IGNORECASE | re.MULTILINE)  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
-_SUBJECT_PREFIX = re.compile(  # expiry_wave: permanent  # added: W28 transitional wave-prefix format; classified W31-D D-2' (subject-line format remains canonical)
+# expiry_wave: permanent  # added: W25 baseline sweep
+_OWNER_TRAILER = re.compile(
+    r"^Owner:\s*(CO|RO|DX|TE|GOV|AS-CO|AS-RO)\s*$", re.IGNORECASE | re.MULTILINE
+)
+# expiry_wave: permanent  # added: W28 transitional wave-prefix format;
+# classified W31-D D-2' (subject-line format remains canonical)
+_SUBJECT_PREFIX = re.compile(
     r"^\[(co|ro|dx|te|gov|as-co|as-ro)-W\d+-\w+\]"
     r"|^\[w\d+[-\w]+\]",  # wave-number-only prefix [wNN-*] used in W25-W28
     re.IGNORECASE,
 )
 _MERGE_COMMIT = re.compile(r"^Merge\s+", re.IGNORECASE)
-_CONVENTIONAL = re.compile(r"^(gov|fix|chore|docs|feat|refactor|test|ci|build)(\([^)]*\))?:", re.IGNORECASE)  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+# expiry_wave: permanent  # added: W25 baseline sweep
+_CONVENTIONAL = re.compile(
+    r"^(gov|fix|chore|docs|feat|refactor|test|ci|build)(\([^)]*\))?:", re.IGNORECASE
+)
 
 
 def _get_recent_commits(n: int) -> list[dict]:
@@ -39,7 +48,12 @@ def _get_recent_commits(n: int) -> list[dict]:
     try:
         result = subprocess.run(
             ["git", "log", f"--max-count={n * 2}", "--format=%H%n%s%n%b%n---END---"],
-            capture_output=True, text=True, timeout=15, cwd=ROOT, encoding="utf-8", errors="replace",  # noqa: E501  # expiry_wave: permanent  # added: W25 baseline sweep
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=ROOT,
+            encoding="utf-8",
+            errors="replace",  # expiry_wave: permanent  # added: W25 baseline sweep
         )
         if result.returncode != 0:
             return []
@@ -92,9 +106,14 @@ def main() -> int:
 
     # Check git available
     try:
-        r = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, timeout=5, cwd=ROOT,
-                           encoding="utf-8", errors="replace")
+        r = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            timeout=5,
+            cwd=ROOT,
+            encoding="utf-8",
+            errors="replace",
+        )
         if r.returncode != 0:
             raise RuntimeError("not in git repo")
     except Exception:
@@ -113,10 +132,7 @@ def main() -> int:
         "status": status,
         "check": "owner_tag",
         "commits_checked": len(commits),
-        "violations": [
-            {"sha": c["sha"][:8], "subject": c["subject"][:80]}
-            for c in violations
-        ],
+        "violations": [{"sha": c["sha"][:8], "subject": c["subject"][:80]} for c in violations],
         "reason": f"{len(violations)} commit(s) missing Owner tag" if violations else "",
     }
 

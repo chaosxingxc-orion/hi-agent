@@ -32,6 +32,7 @@ Rule 12 spine: every method takes ``tenant_id`` as a kwarg and converts
 it into a :class:`TenantContext` so the RunManager's workspace-scoping
 contract is honoured. No ``"default"`` coercion under any posture.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,12 +41,23 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from agent_server.contracts.errors import ContractError, NotFoundError
-
 # Hi-agent imports — every one carries an R-AS-1 seam annotation.
-from hi_agent.config.posture import Posture  # r-as-1-seam: posture is platform config the adapter reads to fail-close
-from hi_agent.server.app import AgentServer  # r-as-1-seam: AgentServer is the durable RunManager + stores umbrella class
-from hi_agent.server.tenant_context import TenantContext as KernelTenantContext  # r-as-1-seam: RunManager workspace contract uses kernel TenantContext
+# r-as-1-seam: posture is platform config the adapter reads to fail-close
+from hi_agent.config.posture import (
+    Posture,
+)
+
+# r-as-1-seam: AgentServer is the durable RunManager + stores umbrella class
+from hi_agent.server.app import (
+    AgentServer,
+)
+
+# r-as-1-seam: RunManager workspace contract uses kernel TenantContext
+from hi_agent.server.tenant_context import (
+    TenantContext as KernelTenantContext,
+)
+
+from agent_server.contracts.errors import ContractError, NotFoundError
 
 _log = logging.getLogger("agent_server.runtime.kernel_adapter")
 
@@ -129,9 +141,7 @@ class RealKernelBackend:
         try:
             self._agent_server.run_manager.shutdown(timeout=2.0)
         except Exception as exc:  # pragma: no cover - defensive shutdown
-            _log.warning(
-                "RealKernelBackend.aclose: run_manager.shutdown raised: %s", exc
-            )
+            _log.warning("RealKernelBackend.aclose: run_manager.shutdown raised: %s", exc)
         self._closed = True
 
     # ------------------------------------------------------------------
@@ -261,9 +271,7 @@ class RealKernelBackend:
             return self._record_to_dict(run_id, tenant_id)
         return self._record_to_dict(run_id, tenant_id)
 
-    def iter_events(
-        self, *, tenant_id: str, run_id: str
-    ) -> Iterable[dict[str, Any]]:
+    def iter_events(self, *, tenant_id: str, run_id: str) -> Iterable[dict[str, Any]]:
         """Yield event-store rows for ``run_id`` filtered by ``tenant_id``.
 
         Each row is shaped as ``{event_id, run_id, sequence, event_type,
@@ -316,9 +324,7 @@ class RealKernelBackend:
     # Artifact callables — minimal pass-through over the AgentServer.
     # ------------------------------------------------------------------
 
-    def list_artifacts(
-        self, *, tenant_id: str, run_id: str
-    ) -> list[dict[str, Any]]:
+    def list_artifacts(self, *, tenant_id: str, run_id: str) -> list[dict[str, Any]]:
         """List artifacts for ``run_id`` filtered by ``tenant_id``."""
         if not tenant_id:
             return []
@@ -328,20 +334,14 @@ class RealKernelBackend:
         try:
             records = registry.list_for_run(run_id=run_id, tenant_id=tenant_id)
         except Exception as exc:  # pragma: no cover - registry error
-            _log.warning(
-                "list_artifacts: artifact_registry.list_for_run failed: %s", exc
-            )
+            _log.warning("list_artifacts: artifact_registry.list_for_run failed: %s", exc)
             return []
         return [dict(rec) for rec in records]
 
-    def get_artifact(
-        self, *, tenant_id: str, artifact_id: str
-    ) -> dict[str, Any]:
+    def get_artifact(self, *, tenant_id: str, artifact_id: str) -> dict[str, Any]:
         """Return artifact metadata; raise NotFoundError if not visible."""
         if not tenant_id:
-            raise NotFoundError(
-                "artifact not found", tenant_id=tenant_id, detail=artifact_id
-            )
+            raise NotFoundError("artifact not found", tenant_id=tenant_id, detail=artifact_id)
         registry = getattr(self._agent_server, "artifact_registry", None)
         if registry is None:
             raise NotFoundError(
@@ -352,16 +352,12 @@ class RealKernelBackend:
         try:
             record = registry.get(artifact_id=artifact_id, tenant_id=tenant_id)
         except Exception as exc:  # pragma: no cover - registry error
-            _log.warning(
-                "get_artifact: artifact_registry.get failed: %s", exc
-            )
+            _log.warning("get_artifact: artifact_registry.get failed: %s", exc)
             raise NotFoundError(
                 "artifact not found", tenant_id=tenant_id, detail=artifact_id
             ) from exc
         if record is None:
-            raise NotFoundError(
-                "artifact not found", tenant_id=tenant_id, detail=artifact_id
-            )
+            raise NotFoundError("artifact not found", tenant_id=tenant_id, detail=artifact_id)
         return dict(record)
 
     # ------------------------------------------------------------------
@@ -378,13 +374,9 @@ class RealKernelBackend:
         existence).
         """
         workspace = KernelTenantContext(tenant_id=tenant_id)
-        run = self._agent_server.run_manager.get_run(
-            run_id, workspace=workspace
-        )
+        run = self._agent_server.run_manager.get_run(run_id, workspace=workspace)
         if run is None:
-            raise NotFoundError(
-                "run not found", tenant_id=tenant_id, detail=run_id
-            )
+            raise NotFoundError("run not found", tenant_id=tenant_id, detail=run_id)
         full = self._agent_server.run_manager.to_dict(run)
         # Surface a contract-shaped envelope. The facades read these
         # specific keys; full RunRecord fields land under ``metadata``

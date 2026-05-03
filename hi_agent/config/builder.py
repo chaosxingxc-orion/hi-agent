@@ -18,27 +18,27 @@ from hi_agent.events import EventEmitter
 from hi_agent.evolve.engine import EvolveEngine
 from hi_agent.failures.collector import FailureCollector
 from hi_agent.failures.watchdog import ProgressWatchdog
-from hi_agent.runtime.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
-from hi_agent.runtime.harness.executor import HarnessExecutor
-from hi_agent.runtime.harness.governance import GovernanceEngine
 from hi_agent.llm.protocol import LLMGateway
 from hi_agent.memory import MemoryCompressor
 from hi_agent.memory.episode_builder import EpisodeBuilder
 from hi_agent.memory.episodic import EpisodicMemoryStore
 from hi_agent.observability.collector import MetricsCollector
 from hi_agent.observability.metric_counter import Counter
+from hi_agent.runtime.harness.evidence_store import EvidenceStore, SqliteEvidenceStore
+from hi_agent.runtime.harness.executor import HarnessExecutor
+from hi_agent.runtime.harness.governance import GovernanceEngine
 
 _builder_errors_total = Counter("hi_agent_builder_errors_total")
 from hi_agent.orchestrator.task_orchestrator import TaskOrchestrator
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.hybrid_engine import HybridRouteEngine
+from hi_agent.run_state_store import RunStateStore
 from hi_agent.runner import RunExecutor
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
 from hi_agent.server.dream_scheduler import MemoryLifecycleManager
 from hi_agent.skill.matcher import SkillMatcher
 from hi_agent.skill.recorder import SkillUsageRecorder
 from hi_agent.skill.registry import SkillRegistry
-from hi_agent.run_state_store import RunStateStore
 from hi_agent.task_decomposition.decomposer import TaskDecomposer
 
 

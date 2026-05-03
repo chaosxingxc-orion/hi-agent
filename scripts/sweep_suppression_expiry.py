@@ -33,8 +33,10 @@ def _resolve_append_text() -> str:
     """
     sys.path.insert(0, str(ROOT / "scripts"))
     try:
-        from _governance.wave import current_wave_number  # noqa: WPS433  # expiry_wave: permanent  # added: W31-D D-2'
-    except Exception:  # pragma: no cover  # noqa: BLE001  # expiry_wave: permanent  # added: W31-D D-2'
+        from _governance.wave import (
+            current_wave_number,  # expiry_wave: permanent  # added: W31-D D-2'
+        )
+    except Exception:  # pragma: no cover  # expiry_wave: permanent  # added: W31-D D-2'
         return "  expiry_wave: permanent"
     n = current_wave_number()
     if n <= 0:

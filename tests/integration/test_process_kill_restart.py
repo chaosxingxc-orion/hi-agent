@@ -16,6 +16,7 @@ environments.  Each subprocess test is marked ``@pytest.mark.xfail(strict=False)
 so the suite does not fail on those platforms while still running the test
 when the environment allows it.
 """
+
 from __future__ import annotations
 
 import socket
@@ -86,6 +87,7 @@ def _kill(proc: subprocess.Popen) -> None:
 # test_process_kill_restart — basic kill + restart + rehydration
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.xfail(
@@ -94,7 +96,8 @@ def _kill(proc: subprocess.Popen) -> None:
         "durable RunQueue boot-wiring gap tracked as DF-pending."
     ),
     strict=False,
-    expiry_wave="permanent",  # W31-D D-2': Windows sandbox subprocess binding limit; runs in Linux CI only
+    # W31-D D-2': Windows sandbox subprocess binding limit; runs in Linux CI only
+    expiry_wave="permanent",
 )
 def test_process_kill_restart(tmp_path):
     """E2E: submit a run, kill the process, restart, query the run.
@@ -143,8 +146,7 @@ def test_process_kill_restart(tmp_path):
         # it does NOT assert successful completion (that is an E2E gate assertion).
         _valid_states = {"queued", "running", "completed", "cancelled", "failed"}
         assert run_data.get("state") in _valid_states, (
-            f"Unexpected state: {run_data.get('state')!r}; "
-            f"must be one of {sorted(_valid_states)}"
+            f"Unexpected state: {run_data.get('state')!r}; must be one of {sorted(_valid_states)}"
         )
     finally:
         _kill(proc2)
@@ -153,6 +155,7 @@ def test_process_kill_restart(tmp_path):
 # ---------------------------------------------------------------------------
 # test_double_execute_prevention — two concurrent recovery passes
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 def test_double_execute_prevention():
@@ -197,6 +200,7 @@ def test_double_execute_prevention():
 # ---------------------------------------------------------------------------
 # test_recovery_preserves_tenant_spine — tenant_id/user_id/session_id/project_id
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 def test_recovery_preserves_tenant_spine():
@@ -245,9 +249,7 @@ def test_recovery_preserves_tenant_spine():
         rq.reenqueue(run_id=run_id, tenant_id=entry["tenant_id"])
 
     # Verify tenant_id is preserved in the DB after re-enqueue.
-    cur = rq._conn.execute(
-        "SELECT tenant_id FROM run_queue WHERE run_id = ?", (run_id,)
-    )
+    cur = rq._conn.execute("SELECT tenant_id FROM run_queue WHERE run_id = ?", (run_id,))
     row = cur.fetchone()
     assert row is not None, "Run must still exist in the queue"
     assert row[0] == tenant_id, f"Expected tenant_id={tenant_id!r}, got {row[0]!r}"

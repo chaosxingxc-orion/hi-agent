@@ -24,10 +24,10 @@ if TYPE_CHECKING:
     from hi_agent.evolve.feedback_store import FeedbackStore
     from hi_agent.failures.collector import FailureCollector
     from hi_agent.failures.watchdog import ProgressWatchdog
-    from hi_agent.runtime.harness.executor import HarnessExecutor
     from hi_agent.memory.episode_builder import EpisodeBuilder
     from hi_agent.memory.episodic import EpisodicMemoryStore
     from hi_agent.memory.short_term import ShortTermMemoryStore
+    from hi_agent.runtime.harness.executor import HarnessExecutor
     from hi_agent.session.run_session import RunSession
     from hi_agent.skill.recorder import SkillUsageRecorder
     from hi_agent.task_mgmt.delegation import DelegationManager
@@ -67,11 +67,11 @@ from hi_agent.memory import MemoryCompressor, RawMemoryStore
 from hi_agent.recovery import CompensationHandler, orchestrate_recovery
 from hi_agent.route_engine.acceptance import AcceptancePolicy
 from hi_agent.route_engine.rule_engine import RuleRouteEngine
+from hi_agent.run_state_store import RunStateSnapshot, RunStateStore
 from hi_agent.runner_lifecycle import RunLifecycle
 from hi_agent.runner_stage import StageExecutor
 from hi_agent.runner_telemetry import RunTelemetry
 from hi_agent.runtime_adapter.protocol import RuntimeAdapter
-from hi_agent.run_state_store import RunStateSnapshot, RunStateStore
 from hi_agent.trajectory.optimizers import GreedyOptimizer
 from hi_agent.trajectory.stage_graph import StageGraph, default_trace_stage_graph
 

@@ -1,6 +1,10 @@
 from unittest.mock import MagicMock
 
-from hi_agent.operator_tools.release_gate import GateResult, ReleaseGateReport, build_release_gate_report
+from hi_agent.operator_tools.release_gate import (
+    GateResult,
+    ReleaseGateReport,
+    build_release_gate_report,
+)
 
 
 def _make_builder(env="dev"):

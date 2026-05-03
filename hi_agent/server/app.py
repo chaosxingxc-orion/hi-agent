@@ -140,7 +140,9 @@ def _record_health_check_fallback(
     appends to the durable fallback_events list), so every health-check
     fallback path is countable + attributable + inspectable per Rule 7.
     """
-    with contextlib.suppress(Exception):  # rule7-exempt: observability must not propagate; counter increment failure must not break the request handler
+    # rule7-exempt: observability must not propagate; counter increment failure must
+    # not break the request handler
+    with contextlib.suppress(Exception):
         _health_check_fallback_total.labels(component=component).inc()
     record_silent_degradation(
         component=f"health_check.{component}",
@@ -362,9 +364,7 @@ async def handle_ready(request: Request) -> JSONResponse:
             "health check readiness failed with recursion",
             extra={"check_name": "readiness", "error": "capability_serialization_overflow"},
         )
-        _record_health_check_fallback(
-            "readiness", "capability_serialization_overflow", exc
-        )
+        _record_health_check_fallback("readiness", "capability_serialization_overflow", exc)
         return JSONResponse(
             status_code=503,
             content={"error": "capability_serialization_overflow"},
@@ -424,9 +424,7 @@ async def handle_ready(request: Request) -> JSONResponse:
             extra={"check_name": "readiness_flags", "error": str(exc)},
             exc_info=True,
         )
-        _record_health_check_fallback(
-            "readiness_flags", "readiness_flag_enrichment_failed", exc
-        )
+        _record_health_check_fallback("readiness_flags", "readiness_flag_enrichment_failed", exc)
 
     # Draining supersedes all other readiness: return 503 immediately so
     # load-balancers stop routing new traffic to this instance.
@@ -574,9 +572,7 @@ async def handle_skills_list(request: Request) -> JSONResponse:
         ctx = _rtc_sl()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="list"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="list")
     server: AgentServer = request.app.state.agent_server
     loader = server.skill_loader
     if loader is None:
@@ -621,9 +617,7 @@ async def handle_skills_status(request: Request) -> JSONResponse:
         ctx = _rtc_ss()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="status"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="status")
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     loader = server.skill_loader
@@ -674,9 +668,7 @@ async def handle_skills_evolve(request: Request) -> JSONResponse:
         ctx = _rtc_se()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="evolve"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="evolve")
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
     if evolver is None:
@@ -702,9 +694,7 @@ async def handle_skill_metrics(request: Request) -> JSONResponse:
         ctx = _rtc_sm()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="metrics"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="metrics")
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -731,9 +721,7 @@ async def handle_skill_versions(request: Request) -> JSONResponse:
         ctx = _rtc_sv()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="versions"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="versions")
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -774,9 +762,7 @@ async def handle_skill_optimize(request: Request) -> JSONResponse:
         ctx = _rtc_so()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="optimize"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="optimize")
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -818,9 +804,7 @@ async def handle_skill_promote(request: Request) -> JSONResponse:
         ctx = _rtc_sp()
     except RuntimeError:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    record_tenant_scoped_access(
-        tenant_id=ctx.tenant_id, resource="skills", op="promote"
-    )
+    record_tenant_scoped_access(tenant_id=ctx.tenant_id, resource="skills", op="promote")
     skill_id = request.path_params["skill_id"]
     server: AgentServer = request.app.state.agent_server
     evolver = server.skill_evolver
@@ -1175,7 +1159,8 @@ async def handle_plugins_list(request: Request) -> JSONResponse:
         all_plugins = plugin_loader.list_loaded()
         # Per-tenant overlay: include global-scoped plugins + tenant-matched plugins.
         visible = [
-            p for p in all_plugins
+            p
+            for p in all_plugins
             if p.get("tenant_scope", "tenant") != "tenant"
             or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
         ]
@@ -1207,7 +1192,8 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
         plugin_loader = server.plugin_loader
         all_plugins = plugin_loader.list_loaded()
         plugins = [
-            p for p in all_plugins
+            p
+            for p in all_plugins
             if p.get("tenant_scope", "tenant") != "tenant"
             or ctx.tenant_id == p.get("tenant_id", ctx.tenant_id)
         ]
@@ -1274,17 +1260,22 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
     if _evt_store is not None:
         try:
             from hi_agent.server.event_store import StoredEvent as _SE
-            _evt_store.append(_SE(
-                event_id=str(uuid.uuid4()),
-                run_id="__system__",
-                sequence=0,
-                event_type="dlq_checked",
-                payload_json=json.dumps({
-                    "expired_count": len(expired) if expired else 0,
-                    "posture": str(posture),
-                }),
-                tenant_id="__system__",
-            ))
+
+            _evt_store.append(
+                _SE(
+                    event_id=str(uuid.uuid4()),
+                    run_id="__system__",
+                    sequence=0,
+                    event_type="dlq_checked",
+                    payload_json=json.dumps(
+                        {
+                            "expired_count": len(expired) if expired else 0,
+                            "posture": str(posture),
+                        }
+                    ),
+                    tenant_id="__system__",
+                )
+            )
         except Exception as _dlq_exc:
             logger.debug("_rehydrate_runs: dlq_checked event failed: %s", _dlq_exc)
 
@@ -1318,19 +1309,24 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
         if _evt_store is not None:
             try:
                 from hi_agent.server.event_store import StoredEvent as _SE
-                _evt_store.append(_SE(
-                    event_id=str(uuid.uuid4()),
-                    run_id=run_id,
-                    sequence=0,
-                    event_type="recovery_decision",
-                    payload_json=json.dumps({
-                        "decision": "requeue" if effective_requeue else "warn_only",
-                        "reason": decision.reason,
-                        "lease_age_s": lease_age_s,
-                        "posture": str(posture),
-                    }),
-                    tenant_id=tenant_id,
-                ))
+
+                _evt_store.append(
+                    _SE(
+                        event_id=str(uuid.uuid4()),
+                        run_id=run_id,
+                        sequence=0,
+                        event_type="recovery_decision",
+                        payload_json=json.dumps(
+                            {
+                                "decision": "requeue" if effective_requeue else "warn_only",
+                                "reason": decision.reason,
+                                "lease_age_s": lease_age_s,
+                                "posture": str(posture),
+                            }
+                        ),
+                        tenant_id=tenant_id,
+                    )
+                )
             except Exception as _rd_exc:
                 logger.debug(
                     "_rehydrate_runs: recovery_decision event failed for run_id=%s: %s",
@@ -1350,9 +1346,7 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
             try:
                 run_queue.reenqueue(run_id=run_id, tenant_id=tenant_id)
             except Exception as exc:
-                logger.warning(
-                    "_rehydrate_runs: reenqueue failed for run_id=%s: %s", run_id, exc
-                )
+                logger.warning("_rehydrate_runs: reenqueue failed for run_id=%s: %s", run_id, exc)
                 continue
             logger.info(
                 "_rehydrate_runs: re-enqueued run_id=%s tenant_id=%s lease_age_s=%.1f reason=%r",
@@ -1364,8 +1358,7 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
         else:
             reason = "opt_out=1" if opt_out and decision.should_requeue else decision.reason
             logger.warning(
-                "_rehydrate_runs: warn-only for run_id=%s tenant_id=%s "
-                "lease_age_s=%.1f reason=%r",
+                "_rehydrate_runs: warn-only for run_id=%s tenant_id=%s lease_age_s=%.1f reason=%r",
                 run_id,
                 tenant_id,
                 lease_age_s,
@@ -1556,9 +1549,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # posture-driven decision logic.
         import os as _os_lease
 
-        _lease_interval_s = float(
-            _os_lease.environ.get("HI_AGENT_LEASE_EXPIRY_INTERVAL_S", "30")
-        )
+        _lease_interval_s = float(_os_lease.environ.get("HI_AGENT_LEASE_EXPIRY_INTERVAL_S", "30"))
 
         async def _lease_expiry_loop() -> None:
             """Periodically scan for stale leases and re-enqueue under posture.
@@ -1578,9 +1569,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
                     # call is robust against signature changes in
                     # _rehydrate_runs and matches the Rule 6 single-builder
                     # contract for the agent_server reference.
-                    await _loop_local.run_in_executor(
-                        None, lambda: _rehydrate_runs(agent_server)
-                    )
+                    await _loop_local.run_in_executor(None, lambda: _rehydrate_runs(agent_server))
                 except asyncio.CancelledError:
                     raise
                 except Exception as _le_exc:
@@ -1593,10 +1582,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         _lease_expiry_task = asyncio.create_task(_lease_expiry_loop())
         agent_server._lease_expiry_task = _lease_expiry_task
         # wave-literal-ok
-        logger.info(
-            "lease-expiry background loop started "
-            "(interval=%.1fs)", _lease_interval_s
-        )
+        logger.info("lease-expiry background loop started (interval=%.1fs)", _lease_interval_s)
 
         # W32-C.9: current_stage watchdog — Rule 8 step 5 requires
         # current_stage to be non-None within 30s on every turn. This
@@ -1604,13 +1590,19 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # current_stage has been None for >60s, fires a Rule 7 alarm,
         # and emits a WARNING log per offending run.
         _terminal_states = {
-            "completed", "succeeded", "failed", "cancelled",
-            "done", "error", "timed_out",
+            "completed",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "done",
+            "error",
+            "timed_out",
         }
 
         async def _current_stage_watchdog() -> None:
             """Detect non-terminal runs with current_stage=None for >60s."""
             from datetime import datetime as _dt
+
             warned: dict[str, float] = {}
             while True:
                 try:
@@ -1646,8 +1638,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
                         try:
                             _created_dt = _dt.fromisoformat(created_at.rstrip("Z"))
                             age_s = (
-                                _dt.fromisoformat(_now_iso.rstrip("Z"))
-                                - _created_dt
+                                _dt.fromisoformat(_now_iso.rstrip("Z")) - _created_dt
                             ).total_seconds()
                         except (ValueError, TypeError):
                             age_s = 0.0
@@ -1656,7 +1647,9 @@ def build_app(agent_server: AgentServer) -> Starlette:
                         logger.warning(
                             "current_stage watchdog: run %s has current_stage=None "
                             "for %.1fs (state=%s) — Rule 8 step-5 violation",
-                            run_id, age_s, state,
+                            run_id,
+                            age_s,
+                            state,
                         )
                         record_silent_degradation(
                             component="current_stage_watchdog",
@@ -1675,6 +1668,7 @@ def build_app(agent_server: AgentServer) -> Starlette:
         # raised by TerminateProcess.  The try/except guards against platforms
         # where SIGTERM is not a valid signal number.
         try:
+
             def _sigterm_handler(signum: int, frame: object) -> None:
                 logger.warning("SIGTERM received — initiating graceful drain")
                 agent_server.run_manager.shutdown()
@@ -1773,11 +1767,13 @@ def build_app(agent_server: AgentServer) -> Starlette:
     # W3C trace-id injection — outermost middleware so trace_id is available
     # to all downstream handlers including AuthMiddleware and route handlers.
     from hi_agent.observability.http_middleware import TraceIdMiddleware as _TraceIdMW
+
     app.add_middleware(_TraceIdMW)
 
     # Drain middleware — rejects mutating requests when server is draining.
     # Added after TraceIdMiddleware so it runs inside the trace-id wrapper.
     from hi_agent.server.middleware_drain import DrainMiddleware
+
     app.add_middleware(DrainMiddleware)
 
     # Attach agent server reference so handlers can access it.
@@ -1980,9 +1976,7 @@ class AgentServer:
                     llm_gateway=self._builder.build_llm_gateway(),
                 )
             _profile_registry = self._builder.build_profile_registry()
-            if _profile_registry is not None and not _profile_registry.has(
-                "rule15_volces"
-            ):
+            if _profile_registry is not None and not _profile_registry.has("rule15_volces"):
                 self._builder.register_profile(build_rule15_volces_profile())
         except Exception as _exc:
             logger.warning(
@@ -2046,9 +2040,7 @@ class AgentServer:
                 _exc,
             )
         try:
-            self.retrieval_engine = self._builder.build_retrieval_engine(
-                profile_id=_server_profile
-            )
+            self.retrieval_engine = self._builder.build_retrieval_engine(profile_id=_server_profile)
         except Exception as _exc:
             logger.warning(
                 "RetrievalEngine initialization failed (%s: %s); "
@@ -2109,8 +2101,7 @@ class AgentServer:
                 self.slo_monitor = SLOMonitor(self.metrics_collector)
         except Exception as _exc:
             logger.warning(
-                "SLOMonitor initialization failed (%s: %s); "
-                "SLO monitoring disabled.",
+                "SLOMonitor initialization failed (%s: %s); SLO monitoring disabled.",
                 type(_exc).__name__,
                 _exc,
             )
@@ -2239,9 +2230,7 @@ class AgentServer:
             _missing: list[str] = []
             if getattr(executor, "kernel", None) is None:
                 _missing.append("kernel_adapter")
-            _llm = getattr(executor, "llm_gateway", None) or getattr(
-                executor, "_llm_gateway", None
-            )
+            _llm = getattr(executor, "llm_gateway", None) or getattr(executor, "_llm_gateway", None)
             if _llm is None:
                 _missing.append("llm_gateway")
             if _missing:

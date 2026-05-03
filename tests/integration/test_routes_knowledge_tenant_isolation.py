@@ -23,6 +23,7 @@ Fix verified by these tests:
 Layer 2 — Integration: real route handlers with a fake KnowledgeManager that
 records the kwargs each call received.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -155,7 +156,7 @@ class TestKnowledgeQueryTenantFilter:
             resp = client.get("/knowledge/query?q=ai")
         assert resp.status_code == 200
         # Both methods must have been called with tenant_id=tenant-A.
-        method_to_kwargs = {m: kw for m, kw in km.calls}
+        method_to_kwargs = dict(km.calls)
         assert "query" in method_to_kwargs
         assert method_to_kwargs["query"]["tenant_id"] == "tenant-A"
         assert "query_for_context" in method_to_kwargs
@@ -169,7 +170,7 @@ class TestKnowledgeQueryTenantFilter:
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/knowledge/query?q=ml")
         assert resp.status_code == 200
-        method_to_kwargs = {m: kw for m, kw in km.calls}
+        method_to_kwargs = dict(km.calls)
         assert method_to_kwargs["query"]["tenant_id"] == "tenant-B"
         assert method_to_kwargs["query_for_context"]["tenant_id"] == "tenant-B"
 
@@ -197,7 +198,7 @@ class TestKnowledgeStatusTenantFilter:
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/knowledge/status")
         assert resp.status_code == 200
-        method_to_kwargs = {m: kw for m, kw in km.calls}
+        method_to_kwargs = dict(km.calls)
         assert method_to_kwargs["get_stats"]["tenant_id"] == "tenant-A"
 
     def test_tenant_b_status_passes_tenant_b(self, monkeypatch):
@@ -208,7 +209,7 @@ class TestKnowledgeStatusTenantFilter:
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.get("/knowledge/status")
         assert resp.status_code == 200
-        method_to_kwargs = {m: kw for m, kw in km.calls}
+        method_to_kwargs = dict(km.calls)
         assert method_to_kwargs["get_stats"]["tenant_id"] == "tenant-B"
 
 
@@ -235,7 +236,7 @@ class TestKnowledgeLintTenantFilter:
         with TestClient(app, raise_server_exceptions=False) as client:
             resp = client.post("/knowledge/lint")
         assert resp.status_code == 200
-        method_to_kwargs = {m: kw for m, kw in km.calls}
+        method_to_kwargs = dict(km.calls)
         assert method_to_kwargs["lint"]["tenant_id"] == "tenant-A"
 
 
@@ -257,9 +258,7 @@ class TestKnowledgeManagerSignature:
         graph = LongTermMemoryGraph()
         renderer = GraphRenderer(graph)
         user_store = UserKnowledgeStore()
-        return KnowledgeManager(
-            wiki=wiki, user_store=user_store, graph=graph, renderer=renderer
-        )
+        return KnowledgeManager(wiki=wiki, user_store=user_store, graph=graph, renderer=renderer)
 
     def test_query_accepts_tenant_id_kwarg(self, monkeypatch):
         monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
