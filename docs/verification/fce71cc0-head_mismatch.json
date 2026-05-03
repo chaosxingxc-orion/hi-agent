@@ -1,0 +1,12 @@
+{
+  "factor": "head_mismatch",
+  "head": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+  "wave": 33,
+  "provenance": "real",
+  "resolution": "W31 manifest 953d36cb cap factor head_mismatch is retired in W32 because the W32 manifest 82172a4f.json now has release_head=82172a4f matching the parent of the atomic-close commit. The Rule 14 docs-only-gap exemption applies for any post-this-commit HEAD shift.",
+  "evidence_paths": [
+    "docs/releases/platform-release-manifest-2026-05-03-82172a4f.json"
+  ],
+  "generated_at": "2026-05-03T06:25:00+00:00",
+  "generated_by": "platform-release-captain (W32 atomic close)"
+}

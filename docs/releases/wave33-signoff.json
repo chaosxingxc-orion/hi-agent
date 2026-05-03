@@ -1,0 +1,81 @@
+{
+  "wave": 33,
+  "signoff_date": "2026-05-04",
+  "signed_by": "platform-release-captain",
+  "manifest_id": "2026-05-03-fce71cc0",
+  "release_head": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+  "scorecard": {
+    "raw_implementation_maturity": 94.5,
+    "current_verified_readiness": 75.0,
+    "seven_by_24_operational_readiness": 90.0,
+    "conditional_readiness_after_blockers": 75.0
+  },
+  "cap_factors_remaining": [
+    "evidence_provenance: 3 historical W27 artifacts retained per W28 erratum (out of scope per directive)",
+    "soak_evidence_not_real: WAIVED under RIA's updated 7x24 architectural-feasibility criterion (acceptance 2026-05-03 sec 2)"
+  ],
+  "tracks_closed": [
+    {
+      "track": "W33-A",
+      "title": "RIA W32 acceptance §5 soft drifts",
+      "level": "verified_at_release_head",
+      "code_commit": "4d9e4720",
+      "test_or_gate": "scripts/check_wave_consistency.py exit 0; scripts/check_doc_truth.py exit 0",
+      "delivery_change": "all 3 wave-current sources (current-wave.txt, allowlists.yaml, recurrence-ledger.yaml) bump in lockstep"
+    },
+    {
+      "track": "W33-B",
+      "title": "RIA Phase 3+ signal route preemptive coverage",
+      "level": "verified_at_release_head",
+      "code_commit": "4d9e4720",
+      "test_or_gate": "tests/integration/test_v1_runs_signal_resume_real_kernel.py (2 tests asserting real-RunManager dispatch)",
+      "delivery_change": "future RIA Phase 3+ human-gate flows have a regression baseline"
+    },
+    {
+      "track": "W33-C",
+      "title": "5 hidden BLOCKER closures (lifespan, SIGTERM, adoption_token, JWT auth, SSE live-stream)",
+      "level": "operationally_observable",
+      "code_commit": "cca41924",
+      "test_or_gate": "tests/integration/test_agent_server_w32c_lifespan_active.py + test_sigterm_graceful_drain.py + test_v1_jwt_auth_middleware.py + test_v1_runs_sse_live_stream.py + test_run_queue.py::TestReenqueueClearsAdoptionToken (28 tests, 1 skipped on Windows)",
+      "delivery_change": "agent_server middleware chain pins JWTAuthMiddleware outermost; lifespan kicks W32-C reforms on the prod deployment path; SIGTERM drain(timeout_s) precedes shutdown(2s); RunQueue.reenqueue clears adoption_token; SSE iter_events polls (live tail)"
+    },
+    {
+      "track": "W33-D",
+      "title": "Hidden HIGH defense-in-depth (audit log + RunQueue tenant scoping)",
+      "level": "verified_at_release_head",
+      "code_commit": "fa9ac846",
+      "test_or_gate": "tests/unit/test_audit_tenant_id.py (11) + tests/integration/test_run_queue_tenant_defense_in_depth.py (28)",
+      "delivery_change": "ToolCallAuditEvent carries tenant_id; RunQueue.reenqueue/cancel/heartbeat/complete/fail/dequeue_unclaimed/is_cancelled/dead_letter/requeue_from_dlq accept tenant_id kwarg with WHERE filter"
+    },
+    {
+      "track": "W33-E",
+      "title": "Rule 11 HI_AGENT_ENV unification",
+      "level": "verified_at_release_head",
+      "code_commit": "92407024",
+      "test_or_gate": "tests/unit/test_resolve_runtime_mode.py (12) + tests/scripts/test_check_no_hi_agent_env_direct_read.py (8) + scripts/check_no_hi_agent_env_direct_read.py exit 0",
+      "delivery_change": "Posture.resolve_runtime_mode() canonical helper; 19 callsites migrated; new CI gate prevents regression; default flipped to 'prod' (Rule 11 fail-closed)"
+    },
+    {
+      "track": "W33-F",
+      "title": "Rule 12 spine lineage fields (StoredEvent + RunRecord)",
+      "level": "verified_at_release_head",
+      "code_commit": "c8f278bd",
+      "test_or_gate": "tests/unit/test_spine_lineage_fields.py (10 tests covering schema migration + read-back)",
+      "delivery_change": "parent_run_id + attempt_id + phase_id columns on event/run stores; idempotent ALTER TABLE migration; 4 W34-deferred spine items tracked"
+    }
+  ],
+  "outstanding_items_w34_plus": [
+    "F.2 RunExecutionContext.from_managed_run lineage propagation",
+    "F.3 ReasoningTrace __post_init__ validation",
+    "F.4 KnowledgeWiki tenant partition (per-tenant key)",
+    "H-3' experiment shim deletion (RIA-discretion, naming hygiene)",
+    "H-13' task triplet umbrella (RIA-discretion)",
+    "H-14' templates dir consolidation (RIA-discretion)",
+    "3 historical W27 evidence_provenance artifacts (out of scope per directive)"
+  ],
+  "ria_acceptance_references": [
+    "research/docs/hi-agent-wave32-acceptance-2026-05-04.md (RIA M1 W32 acceptance)",
+    "research/docs/hi-agent-wave31-acceptance-2026-05-03.md (RIA M1 W31 acceptance)"
+  ],
+  "ria_score_cap_acceptance": "RIA accepted cap=75 per 2026-05-03 W31 acceptance §3; W33 reaffirms cap unchanged"
+}

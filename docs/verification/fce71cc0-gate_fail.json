@@ -1,0 +1,15 @@
+{
+  "factor": "gate_fail",
+  "head": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+  "wave": 33,
+  "provenance": "real",
+  "resolution": "W31 manifest had gate_fail factor for evidence_provenance (4 historical W27 artifacts at provenance=structural). W32 archived those 4 artifacts to docs/verification/archive/W27/ (commit W32-P / 4014c7fc). evidence_provenance gate now passes (774 artifacts checked, 0 issues at HEAD).",
+  "evidence_paths": [
+    "docs/verification/archive/W27/194b37ed-chaos-matrix.json",
+    "docs/verification/archive/W27/cd1ee70-runtime-chaos.json",
+    "docs/verification/archive/W27/f2ba631c-chaos-runtime-w27.json",
+    "docs/verification/archive/W27/f2ba631c-observability-spine-w27.json"
+  ],
+  "generated_at": "2026-05-03T05:45:00+00:00",
+  "generated_by": "platform-release-captain (W32 atomic close)"
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": "1",
+  "check": "score_cap",
+  "provenance": "derived",
+  "manifest_id": "2026-05-03-fce71cc0",
+  "verified_head": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+  "generated_at": "2026-05-03T19:54:02.537982+00:00",
+  "current_verified_readiness": 55.0,
+  "cap": 55.0,
+  "cap_reason": "notice_inconsistency: doc_consistency=fail; clean_env_not_final_head: evidence=fd343653170f HEAD=fce71cc05c1a; gate_fail: doc_consistency, t3_freshness, verification_artifacts, clean_env; clean_env_unverified: fail; t3_stale; verification_artifact_missing_at_head: fail; clean_env_artifact_missing_at_head: no artifact matches HEAD=fce71cc05c1a; gate_warn/deferred: multistatus_gates; soak_evidence_not_real: no soak evidence at HEAD (fce71cc05c1a); run scripts/run_soak.py --duration 1h --require-polling-observation",
+  "cap_factors": [
+    "notice_inconsistency: doc_consistency=fail",
+    "clean_env_not_final_head: evidence=fd343653170f HEAD=fce71cc05c1a",
+    "gate_fail: doc_consistency, t3_freshness, verification_artifacts, clean_env",
+    "clean_env_unverified: fail",
+    "t3_stale",
+    "verification_artifact_missing_at_head: fail",
+    "clean_env_artifact_missing_at_head: no artifact matches HEAD=fce71cc05c1a",
+    "gate_warn/deferred: multistatus_gates",
+    "soak_evidence_not_real: no soak evidence at HEAD (fce71cc05c1a); run scripts/run_soak.py --duration 1h --require-polling-observation"
+  ],
+  "score_claim_issues": [],
+  "paired_evidence_issues": [],
+  "previous_wave_manifest_id": "2026-05-03-a90a18df",
+  "status": "pass",
+  "_evidence_meta": {
+    "provenance": "derived",
+    "head_sha": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+    "generated_at": "2026-05-03T19:54:02.577054+00:00",
+    "generator_script": "D:\\chao_workspace\\hi-agent\\scripts\\check_score_cap.py"
+  }
+}
