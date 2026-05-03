@@ -59,13 +59,22 @@ def test_middleware_pipeline_includes_tenant_then_idempotency(
 def test_middleware_pipeline_no_extraneous_layers(
     production_app: FastAPI,
 ) -> None:
-    """The production app should expose exactly two custom middlewares.
+    """The production app should expose exactly the documented middlewares.
+
+    W31 baseline: TenantContextMiddleware + IdempotencyMiddleware.
+    W33-C.4 added: JWTAuthMiddleware (outermost — runs first per Rule 9
+    security boundary; passthrough under dev posture).
 
     Future waves may add CORS / rate-limit layers; this test pins the
-    W31 baseline so adding new layers requires an explicit test update.
+    current contract so adding new layers requires an explicit test
+    update.
     """
     order = _middleware_order(production_app)
-    assert order == ["TenantContextMiddleware", "IdempotencyMiddleware"], order
+    assert order == [
+        "JWTAuthMiddleware",
+        "TenantContextMiddleware",
+        "IdempotencyMiddleware",
+    ], order
 
 
 def test_post_runs_idempotency_replays_same_response(

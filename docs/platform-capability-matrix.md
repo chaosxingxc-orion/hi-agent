@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-05-03 (Wave 31 closed; Wave 32 in this PR)
+Last updated: 2026-05-04 (Wave 32 closed; Wave 33 in progress)
 
 ---
 
@@ -352,7 +352,7 @@ Active docs use L0–L4 exclusively (Rule 13, Wave 9+). Mapping from retired lab
 
 ---
 
-## Core Capability Summary (Wave 31 current)
+## Core Capability Summary (Wave 32 current)
 
 Per W31 closure 2026-05-02-953d36cb. W31 deltas applied to the Wave 27 baseline below: Cross-Run / Northbound row updated to reflect real served surface; new Tenant Isolation row reflecting +L; new Functional Idempotency row reflecting middleware production-mount; Configurable Development row reflecting package-consolidation cleanup. Architectural 7×24 capped at 75 pending W31-L1 real-soak evidence (in-flight).
 
