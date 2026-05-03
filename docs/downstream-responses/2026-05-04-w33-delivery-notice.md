@@ -4,7 +4,7 @@
 **Wave:** 33
 Status: SHIP
 Manifest: 2026-05-03-fce71cc0
-Functional HEAD: 11959967ceb6ed5ed8df473ccfacc0ab8c33ef52
+Functional HEAD: 228d17c8f8d0994c45a8a724360de615ffde3038
 
 > **Cross-wave context:** Wave 33 closes the 2 RIA-flagged soft drifts in the W32 acceptance §5 + RIA's §7 preemptive coverage ask + 13 hidden BLOCKER/HIGH findings from the W32 systematic audit (5 BLOCKERs + 2 HIGHs in defense-in-depth + 1 Rule 11 unification + 1 Rule 12 spine lineage). RIA fully accepted W32; W33 is non-corrective, primarily focused on closing items we know are real but RIA didn't see in their acceptance audit.
 
