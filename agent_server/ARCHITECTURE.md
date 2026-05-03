@@ -1,441 +1,429 @@
-# ARCHITECTURE: agent_server (L1 Detail)
+# agent_server Architecture
 
-> **Architecture hierarchy**
-> - L0 system boundary: [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
-> - L1 hi-agent detail: [`../hi_agent/ARCHITECTURE.md`](../hi_agent/ARCHITECTURE.md)
-> - L1 agent-server detail: this file
-> - L1 agent-kernel detail: [`../agent_kernel/ARCHITECTURE.md`](../agent_kernel/ARCHITECTURE.md)
->
-> Last updated: 2026-05-02 (Wave 28)
-
-This document describes the `agent_server` package — the versioned northbound API facade that downstream business-layer applications use to interact with the hi-agent platform.
+> Last refreshed: Wave 32 (2026-05-03). Sub-package docs: [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md), [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md), [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md), [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md).
 
 ---
 
-## 1. Purpose and Positioning
+## 1. Purpose & Position in System
 
-`agent_server` provides a stable, versioned HTTP API surface over the `hi_agent` runtime. It enforces the platform/business-layer boundary so that downstream teams (e.g., research applications) never import `hi_agent` types directly.
+`agent_server/` is the **versioned northbound facade** that the hi-agent platform exposes to downstream business-layer applications (the Research Intelligence App and any third-party SDK). It is the **only contract surface** RIA depends on; direct `import hi_agent` from RIA is unsupported and CI-rejected.
+
+The package enforces three boundaries simultaneously:
+
+1. **Platform / business separation (Rule 10).** Domain logic, prompts, and business schemas live outside this repo. agent_server publishes only generic primitives — runs, events, artifacts, gates, manifests.
+2. **Versioned contract surface (R-AS-3).** v1 is RELEASED at SHA `8c6e22f1` (`agent_server/config/version.py::V1_FROZEN_HEAD`). Breaking changes go to `contracts/v2/`; in-place edits invalidate the freeze and fail CI.
+3. **R-AS-1 single-seam discipline.** Only two modules under `agent_server/` are permitted to import from `hi_agent.*`: `bootstrap.py` (assembly) and `runtime/` (W32 real-kernel binding). Every other module talks to the kernel exclusively through facade-injected callables. The gate is `scripts/check_layering.py`.
+
+What this package does NOT own:
+- Agent execution, memory, cognition (`hi_agent/`).
+- Run lifecycle, durable persistence, event log (`hi_agent/server/`, formerly `agent_kernel/`).
+- Business logic, prompts, domain schemas (out-of-repo, research team's overlay).
 
 | Concern | Owner |
-|---------|-------|
-| Business logic, prompts, domain schemas | Research team (outside this repo) |
+|---|---|
 | Northbound HTTP contract + versioning | `agent_server/` (this package) |
 | Agent execution, memory, cognition | `hi_agent/` |
-| Durable run lifecycle, event log, idempotency | `agent_kernel/` |
-
-**Key invariant (R-AS-1):** Route handlers import only from `agent_server.contracts` and `agent_server.facade`. No `hi_agent.*` imports appear in `agent_server/api/`.
-
----
-
-## 2. Package Structure
-
-```
-agent_server/
-├── config/          — Configuration dataclasses (Settings, version.py)
-├── contracts/       — Frozen northbound type schemas (v1)
-├── facade/          — Adapters from contract types to hi_agent callables
-├── api/             — FastAPI route handlers + middleware
-│   └── middleware/  — Idempotency + tenant context injection
-└── cli/             — CLI entry point (serve / run / cancel / tail-events)
-```
-
-**Note (W31-H7):** Empty shell subpackages `mcp/`, `observability/`, `tenancy/`,
-and `workspace/` were removed. Their responsibilities are delegated upward to
-`hi_agent/` (`hi_agent/mcp/`, `hi_agent/observability/`) and to the contract
-layer here (`agent_server/contracts/{tenancy,workspace}.py`). Enforced by
-`scripts/check_no_shell_packages.py`.
+| Durable run lifecycle, event log, idempotency | `hi_agent/server/` (Arch-7 inlined Wave 11) |
+| Business logic, prompts, domain schemas | Research team (outside this repo) |
 
 ---
 
-## 3. Layered Architecture
+## 2. External Interfaces
+
+agent_server publishes:
+
+### HTTP routes (v1, all prefixed `/v1/`)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/health` | Health probe |
+| POST | `/v1/runs` | Create run (returns 201) |
+| GET | `/v1/runs/{id}` | Run status |
+| POST | `/v1/runs/{id}/signal` | Send control signal |
+| POST | `/v1/runs/{id}/cancel` | Cancel a live run |
+| GET | `/v1/runs/{id}/events` | SSE event stream |
+| GET | `/v1/runs/{id}/artifacts` | List run artifacts |
+| GET | `/v1/artifacts/{id}` | Get artifact |
+| POST | `/v1/artifacts` | Register artifact |
+| POST | `/v1/gates/{id}/decide` | Gate decision |
+| GET | `/v1/manifest` | Capability + posture matrix |
+| POST | `/v1/skills` | Register skill (L1 stub) |
+| POST | `/v1/memory/write` | Memory write (L1 stub) |
+| GET / POST | `/v1/mcp/tools[/{name}]` | MCP tools (L1 stub) |
+
+### CLI
+
+```
+agent-server serve         # uvicorn against build_production_app
+agent-server run           # POST /v1/runs and wait
+agent-server cancel <id>   # POST /v1/runs/{id}/cancel
+agent-server tail-events <id> # SSE stream to stdout
+```
+
+### Public Python surface
+
+- `agent_server.AGENT_SERVER_API_VERSION = "v1"` — re-exported.
+- `agent_server.bootstrap.build_production_app(*, settings=None, state_dir=None) -> FastAPI` — the assembly entry point uvicorn calls.
+- `agent_server.api.build_app(*, run_facade, ...) -> FastAPI` — lower-level builder used by tests with stub facades.
+
+### Required headers
+
+- `X-Tenant-Id` — every request, every posture.
+- `Idempotency-Key` — every mutating route under research/prod posture.
+- `X-Project-Id` / `X-Profile-Id` / `X-Session-Id` — optional context.
+
+---
+
+## 3. Internal Components
 
 ```mermaid
-graph TB
-  subgraph DOWNSTREAM["Downstream Clients"]
-    HTTP["HTTP Client\n(Research App / SDK)"]
-    CLI_CLIENT["CLI\nagent_server.cli"]
-  end
+graph TD
+    subgraph EXT["External Caller"]
+        C["HTTP / CLI client"]
+    end
 
-  subgraph API["API Layer (agent_server/api/)"]
-    MIDTC["TenantContextMiddleware\nmiddleware/tenant_context.py"]
-    MIDEM["IdempotencyMiddleware\nmiddleware/idempotency.py"]
-    R_RUNS["RunsRouter\nroutes_runs.py\nPOST/GET /v1/runs"]
-    R_RUNSX["RunsExtendedRouter\nroutes_runs_extended.py\nPOST /cancel, GET /events"]
-    R_ART["ArtifactsRouter\nroutes_artifacts.py\nGET/POST /v1/artifacts"]
-    R_GATE["GatesRouter\nroutes_gates.py\nPOST /v1/gates/{id}/decide"]
-    R_MANI["ManifestRouter\nroutes_manifest.py\nGET /v1/manifest"]
-    R_SKM["SkillsMemoryRouter\nroutes_skills_memory.py\nPOST /v1/skills, /v1/memory/write"]
-    R_MCP["MCPToolsRouter\nroutes_mcp_tools.py\nGET/POST /v1/mcp/tools"]
-  end
+    subgraph BS["Assembly seam #1"]
+        BOOT["bootstrap.py<br/>build_production_app()"]
+    end
 
-  subgraph FACADE["Facade Layer (agent_server/facade/)"]
-    F_RUN["RunFacade\nfacade/run_facade.py"]
-    F_EVT["EventFacade\nfacade/event_facade.py"]
-    F_ART["ArtifactFacade\nfacade/artifact_facade.py"]
-    F_MANI["ManifestFacade\nfacade/manifest_facade.py"]
-    F_IDEM["IdempotencyFacade\nfacade/idempotency_facade.py"]
-  end
+    subgraph RT["Assembly seam #2 (W32)"]
+        RUN["runtime/__init__.py<br/>RealKernelBackend<br/>build_real_kernel_lifespan"]
+    end
 
-  subgraph CONTRACTS["Contract Layer (agent_server/contracts/)"]
-    C_RUN["run.py\nRunRequest / RunResponse / RunStatus / RunStream"]
-    C_SKILL["skill.py\nSkillSpec / SkillResult"]
-    C_GATE["gate.py\nGateRequest / GateDecision"]
-    C_MEM["memory.py\nMemoryWriteRequest"]
-    C_LLM["llm_proxy.py\nLLMProxyRequest"]
-    C_STREAM["streaming.py\nSSEEvent"]
-    C_TEN["tenancy.py\nTenantContext"]
-    C_WS["workspace.py\nWorkspaceContext"]
-    C_ERR["errors.py\nContractError"]
-  end
+    subgraph API["api/ — HTTP transport"]
+        APIB["__init__.py::build_app()"]
+        MID_T["middleware/tenant_context.py"]
+        MID_I["middleware/idempotency.py"]
+        ROUTES["routes_runs.py<br/>routes_runs_extended.py<br/>routes_artifacts.py<br/>routes_gates.py<br/>routes_manifest.py<br/>routes_skills_memory.py<br/>routes_mcp_tools.py"]
+    end
 
-  subgraph HI_AGENT["hi_agent Runtime (hi_agent/)"]
-    HA_SRV["hi_agent.server.app\nHTTP Server"]
-    HA_RUN["hi_agent.server.run_manager\nRunManager"]
-    HA_ART["hi_agent.artifacts.registry\nArtifactRegistry"]
-  end
+    subgraph FAC["facade/ — Adaptation"]
+        F["RunFacade · EventFacade ·<br/>ArtifactFacade · ManifestFacade ·<br/>IdempotencyFacade"]
+    end
 
-  HTTP --> MIDTC
-  CLI_CLIENT --> MIDTC
-  MIDTC --> MIDEM
-  MIDEM --> R_RUNS
-  MIDEM --> R_RUNSX
-  MIDEM --> R_ART
-  MIDEM --> R_GATE
-  MIDEM --> R_MANI
-  MIDEM --> R_SKM
-  MIDEM --> R_MCP
+    subgraph CON["contracts/ — Frozen v1 schemas"]
+        CT["RunRequest/Response/Status · TenantContext ·<br/>SkillRegistration · GateDecisionRequest ·<br/>MemoryWriteRequest · LLMRequest/Response ·<br/>ContractError + subclasses"]
+    end
 
-  R_RUNS --> F_RUN
-  R_RUNSX --> F_EVT
-  R_ART --> F_ART
-  R_MANI --> F_MANI
+    subgraph CFG["config/"]
+        CV["version.py<br/>V1_RELEASED, V1_FROZEN_HEAD"]
+        CS["settings.py<br/>AgentServerSettings"]
+    end
 
-  F_RUN --> C_RUN
-  F_EVT --> C_STREAM
-  F_ART --> C_RUN
-  F_IDEM --> C_TEN
+    subgraph CLI_PKG["cli/"]
+        CLIP["main.py + commands/{serve,run,cancel,tail_events}"]
+    end
 
-  F_RUN --> HA_RUN
-  F_EVT --> HA_RUN
-  F_ART --> HA_ART
-  F_MANI --> HA_SRV
+    subgraph HIA["hi_agent runtime (R-AS-1 boundary)"]
+        AS["hi_agent.server.app.AgentServer<br/>RunManager · SQLiteEventStore ·<br/>SQLiteRunStore · RunQueue · IdempotencyStore"]
+    end
+
+    C --> APIB
+    BOOT --> APIB
+    BOOT --> F
+    BOOT --> RT
+    RT --> AS
+    BOOT -. "imports hi_agent.*<br/>(seam #1)" .-> HIA
+    RT -. "imports hi_agent.*<br/>(seam #2)" .-> HIA
+
+    APIB --> MID_T
+    APIB --> MID_I
+    APIB --> ROUTES
+    ROUTES --> F
+    F --> CT
+    F -. "calls injected callables" .-> RT
+    F -. "calls injected callables<br/>(stub backend)" .-> BOOT
+
+    CLIP --> BOOT
+    APIB --> CV
+    APIB --> CS
 ```
 
----
+| Component | Role |
+|---|---|
+| `bootstrap.py` | Production assembly seam — builds durable `IdempotencyStore`, picks backend (stub vs `RealKernelBackend`), wires every facade, returns FastAPI app |
+| `runtime/` (W32 Track A) | Second R-AS-1 seam — binds `RealKernelBackend` to `hi_agent.server.app.AgentServer` |
+| `api/` | FastAPI routers + middleware; thin handlers, no kernel imports |
+| `facade/` | Contract↔kernel adaptation; constructor-injected callables |
+| `contracts/` | Frozen v1 dataclasses; spine-complete (every wire-crossing type carries `tenant_id`) |
+| `config/` | `AgentServerSettings`, `V1_RELEASED`, `V1_FROZEN_HEAD` |
+| `cli/` | `agent-server` argparse dispatcher (operator-facing) |
 
-## 4. Contract Layer (`agent_server/contracts/`)
-
-The contract layer defines the v1 northbound API schemas. These types are frozen after v1 release; breaking changes require `agent_server/contracts/v2/`.
-
-| Module | Key Types | Description |
-|--------|-----------|-------------|
-| `run.py` | `RunRequest`, `RunResponse`, `RunStatus`, `RunStream` | Run lifecycle: create, query, event stream |
-| `skill.py` | `SkillSpec`, `SkillResult` | Skill registration and invocation |
-| `gate.py` | `GateRequest`, `GateDecision` | Human-in-the-loop gate approval |
-| `memory.py` | `MemoryWriteRequest` | Memory write operations |
-| `llm_proxy.py` | `LLMProxyRequest`, `LLMProxyResponse` | Proxied LLM calls |
-| `streaming.py` | `SSEEvent` | Server-Sent Events payload |
-| `tenancy.py` | `TenantContext` | Authenticated tenant context (set by middleware) |
-| `workspace.py` | `WorkspaceContext` | Workspace isolation context |
-| `errors.py` | `ContractError` | Typed error with `http_status`, `tenant_id`, `detail` |
-
-**Rule (R-AS-3):** After v1 release, contract files are digest-snapshotted by `scripts/check_contract_freeze.py`. Modifications invalidate the freeze and require release-captain sign-off.
+Empty shell sub-packages `mcp/`, `observability/`, `tenancy/`, `workspace/` were removed in W31-H7. Their responsibilities are delegated upward to `hi_agent/` (`hi_agent/mcp/`, `hi_agent/observability/`) or the contract layer here (`agent_server/contracts/{tenancy,workspace}.py`). Gate: `scripts/check_no_shell_packages.py`.
 
 ---
 
-## 5. Facade Layer (`agent_server/facade/`)
+## 4. Data Flow
 
-Facades translate contract types to `hi_agent` callables. Each facade receives callables via constructor injection, enabling incremental kernel binding and clean test stubs.
-
-```mermaid
-classDiagram
-  class RunFacade {
-    +start_run: StartRunFn
-    +get_run: GetRunFn
-    +signal_run: SignalRunFn
-    +start(ctx, req) RunResponse
-    +status(ctx, run_id) RunStatus
-    +signal(ctx, run_id, signal) dict
-  }
-
-  class EventFacade {
-    +get_events_fn: GetEventsFn
-    +cancel_run_fn: CancelRunFn
-    +cancel(ctx, run_id) dict
-    +stream(ctx, run_id) AsyncIterator~SSEEvent~
-  }
-
-  class ArtifactFacade {
-    +list_artifacts_fn: ListArtifactsFn
-    +get_artifact_fn: GetArtifactFn
-    +write_artifact_fn: WriteArtifactFn
-    +list(ctx, run_id) list~dict~
-    +get(ctx, artifact_id) dict
-    +write(ctx, req) dict
-  }
-
-  class ManifestFacade {
-    +get_manifest_fn: GetManifestFn
-    +manifest(ctx) dict
-  }
-
-  class IdempotencyFacade {
-    +check(ctx, key) Optional~dict~
-    +record(ctx, key, response) None
-  }
-```
-
-**LOC budget (R-AS-8):** Each facade module must stay ≤200 LOC.
-
----
-
-## 6. API Route Inventory
-
-All routes are prefixed with `/v1/` and registered via `build_router()` factory functions that accept facade instances as dependencies.
-
-| Method | Path | Handler File | Description |
-|--------|------|-------------|-------------|
-| `POST` | `/v1/runs` | `routes_runs.py` | Submit a new run |
-| `GET` | `/v1/runs/{run_id}` | `routes_runs.py` | Query run status |
-| `POST` | `/v1/runs/{run_id}/signal` | `routes_runs.py` | Send control signal to a run |
-| `POST` | `/v1/runs/{run_id}/cancel` | `routes_runs_extended.py` | Cancel a live run |
-| `GET` | `/v1/runs/{run_id}/events` | `routes_runs_extended.py` | SSE event stream for a run |
-| `GET` | `/v1/runs/{run_id}/artifacts` | `routes_artifacts.py` | List artifacts for a run |
-| `GET` | `/v1/artifacts/{artifact_id}` | `routes_artifacts.py` | Get a specific artifact |
-| `POST` | `/v1/artifacts` | `routes_artifacts.py` | Write an artifact |
-| `POST` | `/v1/gates/{gate_id}/decide` | `routes_gates.py` | Post a gate decision |
-| `GET` | `/v1/manifest` | `routes_manifest.py` | Get capability manifest |
-| `POST` | `/v1/skills` | `routes_skills_memory.py` | Register a skill |
-| `POST` | `/v1/memory/write` | `routes_skills_memory.py` | Write to agent memory |
-| `GET` | `/v1/mcp/tools` | `routes_mcp_tools.py` | List available MCP tools |
-| `POST` | `/v1/mcp/tools/{tool_name}` | `routes_mcp_tools.py` | Invoke an MCP tool |
-
-**Rule (R-AS-5):** Every new route handler requires a `# tdd-red-sha: <sha>` annotation referencing the RED-test commit SHA.
-
----
-
-## 7. Middleware Pipeline
-
-Requests pass through two middleware layers before reaching route handlers:
+Representative `POST /v1/runs` request through middleware, route, facade, and into the real kernel (W32 Track A path):
 
 ```mermaid
 sequenceDiagram
-  participant Client
-  participant TenantContextMiddleware
-  participant IdempotencyMiddleware
-  participant RouteHandler
-  participant Facade
-  participant hi_agent
+    participant Client
+    participant TC as TenantContextMiddleware
+    participant IM as IdempotencyMiddleware
+    participant RH as routes_runs.post_run
+    participant RF as RunFacade.start
+    participant RKB as RealKernelBackend
+    participant RM as hi_agent RunManager
+    participant ES as SQLiteEventStore
 
-  Client->>TenantContextMiddleware: HTTP Request
-  TenantContextMiddleware->>TenantContextMiddleware: Resolve tenant_id from auth header
-  TenantContextMiddleware->>TenantContextMiddleware: Build TenantContext → request.state
-  TenantContextMiddleware->>IdempotencyMiddleware: Pass request
-  IdempotencyMiddleware->>IdempotencyMiddleware: Check Idempotency-Key header
-  IdempotencyMiddleware->>IdempotencyMiddleware: Look up cached response
-  alt Cache hit
-    IdempotencyMiddleware->>Client: Cached 200 response
-  else Cache miss
-    IdempotencyMiddleware->>RouteHandler: Pass request
-    RouteHandler->>Facade: Call facade method
-    Facade->>hi_agent: Call kernel callable
-    hi_agent->>Facade: Return result dict
-    Facade->>RouteHandler: Return contract type
-    RouteHandler->>IdempotencyMiddleware: Response
-    IdempotencyMiddleware->>IdempotencyMiddleware: Cache response by key+tenant
-    IdempotencyMiddleware->>Client: 200 Response
-  end
+    Client->>+TC: POST /v1/runs<br/>X-Tenant-Id, Idempotency-Key, body
+    TC->>TC: validate header, build TenantContext<br/>attach to request.state
+    TC->>+IM: pass request
+    IM->>IM: facade.reserve_or_replay(tenant_id, key, body)
+    alt replayed
+        IM-->>Client: 2xx cached body
+    else conflict
+        IM-->>Client: 409 ConflictError envelope
+    else created (new key)
+        IM->>+RH: pass request
+        RH->>RH: ctx = request.state.tenant_context
+        RH->>RH: req = RunRequest(**body)
+        RH->>+RF: start(ctx, req)
+        RF->>RF: validate idempotency_key, profile_id
+        RF->>+RKB: start_run(tenant_id, profile_id, goal, ...)
+        RKB->>+RM: create_run(task_contract_dict, workspace=tenant_id)
+        RM->>RM: idempotency dedup → persist → enqueue
+        RM-->>-RKB: ManagedRun(state="queued")
+        RKB->>+RM: start_run(run_id, executor_fn) [background]
+        RM->>ES: append RunCreated event
+        RM-->>-RKB: None
+        RKB-->>-RF: dict (kernel-shaped)
+        RF->>RF: dict → RunResponse
+        RF-->>-RH: RunResponse
+        RH-->>-IM: 201 Created + JSON
+        IM->>IM: facade.mark_complete(tenant_id, key, body, 201)
+        IM-->>-TC: 201 response
+        TC-->>-Client: 201 + JSON
+    end
 ```
 
-**Tenant isolation (R-AS-4):** Route handlers read `TenantContext` from `request.state` exclusively — never from the request body. The middleware is the single source of tenant identity.
+The seam discipline is visible at the kernel boundary: only `RealKernelBackend` (in `agent_server/runtime/`) holds a reference to `RunManager`. Routes, facades, and contracts never touch the kernel directly.
+
+For the stub-backend path used by route-level tests, the only difference is `RKB` → `_InProcessRunBackend` from `bootstrap.py:80`. Everything upstream is unchanged.
 
 ---
 
-## 8. Run Lifecycle Sequence
+## 5. State & Persistence
+
+agent_server itself owns minimal state:
+
+| State | Owner | Backend |
+|---|---|---|
+| Tenant context per request | `request.state.tenant_context` | in-memory, request-scoped |
+| Idempotency reservations + cached responses | `IdempotencyStore` (SQLite) | `<state_dir>/idempotency.db` |
+| Facade instances | `app.state.{run_facade,event_facade,...}` | in-process refs, app lifetime |
+| FastAPI router cache | starlette internals | in-memory |
+
+All other state — runs, events, artifacts, gates, sessions — lives in the kernel's stores under `hi_agent/server/`.
+
+`state_dir` resolution (`bootstrap.py::_default_state_dir`):
+1. `AGENT_SERVER_STATE_DIR` env var (explicit override).
+2. `HI_AGENT_HOME/.agent_server`.
+3. `./.agent_server` (CWD-relative fallback).
+
+`bootstrap.py` calls `mkdir(parents=True, exist_ok=True)` before any store is opened.
+
+---
+
+## 6. Concurrency & Lifecycle
+
+The lifespan flow integrates two concerns: bootstrapping the FastAPI app and starting the real kernel.
 
 ```mermaid
 sequenceDiagram
-  participant Client
-  participant RunsRouter
-  participant RunFacade
-  participant hi_agent.RunManager
-  participant agent_kernel.EventLog
+    participant Uvicorn
+    participant Bootstrap as build_production_app
+    participant Lifespan as build_real_kernel_lifespan
+    participant AS as AgentServer (hi_agent)
 
-  Client->>RunsRouter: POST /v1/runs {goal, profile_id, idempotency_key}
-  RunsRouter->>RunsRouter: _ctx(request) → TenantContext
-  RunsRouter->>RunFacade: start(ctx, RunRequest)
-  RunFacade->>RunFacade: Validate idempotency_key + profile_id
-  RunFacade->>hi_agent.RunManager: start_run(tenant_id, profile_id, goal, ...)
-  hi_agent.RunManager->>agent_kernel.EventLog: Record RunCreated event
-  hi_agent.RunManager->>hi_agent.RunManager: Enqueue to RunQueue
-  hi_agent.RunManager-->>RunFacade: {run_id, state="queued", ...}
-  RunFacade-->>RunsRouter: RunResponse
-  RunsRouter-->>Client: 200 {run_id, state="queued"}
+    Uvicorn->>+Bootstrap: import agent_server.bootstrap; call build_production_app()
+    Bootstrap->>Bootstrap: load_settings() / Posture.from_env() / state_dir
+    Bootstrap->>Bootstrap: build IdempotencyStore (SQLite)
+    Bootstrap->>Bootstrap: build IdempotencyFacade (is_strict from posture)
+    alt AGENT_SERVER_BACKEND=real
+        Bootstrap->>Lifespan: factory(state_dir, posture)
+        Lifespan-->>Bootstrap: lifespan ctx-mgr (deferred)
+        Bootstrap->>Bootstrap: build RealKernelBackend (deferred init in lifespan)
+    else AGENT_SERVER_BACKEND=stub (default-offline)
+        Bootstrap->>Bootstrap: build _InProcessRunBackend
+    end
+    Bootstrap->>Bootstrap: build {Run,Event,Artifact,Manifest}Facade
+    Bootstrap->>Bootstrap: build_app(facades..., lifespan=...)
+    Bootstrap-->>-Uvicorn: FastAPI app
 
-  Note over hi_agent.RunManager: Background execution begins
+    Uvicorn->>+Lifespan: ASGI startup
+    Lifespan->>+AS: AgentServer(host, port, config)
+    AS->>AS: build_durable_backends() — RunManager, SQLiteRunStore, ...
+    AS-->>-Lifespan: agent_server instance
+    Lifespan->>AS: _rehydrate_runs(agent_server)
+    Note over AS: requeue lease-expired runs<br/>(posture-aware decision)
+    Lifespan-->>-Uvicorn: ready (yield)
 
-  Client->>RunsRouter: GET /v1/runs/{run_id}
-  RunsRouter->>RunFacade: status(ctx, run_id)
-  RunFacade->>hi_agent.RunManager: get_run(tenant_id, run_id)
-  hi_agent.RunManager-->>RunFacade: {state="running", current_stage=...}
-  RunFacade-->>RunsRouter: RunStatus
-  RunsRouter-->>Client: 200 {state="running", ...}
+    Note over Uvicorn,AS: app serves traffic via RealKernelBackend
+
+    Uvicorn->>+Lifespan: ASGI shutdown
+    Lifespan->>AS: drain in-flight runs + close stores
+    Lifespan-->>-Uvicorn: clean shutdown
 ```
 
----
+Rule 5 (Async/Sync Resource Lifetime) compliance:
+- Every async resource (`AgentServer.run_manager` event loop bindings, `IdempotencyStore` connection) is constructed in the lifespan startup phase, sharing uvicorn's loop.
+- No `asyncio.run` per request. The middleware chain is `BaseHTTPMiddleware` (async-native).
+- Synchronous facades dispatch to the kernel's existing threadsafe entry points without a per-call sync bridge.
 
-## 9. Configuration and Version
-
-| File | Purpose |
-|------|---------|
-| `config/settings.py` | `AgentServerSettings` — server host/port, CORS, auth mode |
-| `config/version.py` | `V1_RELEASED` flag, `V1_FROZEN_HEAD` (contract freeze SHA) |
-
-The `V1_RELEASED` flag gates `check_contract_freeze.py` from advisory to blocking mode. Once set to `True`, any modification to `agent_server/contracts/` invalidates the SHA digest snapshot.
-
----
-
-## 10. CLI (`agent_server/cli/`)
-
-```
-agent-server serve    — Start the northbound HTTP API server
-agent-server run      — Submit a run and wait for completion
-agent-server cancel   — Cancel a running job by run_id
-agent-server tail-events — Stream SSE events for a run to stdout
-```
-
-The CLI uses the same facades and contracts as the HTTP layer, providing identical tenant isolation and error semantics.
+Middleware order at request time (outer → inner, see `api/__init__.py:118` for the registration trick):
+1. `TenantContextMiddleware` — validates `X-Tenant-Id`, builds `TenantContext`, calls spine emitter.
+2. `IdempotencyMiddleware` — reserves or replays mutating-route requests.
+3. Route handler.
 
 ---
 
-## 11. Multi-tenancy
+## 7. Error Handling & Observability
 
-Tenant isolation is enforced at every layer:
+Error envelope (HD-5 unified shape):
 
-1. **Middleware** — `TenantContextMiddleware` resolves `tenant_id` from the auth header and injects `TenantContext` into `request.state`.
-2. **Facade** — All facade methods accept `TenantContext` as first argument; `tenant_id` is passed to every `hi_agent` callable.
-3. **Contract spine (Rule 12)** — Contract dataclasses carry `tenant_id` fields; cross-tenant access is structurally impossible via the facade interface.
-4. **Idempotency** — `IdempotencyFacade` scopes keys by `tenant_id`; idempotency records from tenant A are invisible to tenant B.
-
----
-
-## 12. Testing Standards
-
-Per Rule 4, each route handler requires three test layers:
-
-| Layer | Location | Description |
-|-------|----------|-------------|
-| Unit | `tests/unit/test_*_facade.py` | Facade logic with injected stub callables |
-| Integration | `tests/integration/test_routes_*.py` | FastAPI `TestClient` with real facade wiring |
-| E2E | `tests/e2e/test_e2e_agent_server_*.py` | Full HTTP stack against a running server |
-
-Every new route handler commit must include a `# tdd-red-sha: <sha>` annotation in the handler source referencing the commit where the failing test was first written (R-AS-5).
-
----
-
-## 13. Governance Gates
-
-| Gate Script | What It Enforces |
-|-------------|-----------------|
-| `scripts/check_contract_freeze.py` | Digest-based freeze of all `agent_server/contracts/` files after v1 release (R-AS-3) |
-| `scripts/check_tdd_evidence.py` | Every route handler has a `# tdd-red-sha:` annotation (R-AS-5) |
-| `scripts/check_layering.py` | No `hi_agent.*` imports in `agent_server/api/` (R-AS-1) |
-| `scripts/check_facade_loc.py` | Each facade module ≤200 LOC (R-AS-8) |
-
----
-
-## 14. Deployment View
-
-```mermaid
-flowchart LR
-  subgraph Client["Downstream Client Process"]
-    SDK["Research App SDK / curl / agent-server CLI"]
-  end
-  subgraph Server["agent-server Process (uvicorn)"]
-    PORT[":8000"]
-    APP["FastAPI app instance"]
-    MIDS["TenantContextMiddleware<br/>+ IdempotencyMiddleware"]
-    ROUTES["7 Routers<br/>routes_runs / runs_extended / artifacts /<br/>gates / manifest / skills_memory / mcp_tools"]
-  end
-  subgraph Backend["hi_agent Runtime (in-process or HTTP)"]
-    RUN["RunManager"]
-    ART["ArtifactRegistry"]
-    EVT["EventBus + RunEventEmitter"]
-  end
-  subgraph Persistence["Durable State"]
-    SQL[("SQLite / PostgreSQL<br/>run_store · event_log<br/>idempotency · artifacts")]
-  end
-
-  SDK -->|"HTTP /v1/*<br/>+ Idempotency-Key<br/>+ Authorization"| PORT
-  PORT --> APP
-  APP --> MIDS
-  MIDS --> ROUTES
-  ROUTES --> RUN
-  ROUTES --> ART
-  ROUTES --> EVT
-  RUN --> SQL
-  ART --> SQL
-  EVT --> SQL
+```json
+{
+  "error": "<exception class>",
+  "error_category": "auth_required",
+  "message": "<human readable>",
+  "retryable": false,
+  "next_action": "<remediation hint>",
+  "tenant_id": "<from context>",
+  "detail": "<context-specific>"
+}
 ```
 
-**Standard startup:**
+Standard mappings:
 
-```bash
-# Foreground
-agent-server serve --host 0.0.0.0 --port 8000
+| HTTP status | Source | Class |
+|---|---|---|
+| 400 | facade validation, missing `Idempotency-Key` (strict) | `ContractError` (constructor) |
+| 401 | missing `X-Tenant-Id` | `AuthError` |
+| 404 | run/artifact not visible to tenant | `NotFoundError` |
+| 409 | idempotency key reuse + body mismatch | `ConflictError` |
+| 429 | quota exceeded | `QuotaError` |
+| 500 | unexpected | `RuntimeContractError` or uncaught |
 
-# PM2 (recommended for production)
-pm2 start "agent-server serve --host 0.0.0.0 --port 8000" --name hi-agent
+Observability emissions:
+- `tenant_context` spine event — emitted by `TenantContextMiddleware` per request via injected `tenant_event_emitter` (bootstrap binds `hi_agent.observability.spine_events.emit_tenant_context`).
+- `idempotency_header_missing` warning log — `IdempotencyMiddleware` (dev posture) when the header is absent on a mutating route.
+- All run lifecycle events (`run_created`, `stage_started`, etc.) — emitted by the kernel through `RunEventEmitter`; surfaced over SSE via `GET /v1/runs/{id}/events`.
 
-# systemd (Linux production)
-systemctl start hi-agent.service
+agent_server itself does NOT emit Prometheus metrics; cardinality control lives in `hi_agent.observability.metrics`. The boundary is intentional — adding metrics here would duplicate cardinality and risk drift.
+
+---
+
+## 8. Security Boundary
+
+R-AS-1 single-seam discipline:
+
+```
+agent_server/                    <- can NOT import hi_agent.* anywhere except:
+├── bootstrap.py                 [SEAM #1] assembly module
+└── runtime/                     [SEAM #2] kernel binding (W32)
+    ├── kernel_adapter.py        # r-as-1-seam: real-kernel-binding
+    └── lifespan.py              # r-as-1-seam: real-kernel-binding
 ```
 
-**Posture-aware behaviour:**
+All `hi_agent.*` imports outside these two locations cause `scripts/check_layering.py` to fail CI. Annotated seams in `agent_server/facade/idempotency_facade.py` and `agent_server/facade/artifact_facade.py` are tolerated because each carries the explicit `# r-as-1-seam:` comment with rationale, parsed by `scripts/check_facade_seams.py`.
 
-| `HI_AGENT_POSTURE` | Tenant context | Idempotency-Key | Project ID |
-|--------------------|----------------|-----------------|------------|
-| `dev` | optional, defaults to `tenant_dev` | optional | optional |
-| `research` | required (raises 401 if missing) | required for write routes | required on `/v1/runs` |
-| `prod` | required + JWT validation | required for write routes | required on `/v1/runs` |
+Tenant isolation (R-AS-4):
+- Every route handler reads `TenantContext` from `request.state` exclusively; never from the request body.
+- Idempotency is scoped by `(tenant_id, key)` composite — cross-tenant collisions impossible.
+- The contracts spine (`scripts/check_contract_spine_completeness.py`) enforces that every wire-crossing dataclass carries `tenant_id`.
 
----
+Posture-aware behaviour (Rule 11):
 
-## 15. Quality Requirements
+| `HI_AGENT_POSTURE` | Tenant header | Idempotency-Key | Project ID |
+|---|---|---|---|
+| `dev` | required (always) | optional, warning log if absent | optional |
+| `research` | required | required on mutating routes | required on `POST /v1/runs` |
+| `prod` | required + JWT validation (planned) | required on mutating routes | required on `POST /v1/runs` |
 
-| Quality attribute | Target | Enforcement |
-|-------------------|--------|-------------|
-| v1 contract stability | 0 breaking changes after release | `scripts/check_contract_freeze.py` (digest snapshot) |
-| Layering integrity | No `hi_agent.*` import in `agent_server/api/` | `scripts/check_layering.py` |
-| Test discipline | Every new route handler has TDD evidence | `scripts/check_tdd_evidence.py` |
-| Facade conciseness | ≤200 LOC per facade module | `scripts/check_facade_loc.py` |
-| Tenant isolation | `TenantContext` resolved by middleware exclusively | `scripts/check_route_scope.py` |
-| Idempotency safety | Same `Idempotency-Key` + tenant returns identical response | unit + integration tests under `tests/integration/test_idempotency_*.py` |
-| Cancellation contract | `POST /cancel` -> 200 live, 404 unknown | covered by `scripts/run_arch_7x24.py` assertion #3 |
+Contract freeze (R-AS-3): once `V1_RELEASED = True` (already the case as of 2026-04-30), every modification under `agent_server/contracts/` triggers `scripts/check_contract_freeze.py` to invalidate the snapshot. Breaking changes go to `contracts/v2/`.
 
 ---
 
-## 16. Risks and Technical Debt
+## 9. Extension Points
 
-| Item | Status | Mitigation |
-|------|--------|-----------|
-| MCP integration responsibilities live in `hi_agent/mcp/` | Routes under `agent_server/api/routes_mcp_tools.py` delegate to `hi_agent` runtime | W31-H7 removed the empty `agent_server/mcp/` shell; no production caller depended on it |
-| Streaming SSE backpressure | Long-running runs may emit > buffer size | `_generator()` cooperates with event loop via `await asyncio.sleep(0)`; downstream sets `X-Accel-Buffering: no` |
-| Idempotency cache TTL | Unbounded growth without TTL pruner | `IdempotencyFacade` accepts a `prune_after_seconds` argument; ops sets via env in research/prod |
-| Workspace path traversal | User-controlled `workspace_id` could escape | `hi_agent/server/workspace_path.py` enforces; `agent_server/contracts/workspace.py` carries the `WorkspaceContext` value object; covered by security tests |
+Adding a new route handler — see [api/ARCHITECTURE.md §9](api/ARCHITECTURE.md). TDD-red-first; `# tdd-red-sha:` annotation required.
+
+Adding a new facade — see [facade/ARCHITECTURE.md §9](facade/ARCHITECTURE.md). Construct via injection; ≤200 LOC; seam annotation only when unavoidable.
+
+Adding a new contract type — see [contracts/ARCHITECTURE.md §9](contracts/ARCHITECTURE.md). v1 frozen; new types go in a new module or v2/.
+
+Adding a new backend (e.g., remote-kernel adapter) — see [runtime/ARCHITECTURE.md §9](runtime/ARCHITECTURE.md). Implement the seven canonical callables; gate updates allow-list.
+
+Adding a CLI subcommand — register a parser in `agent_server/cli/main.py::build_parser`; implement under `agent_server/cli/commands/`. Per R-AS-1 the CLI may not import `hi_agent.*` directly; reach the platform through `agent_server.bootstrap`.
 
 ---
 
-## 17. Glossary
+## 10. Constraints & Trade-offs
 
-| Term | Definition |
-|------|-----------|
-| Northbound | Direction *toward* downstream consumers; the public API surface that downstream apps depend on |
-| Southbound | Direction *toward* `hi_agent` runtime; internal to this repo |
-| Facade | A thin adapter that translates contract types to `hi_agent` callables; injected via constructor for testability |
-| Contract | A frozen v1 schema in `agent_server/contracts/`; breaking changes require a `v2/` sub-package |
-| `TenantContext` | Authenticated identity injected by middleware into `request.state`; carries `tenant_id`, `user_id`, `project_id` |
-| `Idempotency-Key` | Client-provided header that scopes a write to "exactly once per tenant"; cached by middleware |
-| ContractError | Typed error hierarchy with `http_status`; subclasses include `NotFoundError(404)`, `ConflictError(409)`, `RateLimitedError(429)` |
-| Route handler | FastAPI endpoint function; invoked by middleware after tenant + idempotency resolution |
-| TDD-red-sha | Annotation on every new route handler pointing to the commit SHA where the failing test was first written (R-AS-5) |
+What this design assumes:
+- **Single-process deployment per region/shard.** Two uvicorn workers each get their own `IdempotencyStore` and (post-W32) their own `AgentServer`. Cross-process consistency requires external durable backends (out of scope at v1).
+- **JSON over HTTP.** No GraphQL, no gRPC, no protobuf at v1. The simplest contract that satisfies RIA wins.
+- **In-process kernel binding.** `RealKernelBackend` runs the kernel in the same process as the FastAPI app. A remote-kernel adapter is feasible but adds latency and complexity (deferred).
+- **Synchronous facades.** Async-native facades would simplify SSE and proxy routes but force every handler to be async, doubling the surface.
+
+What this design does NOT handle well:
+- **Multi-region writes.** The idempotency store is local to each replica; without an external coordinator, the "exactly once per tenant" guarantee is per-replica.
+- **Rolling schema evolution.** Once v1 is RELEASED, additive changes go in v2 (full duplication). There is no field-additive hot-path.
+- **Streaming uploads.** Artifact registration takes JSON bodies; large file uploads via multipart are not yet wired through the facade boundary (tracked in W33).
+- **Deep observability for error categories.** Errors carry `error_category` strings but those don't yet roll up into per-category metrics.
+
+Operational notes (Wave 28+):
+- `architectural_seven_by_twenty_four` cap (`docs/governance/score_caps.yaml`) replaces the 24h wall-clock soak with a 5-assertion architectural verification (`scripts/run_arch_7x24.py`). One of those five assertions is the cancellation round-trip handled by `routes_runs_extended.py` (`POST /cancel` returns 200 on a live run, 404 on unknown).
+- Production startup uses PM2 / systemd / docker — not foreground `agent-server serve`. The CLI defaults to `127.0.0.1`; `--prod` flips to `0.0.0.0` and sets `HI_AGENT_POSTURE=prod`.
+
+---
+
+## 11. References
+
+Per-component architecture documents:
+- [`agent_server/api/ARCHITECTURE.md`](api/ARCHITECTURE.md) — route handlers + middleware
+- [`agent_server/facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md) — contract↔kernel adaptation
+- [`agent_server/contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md) — frozen v1 schemas
+- [`agent_server/runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md) — real-kernel binding (W32)
+
+Implementation entry points:
+- `agent_server/__init__.py` — `AGENT_SERVER_API_VERSION`
+- `agent_server/bootstrap.py:188` — `build_production_app`
+- `agent_server/api/__init__.py:54` — `build_app`
+- `agent_server/cli/main.py` — `agent-server` dispatcher
+- `agent_server/config/version.py` — `V1_RELEASED`, `V1_FROZEN_HEAD`
+
+Kernel boundary:
+- `hi_agent/server/app.py:1645` — `AgentServer`
+- `hi_agent/server/app.py:1196` — `_rehydrate_runs`
+- `hi_agent/server/run_manager.py` — `RunManager`
+- `hi_agent/server/event_store.py` — `SQLiteEventStore`
+- `hi_agent/server/idempotency.py` — `IdempotencyStore`
+
+Governance:
+- `CLAUDE.md` — Rules 1–17, Ownership Tracks, Narrow-Trigger Rules
+- `docs/architecture-reference.md` — codebase reference
+- `docs/platform/agent-server-northbound-contract-v1.md` — v1 surface description
+- `docs/governance/closure-taxonomy.md` — Rule 15 levels
+- `docs/governance/score_caps.yaml` — readiness caps
+
+Gates:
+- `scripts/check_layering.py` (R-AS-1)
+- `scripts/check_contract_freeze.py` (R-AS-3)
+- `scripts/check_route_scope.py`, `scripts/check_route_tenant_context.py` (R-AS-4)
+- `scripts/check_tdd_evidence.py` (R-AS-5)
+- `scripts/check_facade_loc.py` (R-AS-8)
+- `scripts/check_facade_seams.py` (R-AS-1 seam annotations)
+- `scripts/check_contracts_purity.py`
+- `scripts/check_contract_spine_completeness.py` (Rule 12)
+- `scripts/check_no_shell_packages.py` (W31-H7)
+- `scripts/run_arch_7x24.py` (5-assertion architectural verification)
+
+Test inventory:
+- Unit: `tests/unit/test_*_facade.py`
+- Integration: `tests/integration/test_routes_*.py`, `tests/integration/test_idempotency_*.py`
+- E2E: `tests/e2e/test_e2e_agent_server_*.py`
+- W32 real-kernel binding: `tests/integration/test_v1_runs_real_kernel_binding.py` (created in W32 Track A)

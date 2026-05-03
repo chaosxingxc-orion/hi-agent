@@ -15,6 +15,7 @@ venv/
 .hi_agent_soak_*/
 .tmp_smoke/
 .checkpoint/
+.tmp_soak_scratch/
 .claude/
 external/
 docs/reports/
