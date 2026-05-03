@@ -80,8 +80,10 @@ def _manifest_verified_for_notice(text: str, default_verified: float) -> float:
     if not cite_m:
         return default_verified
     manifest_id = cite_m.group(1).strip()
-    # Manifest ID may be just the short SHA or the full ID like '2026-04-27-a1bfa88'
-    for p in RELEASES_DIR.glob(f"*{manifest_id}*.json"):
+    # Manifest ID may be just the short SHA or the full ID like '2026-04-27-a1bfa88'.
+    # Use rglob so manifests archived under docs/releases/archive/W{N}/ are
+    # still found when an older notice cites them.
+    for p in RELEASES_DIR.rglob(f"*{manifest_id}*.json"):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
             sc = data.get("scorecard", {})
