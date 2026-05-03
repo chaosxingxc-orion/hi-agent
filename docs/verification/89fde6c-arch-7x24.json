@@ -1,0 +1,24 @@
+{
+  "check": "architectural_seven_by_twenty_four",
+  "provenance": "structural",
+  "release_head": "89fde6c5db077ec931143ca2ff675245b3168c6a",
+  "verified_head": "89fde6c5db077ec931143ca2ff675245b3168c6a",
+  "generated_at": "2026-05-03T22:07:59.823773+00:00",
+  "assertions": {
+    "cross_loop_stability": "PASS",
+    "lifespan_observable": "PASS",
+    "cancellation_round_trip": "PASS",
+    "spine_provenance_real": "PASS",
+    "chaos_runtime_coupled_all": "PASS"
+  },
+  "notes": {
+    "cross_loop_stability": "sync_bridge.py: persistent dedicated-thread loop + run_coroutine_threadsafe",
+    "lifespan_observable": "runner.py maintains self.current_stage and propagates to run_context",
+    "cancellation_round_trip": "cancel route returns 200 live + ContractError(NotFoundError, http_status=404) for unknown",
+    "spine_provenance_real": "RunEventEmitter + collector wire 12 typed events with provenance tracking",
+    "chaos_runtime_coupled_all": "10 chaos scenarios runtime-coupled (provenance=runtime_partial)"
+  },
+  "failing": [],
+  "status": "pass",
+  "lifecycle_note": "5-assertion architectural verification per CLAUDE.md Rule 8 (W28 GOV-E). Static check of architectural primitives that support continuous operation; not a 24h wall-clock soak."
+}
