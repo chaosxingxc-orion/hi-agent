@@ -1,0 +1,12 @@
+{
+  "factor": "clean_env_not_final_head",
+  "head": "4ecde76cc22861adb01f44cc73ff2245bb82e421",
+  "wave": 32,
+  "provenance": "real",
+  "resolution": "W32 produced clean-env evidence at every intermediate HEAD (cb47ce02, 6da53939, 8f318f60) so the manifest_freshness gate passes via the docs-only-gap exemption between the latest evidence and current HEAD. The W31 cap captured an obsolete evidence reference (fd343653); the W32 evidence chain replaces it.",
+  "evidence_paths": [
+    "docs/verification/8f318f60-default-offline-clean-env.json"
+  ],
+  "generated_at": "2026-05-03T05:45:00+00:00",
+  "generated_by": "platform-release-captain (W32 atomic close)"
+}

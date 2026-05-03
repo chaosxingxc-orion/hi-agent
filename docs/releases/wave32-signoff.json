@@ -2,8 +2,8 @@
   "wave": 32,
   "signoff_date": "2026-05-03",
   "signed_by": "platform-release-captain",
-  "manifest_id": "2026-05-03-8f305ca7",
-  "release_head": "8f305ca7609eea61939b3d4add9c9ce6444e90b3",
+  "manifest_id": "2026-05-03-4ecde76c",
+  "release_head": "4ecde76cc22861adb01f44cc73ff2245bb82e421",
   "scorecard": {
     "raw_implementation_maturity": 94.5,
     "current_verified_readiness": 75.0,
