@@ -1048,9 +1048,8 @@ class RunExecutor:
                 execution.  When provided, each default handler calls the LLM
                 and falls back to a heuristic on failure.
         """
-        import os as _os
-
         from hi_agent.capability.governance import GovernedToolExecutor
+        from hi_agent.config.posture import resolve_runtime_mode
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
 
         registry = CapabilityRegistry()
@@ -1058,7 +1057,7 @@ class RunExecutor:
         raw_invoker = CapabilityInvoker(
             registry=registry, breaker=CircuitBreaker(), allow_unguarded=True
         )
-        _env = _os.environ.get("HI_AGENT_ENV", "dev").lower()
+        _env = resolve_runtime_mode()
         runtime_mode = _rrm(_env, {})
         return GovernedToolExecutor(
             registry=registry,

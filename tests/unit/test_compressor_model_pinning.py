@@ -8,9 +8,19 @@ default: ``glm-5.1``) avoids tier-routing surprises.
 
 from __future__ import annotations
 
+import pytest
 from hi_agent.llm.protocol import LLMRequest, LLMResponse, TokenUsage
 from hi_agent.memory.compressor import MemoryCompressor
 from hi_agent.memory.l0_raw import RawEventRecord
+
+
+@pytest.fixture(autouse=True)
+def _force_dev_posture(monkeypatch) -> None:
+    """W33 Track E.1: pin posture to dev — SystemBuilder._build_compressor
+    routes through cognition_builder which now defaults to prod when both
+    HI_AGENT_POSTURE and HI_AGENT_ENV are unset.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
 
 _EMPTY_SUMMARY_JSON = (
     '{"findings":[],"decisions":[],"outcome":"active","contradiction_refs":[],"key_entities":[]}'

@@ -258,7 +258,8 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
 
     # Gate 4: current_runtime_mode — always info
     try:
-        env = getattr(builder, "_env", os.environ.get("HI_AGENT_ENV", "dev"))
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode
+        env = getattr(builder, "_env", _resolve_mode())
         readiness_snap = getattr(builder, "_readiness_snapshot", {}) or {}
         runtime_mode = resolve_runtime_mode(env, readiness_snap)
         gates.append(GateResult("current_runtime_mode", "info", runtime_mode))
@@ -310,7 +311,8 @@ def build_release_gate_report(builder) -> ReleaseGateReport:
 
     # Gate 7: prod_e2e_recent — hard gate in prod mode only.
     # In dev/non-prod mode this gate is skipped so it does not block local CI.
-    env_mode = os.environ.get("HI_AGENT_ENV", "dev").lower()
+    from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_pe
+    env_mode = _resolve_mode_pe()
     if env_mode == "prod":
         episodic_dir = os.environ.get("HI_AGENT_EPISODES_DIR", ".hi_agent/episodes")
         prod_result = check_prod_e2e_recent(episodic_dir=episodic_dir)

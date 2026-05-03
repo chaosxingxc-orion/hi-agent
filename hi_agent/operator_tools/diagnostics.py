@@ -19,7 +19,8 @@ def build_doctor_report(builder, server=None) -> DoctorReport:
     issues_warnings: list[DoctorIssue] = []
     issues_info: list[DoctorIssue] = []
 
-    env = getattr(builder, "_env", os.environ.get("HI_AGENT_ENV", "dev"))
+    from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode
+    env = getattr(builder, "_env", _resolve_mode())
     is_prod = env == "prod"
 
     # 1. LLM credentials (prod hard check)

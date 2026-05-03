@@ -282,8 +282,6 @@ def check_readiness() -> ReadinessReport:
         :class:`ReadinessReport` with ``ready``, ``health``,
         ``subsystems``, and ``auth_posture`` populated.
     """
-    import os as _os_cr
-
     from hi_agent.config.builder import SystemBuilder
     from hi_agent.server.auth_middleware import AuthMiddleware
     from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
@@ -292,7 +290,8 @@ def check_readiness() -> ReadinessReport:
     raw = builder.readiness()
 
     # Compute auth posture using a temporary AuthMiddleware instance (no-op app).
-    _env_cr = _os_cr.environ.get("HI_AGENT_ENV", "dev").lower()
+    from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_cr
+    _env_cr = _resolve_mode_cr()
     _runtime_mode_cr = _rrm(_env_cr, raw)
     _auth = AuthMiddleware(app=lambda *a: None, runtime_mode=_runtime_mode_cr)  # type: ignore[arg-type]  expiry_wave: permanent
     posture = _auth.auth_posture

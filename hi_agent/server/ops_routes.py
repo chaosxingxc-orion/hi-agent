@@ -55,7 +55,8 @@ async def handle_diagnostics(request: Request) -> JSONResponse:
     builder = getattr(server, "_builder", None)
     cfg = getattr(server, "_config", None)
 
-    env = os.environ.get("HI_AGENT_ENV", "dev").lower()
+    from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode
+    env = _resolve_mode()
 
     # Credential presence (no values — just booleans).
     # API keys are read from config/llm_config.json, not env vars.

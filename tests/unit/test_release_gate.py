@@ -1,10 +1,21 @@
 from unittest.mock import MagicMock
 
+import pytest
 from hi_agent.operator_tools.release_gate import (
     GateResult,
     ReleaseGateReport,
     build_release_gate_report,
 )
+
+
+@pytest.fixture(autouse=True)
+def _force_dev_posture(monkeypatch) -> None:
+    """W33 Track E.1: posture defaults to 'prod' (Rule 11 fail-closed) when
+    both HI_AGENT_POSTURE and HI_AGENT_ENV are unset. These tests model a
+    dev-mode operator running the gate locally — pin posture explicitly so
+    the prod_e2e gate remains skipped (its dev behavior).
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
 
 
 def _make_builder(env="dev"):

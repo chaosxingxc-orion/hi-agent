@@ -5,7 +5,17 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
 from hi_agent.config.readiness import ReadinessProbe
+
+
+@pytest.fixture(autouse=True)
+def _force_dev_posture(monkeypatch) -> None:
+    """W33 Track E.1: pin posture to dev so the readiness snapshot does not
+    emit the prod prerequisites block (which mentions OPENAI_API_KEY etc.).
+    Both HI_AGENT_POSTURE and HI_AGENT_ENV unset now defaults to 'prod'.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
 
 
 class _FakeModel:

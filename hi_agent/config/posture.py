@@ -109,3 +109,24 @@ class Posture(StrEnum):
     def requires_durable_kg_backend(self) -> bool:
         """KG backend must be SqliteKnowledgeGraphBackend, not JsonGraphBackend."""
         return self.is_strict
+
+
+def resolve_runtime_mode() -> str:
+    """Canonical runtime mode (dev | research | prod) — single source of truth.
+
+    Honors HI_AGENT_POSTURE first; falls back to HI_AGENT_ENV. Per Rule 11,
+    when both are unset, the default is "prod" (fail-closed) — callers that
+    require dev permissiveness must declare HI_AGENT_POSTURE=dev or
+    HI_AGENT_ENV=dev explicitly.
+
+    W33 Track E: this helper is the only sanctioned reader of HI_AGENT_ENV
+    in the production codebase. ``scripts/check_no_hi_agent_env_direct_read``
+    enforces that no other module reads HI_AGENT_ENV directly.
+    """
+    posture_env = os.environ.get("HI_AGENT_POSTURE", "").strip().lower()
+    if posture_env in {"dev", "research", "prod"}:
+        return posture_env
+    legacy_env = os.environ.get("HI_AGENT_ENV", "").strip().lower()
+    if legacy_env in {"dev", "research", "prod"}:
+        return legacy_env
+    return "prod"  # Rule 11 fail-closed default

@@ -8,7 +8,6 @@ Dev mode: log WARNING, replace invalid fields with TraceConfig defaults.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import fields as dc_fields
 from typing import Any
 
@@ -74,7 +73,10 @@ class ConfigValidator:
 
     @classmethod
     def from_env(cls) -> ConfigValidator:
-        env = os.environ.get("HI_AGENT_ENV", "prod")
+        # W33 Track E: route through resolve_runtime_mode so HI_AGENT_POSTURE
+        # and HI_AGENT_ENV agree. Default unchanged: "prod" (fail-closed).
+        from hi_agent.config.posture import resolve_runtime_mode
+        env = resolve_runtime_mode()
         return cls(env=env)
 
     def validate(self, data: dict[str, Any]) -> dict[str, Any]:

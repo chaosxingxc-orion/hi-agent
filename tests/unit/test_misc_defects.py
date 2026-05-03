@@ -17,6 +17,17 @@ import pytest
 
 pytestmark = pytest.mark.windows_unsafe
 
+
+@pytest.fixture(autouse=True)
+def _force_dev_posture(monkeypatch) -> None:
+    """W33 Track E.1: many tests in this file build SystemBuilder which now
+    routes through ``resolve_runtime_mode``. With both HI_AGENT_POSTURE and
+    HI_AGENT_ENV unset the helper defaults to ``"prod"`` (Rule 11 fail-closed).
+    Pin posture to dev so legacy fixtures that rely on permissive defaults
+    keep their original behaviour.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+
 # ---------------------------------------------------------------------------
 # K-4: RunExecutorFacade.stop() must log, not silently swallow exceptions
 # ---------------------------------------------------------------------------

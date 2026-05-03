@@ -313,13 +313,14 @@ class SystemBuilder:
                             "registry will have no pre-registered capabilities.",
                             exc,
                         )
-                    import os as _os_rbt
-
+                    from hi_agent.config.posture import (
+                        resolve_runtime_mode as _resolve_mode_rbt,
+                    )
                     from hi_agent.server.runtime_mode_resolver import (
                         resolve_runtime_mode as _rrm_rbt,
                     )
 
-                    _env_rbt = _os_rbt.environ.get("HI_AGENT_ENV", "dev").lower()
+                    _env_rbt = _resolve_mode_rbt()
                     # Infer llm_mode and kernel_mode directly to avoid calling
                     # self.readiness() here, which would recurse back through
                     # build_invoker() → build_capability_registry() → self.readiness().

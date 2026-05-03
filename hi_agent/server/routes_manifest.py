@@ -365,9 +365,8 @@ async def handle_manifest(request: Request) -> JSONResponse:
     manifest_execution_mode: str = "local"
     provenance_contract_version: str = "unknown"
     try:
-        import os as _os_ep
-
         from hi_agent.config.evolve_policy import resolve_evolve_effective as _rep
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_m
         from hi_agent.contracts.execution_provenance import CONTRACT_VERSION
         from hi_agent.server.runtime_mode_resolver import resolve_runtime_mode as _rrm
 
@@ -378,7 +377,7 @@ async def handle_manifest(request: Request) -> JSONResponse:
             _cfg = getattr(_builder, "_config", None)
             if _cfg is not None:
                 _ev_mode = getattr(_cfg, "evolve_mode", "auto")
-        manifest_env = _os_ep.environ.get("HI_AGENT_ENV", "dev").lower()
+        manifest_env = _resolve_mode_m()
         _readiness_snap: dict = {}
         if _builder is not None:
             with contextlib.suppress(Exception):  # rule7-exempt:  expiry_wave: permanent

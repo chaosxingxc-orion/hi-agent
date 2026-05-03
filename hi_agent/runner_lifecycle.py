@@ -9,7 +9,6 @@ RunExecutor delegates to an instance of this class.
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING, Any
 
 from hi_agent.contracts import (
@@ -325,7 +324,8 @@ class RunLifecycle:
                 {"run_id": run_id, "stage_id": current_stage},
             )
 
-        _env = os.environ.get("HI_AGENT_ENV", "dev").lower()
+        from hi_agent.config.posture import resolve_runtime_mode
+        _env = resolve_runtime_mode()
         _runtime_mode = "dev-smoke" if _env == "dev" else "prod-real"
         from hi_agent.config.evolve_policy import resolve_evolve_effective
 

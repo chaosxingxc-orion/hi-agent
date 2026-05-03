@@ -102,7 +102,13 @@ class ConfigStack:
         self._base_path = base_config_path
         # Profile: explicit argument > HI_AGENT_PROFILE env var > ""
         self._profile = profile if profile is not None else os.environ.get("HI_AGENT_PROFILE", "")
-        self._env = env if env is not None else os.environ.get("HI_AGENT_ENV", "prod")
+        if env is not None:
+            self._env = env
+        else:
+            # W33 Track E: route through resolve_runtime_mode so HI_AGENT_POSTURE
+            # and HI_AGENT_ENV agree. Default unchanged: "prod" (fail-closed).
+            from hi_agent.config.posture import resolve_runtime_mode
+            self._env = resolve_runtime_mode()
         self._cached: Any | None = None
 
     # ------------------------------------------------------------------

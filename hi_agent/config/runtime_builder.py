@@ -58,8 +58,9 @@ class RuntimeBuilder:
 
         with self._lock:
             if self._kernel is None:
+                from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_rt
                 base_url = self._config.kernel_base_url
-                env = os.environ.get("HI_AGENT_ENV", "dev").lower()
+                env = _resolve_mode_rt()
                 if base_url and base_url.lower() == "mock":
                     raise ValueError(
                         "kernel_base_url='mock' is no longer supported. "

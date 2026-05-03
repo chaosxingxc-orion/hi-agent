@@ -287,11 +287,14 @@ class CognitionBuilder:
                         # API key is confirmed present at this point.
                         # Use "local-real" so the gateway uses full timeouts/retries;
                         # "dev-smoke" is reserved for credential-absent scenarios.
+                        from hi_agent.config.posture import (
+                            resolve_runtime_mode as _resolve_mode_cog,
+                        )
                         from hi_agent.server.runtime_mode_resolver import (
                             resolve_runtime_mode as _rrm,
                         )
 
-                        _env = os.environ.get("HI_AGENT_ENV", "")
+                        _env = _resolve_mode_cog()
                         _rt_mode = _rrm(
                             _env,
                             {
@@ -337,7 +340,8 @@ class CognitionBuilder:
                     self._llm_gateway = TierAwareLLMGateway(raw_gateway, tier_router, registry)  # type: ignore[assignment]  expiry_wave: permanent
                     return self._llm_gateway
 
-        is_prod = os.environ.get("HI_AGENT_ENV", "dev").lower() == "prod"
+        from hi_agent.config.posture import resolve_runtime_mode as _resolve_mode_cog2
+        is_prod = _resolve_mode_cog2() == "prod"
         if is_prod:
             raise RuntimeError(
                 "Production mode requires real LLM credentials. "

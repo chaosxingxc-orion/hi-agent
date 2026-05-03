@@ -31,11 +31,18 @@ _defaults_errors_total = Counter("hi_agent_capability_defaults_errors_total")
 
 
 def _allow_heuristic_fallback() -> bool:
-    """Whether heuristic capability fallback is allowed in current env."""
+    """Whether heuristic capability fallback is allowed in current env.
+
+    W33 Track E: routes through ``resolve_runtime_mode`` so HI_AGENT_POSTURE
+    and HI_AGENT_ENV agree on what "prod" means. The fail-closed default
+    when both vars are unset is preserved (returns False unless mode is
+    non-prod) by checking ``mode != "prod"``.
+    """
+    from hi_agent.config.posture import resolve_runtime_mode
     override = os.environ.get("HI_AGENT_ALLOW_HEURISTIC_FALLBACK", "").strip().lower()
     if override in {"1", "true", "yes", "on"}:
         return True
-    return os.environ.get("HI_AGENT_ENV", "prod").lower() != "prod"
+    return resolve_runtime_mode() != "prod"
 
 
 def make_llm_capability_handler(
