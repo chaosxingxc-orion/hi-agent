@@ -3,7 +3,7 @@
 
 Fails when the number of active manifests for the current wave exceeds 3.
 'Active' means: manifest JSON in docs/releases/ (NOT in archive/) whose
-'wave' field matches the current wave (from docs/governance/current-wave.txt).
+'wave' field matches the current wave (from docs/current-wave.txt).
 
 The existing check_manifest_rewrite_budget.py counts manifest JSON files in
 docs/releases/ by wave; this gate enforces the same ≤3 cap from the opposite
@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RELEASES_DIR = ROOT / "docs" / "releases"
-CURRENT_WAVE_FILE = ROOT / "docs" / "governance" / "current-wave.txt"
+CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 _MAX_MANIFESTS = 3
 
 

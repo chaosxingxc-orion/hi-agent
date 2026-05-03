@@ -15,7 +15,7 @@ replaced with proper observability before the affected file can ship.
 
 Expiry-annotated exemptions of the form ``# rule7-exempt: expiry_wave="Wave N"``
 are permitted if Wave N is in the future relative to the current wave recorded
-in ``docs/governance/current-wave.txt``.  Expired exemptions fail the gate.
+in ``docs/current-wave.txt``.  Expired exemptions fail the gate.
 
 Outputs multistatus JSON via ``scripts/_governance/multistatus.py`` so
 this gate plays well with the multistatus runner.
@@ -53,7 +53,7 @@ _PERMANENT_RE = re.compile(
     re.IGNORECASE,
 )
 
-_CURRENT_WAVE_PATH = _REPO_ROOT / "docs" / "governance" / "current-wave.txt"
+_CURRENT_WAVE_PATH = _REPO_ROOT / "docs" / "current-wave.txt"
 
 
 def _current_wave() -> int | None:

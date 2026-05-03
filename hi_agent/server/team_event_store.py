@@ -62,7 +62,9 @@ class TeamEventStore:
 
     def initialize(self) -> None:
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(self._conn)
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 

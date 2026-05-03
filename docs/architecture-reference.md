@@ -6,12 +6,12 @@
 
 ## 1. Purpose & Position in System
 
-hi-agent is a **capability-layer** platform for autonomous agent execution. It packages the cognitive runtime (`hi_agent/`), the durable execution substrate (formerly `agent_kernel/`, inlined into `hi_agent/server/` Wave 11), and a versioned northbound HTTP facade (`agent_server/`) under one repository.
+hi-agent is a **capability-layer** platform for autonomous agent execution. It packages the cognitive runtime (`hi_agent/`), the durable execution substrate (`agent_kernel/` — top-level package; bridged into `hi_agent/` only via `hi_agent/runtime_adapter/**` per R-AS-1), and a versioned northbound HTTP facade (`agent_server/`) under one repository.
 
 **Capability-layer rationale (Rule 10).** Business logic, prompts, and domain schemas are *not* the platform's responsibility. The platform exposes generic primitives — runs, events, artifacts, gates, manifests, skills — and refuses to host domain types. Downstream applications (the Research Intelligence App, third-party tooling) compose business overlays on top of these primitives.
 
 **Three-Gate Demand Intake.** Before accepting any new capability:
-- **G1 — Positioning:** capability-layer only — `hi_agent/`, `agent_server/`, or `agent_kernel/` (now inlined). Anything domain-specific is declined and redirected.
+- **G1 — Positioning:** capability-layer only — `hi_agent/`, `agent_server/`, or `agent_kernel/` (top-level substrate package). Anything domain-specific is declined and redirected.
 - **G2 — Abstraction:** if the request composes from existing capabilities, decline new code; provide a composition example instead.
 - **G3 — Verification:** new code requires Rule 4 three-layer test plan + Rule 8 gate run plan before delivery.
 - **G4 — Posture & Spine:** declare default behaviour under `dev`/`research`/`prod` postures and which Rule 12 contract-spine fields the new capability carries.
@@ -74,7 +74,7 @@ graph TB
 | `agent_server/runtime/` (W32) | AS-RO | Real-kernel binding | YES — seam #2 |
 | `agent_server/bootstrap.py` | AS-RO | Production assembly | YES — seam #1 |
 | `hi_agent/` | CO/RO/DX/TE | Agent runtime, cognitive subsystems | n/a |
-| `agent_kernel/` (Wave 11 inlined) | RO | Now part of `hi_agent/server/` | n/a |
+| `agent_kernel/` | RO | Substrate (kernel + adapters + runtime + service + skills + substrate + testing); imported only via `hi_agent/runtime_adapter/**` | per agent_kernel internal docs |
 
 ---
 
@@ -121,22 +121,24 @@ Detailed architecture: [`agent_server/contracts/ARCHITECTURE.md`](../agent_serve
 
 ## 5. Observability Spine + 12 Typed Events
 
-`hi_agent/observability/event_emitter.py::RunEventEmitter` exposes 12 typed `record_*` methods, each persisting through `SQLiteEventStore`:
+`hi_agent/observability/event_emitter.py::RunEventEmitter` exposes 12 typed `record_*` methods, each persisting through `SQLiteEventStore`. The actual signatures (cited from `hi_agent/observability/event_emitter.py:103-284`):
 
-| Event | Method | Triggered by |
-|---|---|---|
-| `tenant_context` | (middleware spine emitter) | `TenantContextMiddleware` per request |
-| `run_created` | `record_run_created` | `RunManager.create_run` |
-| `run_started` | `record_run_started` | execution kick-off |
-| `stage_started` | `record_stage_started` | TRACE S1–S5 entry |
-| `stage_completed` | `record_stage_completed` | stage exit |
-| `run_completed` | `record_run_completed` | terminal state |
-| `run_failed` | `record_run_failed` | error path |
-| `run_cancelled` | `record_run_cancelled` | `POST /cancel` |
-| `gate_opened` | `record_gate_opened` | human-in-the-loop pause |
-| `gate_decided` | `record_gate_decided` | `POST /v1/gates/{id}/decide` |
-| `dlq_checked` | (recovery scan) | `_rehydrate_runs` startup |
-| `recovery_decision` | (recovery scan) | per lease-expired run |
+| # | Method | Signature | Triggered by |
+|---|---|---|---|
+| 1 | `record_run_submitted` | `()` | `RunManager.create_run` accepts a request |
+| 2 | `record_run_started` | `()` | worker dequeues + claims |
+| 3 | `record_run_completed` | `(duration_ms: float)` | terminal success |
+| 4 | `record_run_failed` | `(reason: str)` | terminal failure path |
+| 5 | `record_run_cancelled` | `(reason: str)` | `POST /cancel` |
+| 6 | `record_run_resumed` | `(from_stage: str)` | rehydration restart |
+| 7 | `record_stage_started` | `(stage_id: str)` | TRACE Sn entry |
+| 8 | `record_stage_completed` | `(stage_id: str, duration_ms: float)` | TRACE Sn exit success |
+| 9 | `record_stage_failed` | `(stage_id: str, reason: str)` | TRACE Sn exit failure |
+| 10 | `record_artifact_created` | `(artifact_type: str)` | ArtifactRegistry write |
+| 11 | `record_experiment_posted` | `(experiment_id: str)` | `evolve/coordinator` post |
+| 12 | `record_feedback_submitted` | `()` | feedback-API ingest |
+
+Adjacent spine signals — `tenant_context`, `gate_opened`/`gate_decided`, `dlq_checked`, `recovery_decision` — are emitted by separate modules (`auth_middleware`, `gate_store`, `_rehydrate_runs`) and surfaced through their own `emit_*()` helpers, not via the 12 `record_*` methods. They share the SSE/spine plumbing through `SQLiteEventStore` and `event_bus`.
 
 These events surface to clients via `GET /v1/runs/{id}/events` (SSE). Provenance: each event carries `provenance: real` only when emitted from real runtime — `scripts/check_evidence_provenance.py` enforces.
 
@@ -265,7 +267,7 @@ Detail: [`agent_server/ARCHITECTURE.md`](../agent_server/ARCHITECTURE.md)
 
 | Wave | Headline | HEAD | Manifest |
 |---|---|---|---|
-| W1–W11 | Foundation: cognitive runtime, TRACE S1–S5, agent_kernel inlined into hi_agent/server | – | – |
+| W1–W11 | Foundation: cognitive runtime, TRACE S1–S5, `agent_kernel/` substrate stabilized as top-level package, `hi_agent/runtime_adapter/` defined as the single seam | – | – |
 | W12 | Default-path hardening; Rules 14–17 codified | `6e11eea` | 2026-04-27-f3487f0 |
 | W13–W15 | Systemic class closures; 35-gate infrastructure | `fef2d4e` | 2026-04-27-dd0aad2 |
 | W16 | Observability spine + chaos + operator drill | – | – |

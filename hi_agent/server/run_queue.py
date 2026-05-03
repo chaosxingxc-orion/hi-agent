@@ -130,7 +130,9 @@ ON run_queue (tenant_id, user_id, session_id, status)
             Path(resolved).parent.mkdir(parents=True, exist_ok=True)
 
         self._conn = sqlite3.connect(resolved, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(self._conn)
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
         self._conn.execute(self._CREATE_DLQ_TABLE)
@@ -297,6 +299,43 @@ ON run_queue (tenant_id, user_id, session_id, status)
                 "WHERE run_id = ? AND worker_id = ? AND status = 'leased' "
                 "AND lease_expires_at >= ?",
                 (lease_expires_at, now, run_id, worker_id, now),
+            )
+            self._conn.commit()
+        return result.rowcount > 0
+
+    def release_lease(self, run_id: str, worker_id: str) -> bool:
+        """Release a claimed lease back to 'queued' WITHOUT bumping
+        ``attempt_count``.
+
+        Used when a worker claimed a run but cannot dispatch it for a
+        transient reason that is NOT a true failure - most commonly the
+        ``create_run``/``start_run`` race where ``create_run`` enqueues
+        the run before the route handler has had a chance to register
+        its executor.  Calling :meth:`fail` in this case would bump
+        ``attempt_count`` and DLQ the run after ``max_attempts`` losses,
+        wedging it in ``state=created`` from the caller's point of view.
+
+        Unlike :meth:`fail` this does NOT touch ``attempt_count`` or
+        write to ``dead_lettered_runs``.
+
+        Args:
+            run_id: Identifier of the leased run.
+            worker_id: Must match the worker that claimed the run.
+
+        Returns:
+            ``True`` if the lease was released and the row was returned
+            to ``status='queued'``; ``False`` if the row no longer
+            belongs to ``worker_id`` (e.g. lease already expired and
+            stolen by recovery).
+        """
+        now = time.time()
+        with self._lock:
+            result = self._conn.execute(
+                "UPDATE run_queue "
+                "SET status = 'queued', worker_id = NULL, "
+                "    lease_expires_at = NULL, updated_at = ? "
+                "WHERE run_id = ? AND worker_id = ? AND status = 'leased'",
+                (now, run_id, worker_id),
             )
             self._conn.commit()
         return result.rowcount > 0

@@ -237,13 +237,19 @@ def test_retry_policy_respects_max_delay() -> None:
     assert policy.delay_for(10) == pytest.approx(1.0)
 
 
-def test_retry_policy_jitter_adds_non_negative_value() -> None:
-    """With jitter=True, delay_for() must be >= the base exponential delay."""
+def test_retry_policy_jitter_multiplicative_window() -> None:
+    """Track D C-2: jitter is multiplicative uniform [0.5, 1.5) of the clamped delay.
+
+    The previous additive-jitter contract (``delay >= base``) was replaced
+    by multiplicative jitter to spread concurrent retries across a 2x window
+    so retry storms can't synchronize across callers sharing a pool.
+    """
     policy = RetryPolicy(base_delay_ms=100, max_delay_ms=30_000, jitter=True)
-    # Run several times to guard against lucky random draws.
-    for _ in range(20):
+    base = 0.1  # 100 ms = 0.1 s, attempt 0
+    for _ in range(50):
         delay = policy.delay_for(0)
-        assert delay >= 0.1  # base is 100 ms = 0.1 s
+        # Multiplicative window: [base * 0.5, base * 1.5).
+        assert base * 0.5 <= delay < base * 1.5, delay
 
 
 # ---------------------------------------------------------------------------

@@ -61,7 +61,9 @@ class CircuitBreaker:  # scope: process-internal
         if db_path is not None:
             self._db_lock = threading.Lock()
             self._db = sqlite3.connect(db_path, check_same_thread=False)
-            self._db.execute("PRAGMA journal_mode=WAL")
+            # Track D C-1: WAL + busy_timeout via shared helper.
+            from hi_agent._sqlite_init import configure_sqlite_connection
+            configure_sqlite_connection(self._db)
             self._db.execute(
                 "CREATE TABLE IF NOT EXISTS circuit_breaker_state"
                 " (name TEXT PRIMARY KEY, state TEXT, opened_at REAL, failures INTEGER)"

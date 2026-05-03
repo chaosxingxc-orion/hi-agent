@@ -100,7 +100,9 @@ class SQLiteGateStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._con = sqlite3.connect(str(self._path), check_same_thread=False)
-        self._con.execute("PRAGMA journal_mode=WAL")
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(self._con)
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.executescript(self._DDL)
         self._con.commit()

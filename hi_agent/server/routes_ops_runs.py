@@ -13,9 +13,42 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from hi_agent.config.posture import Posture
 from hi_agent.server.tenant_context import require_tenant_context
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_tenant_scope(request: Request) -> tuple[str | None, JSONResponse | None]:
+    """Resolve tenant scope from auth context, rejecting cross-tenant ?workspace.
+
+    Returns (tenant_id, None) on success or (None, error_response) on rejection.
+    Under research/prod: a ?workspace= mismatching ctx.tenant_id returns 403.
+    Under dev: a mismatch logs WARNING and ctx.tenant_id wins.
+    """
+    try:
+        ctx = require_tenant_context()
+    except RuntimeError:
+        return None, JSONResponse({"error": "authentication_required"}, status_code=401)
+    tenant_id = ctx.tenant_id
+    workspace = request.query_params.get("workspace")
+    if workspace and workspace != tenant_id:
+        if Posture.from_env().is_strict:
+            return None, JSONResponse(
+                {
+                    "error": "tenant_scope_violation",
+                    "tenant_id": tenant_id,
+                    "requested_workspace": workspace,
+                },
+                status_code=403,
+            )
+        logger.warning(
+            "routes_ops_runs: ?workspace=%s overridden by auth context tenant_id=%s "
+            "(dev posture; would 403 under research/prod)",
+            workspace,
+            tenant_id,
+        )
+    return tenant_id, None
 
 
 async def handle_ops_run_full(request: Request) -> JSONResponse:
@@ -28,18 +61,12 @@ async def handle_ops_run_full(request: Request) -> JSONResponse:
     events_summary, failure_classification, trace_id, and
     operator_actions_available.
     """
-    try:
-        require_tenant_context()
-    except RuntimeError:
-        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    workspace, err = _resolve_tenant_scope(request)
+    if err is not None:
+        return err
+    assert workspace is not None  # narrow for type-checker
 
     run_id = request.path_params["run_id"]
-    workspace = request.query_params.get("workspace")
-    if not workspace:
-        return JSONResponse(
-            {"error": "missing_required_param", "param": "workspace"}, status_code=400
-        )
-
     server: Any = request.app.state.agent_server
 
     run_store = getattr(server, "_run_store", None)
@@ -99,18 +126,12 @@ async def handle_ops_run_diagnose(request: Request) -> JSONResponse:
     Query parameters:
         workspace (str, required): Tenant workspace ID.
     """
-    try:
-        require_tenant_context()
-    except RuntimeError:
-        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    workspace, err = _resolve_tenant_scope(request)
+    if err is not None:
+        return err
+    assert workspace is not None  # narrow for type-checker
 
     run_id = request.path_params["run_id"]
-    workspace = request.query_params.get("workspace")
-    if not workspace:
-        return JSONResponse(
-            {"error": "missing_required_param", "param": "workspace"}, status_code=400
-        )
-
     server: Any = request.app.state.agent_server
 
     run_store = getattr(server, "_run_store", None)

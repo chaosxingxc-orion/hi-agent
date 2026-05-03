@@ -65,6 +65,18 @@ def _run_state_to_terminal(state: str) -> str:
     return "failed"
 
 
+def _run_state_to_status_code(state: str) -> int:
+    """Track D C-7: map ManagedRun.state to the HTTP status code a replay
+    should return. Mirrors :meth:`IdempotencyStore.default_status_code_for`
+    keyed off ``_run_state_to_terminal(state)``.
+
+    Returns:
+        HTTP status code: 200 for success, 500 for failed, 499 for
+        cancelled, 504 for timed_out.
+    """
+    return IdempotencyStore.default_status_code_for(_run_state_to_terminal(state))
+
+
 @dataclass
 class ManagedRun:
     """A run managed by the server."""
@@ -90,6 +102,9 @@ class ManagedRun:
     idempotency_key: str | None = None
     outcome: str = "created"  # "created" | "replayed" | "conflict"
     response_snapshot: str = ""  # non-empty when replayed and original run is complete
+    # Track D C-7: HTTP status code for idempotent-replay surface. 200 for a
+    # cached success, 5xx for a cached failure. 0 means "not a replay".
+    response_status_code: int = 0
     # Liveness fields
     started_at: str | None = None
     last_heartbeat_at: str | None = None
@@ -457,12 +472,15 @@ class RunManager:
             if outcome == "replayed":
                 # Return a lightweight stub so the route can inspect outcome and
                 # response_snapshot without touching the run registry.
+                # Track D C-7: surface the original status_code so the route
+                # returns 5xx for cached failures instead of always 200.
                 return ManagedRun(
                     run_id=record.run_id,
                     task_contract=task_contract_dict,
                     outcome="replayed",
                     idempotency_key=idempotency_key,
                     response_snapshot=record.response_snapshot,
+                    response_status_code=int(record.status_code),
                     tenant_id=tenant_id,
                 )
 
@@ -615,9 +633,37 @@ class RunManager:
                 with self._lock:
                     run = self._runs.get(run_id)
                     executor_fn = self._pending_executors.pop(run_id, None)
-                if run is None or executor_fn is None:
-                    # Run was created but executor not yet registered; release.
-                    self._run_queue.fail(run_id, "run_manager", "executor_not_found")
+                if run is None:
+                    # Truly orphan: the run is in the durable queue but
+                    # has no in-memory ManagedRun (e.g. recovered from a
+                    # prior process whose executor closures are gone).
+                    # Increment attempt_count via fail() so DLQ guards
+                    # against an infinite re-claim loop.
+                    self._run_queue.fail(run_id, "run_manager", "run_not_found")
+                    continue
+                if executor_fn is None:
+                    # Race: ``create_run`` enqueued the run but the route
+                    # handler has not yet finished ``executor_factory()``
+                    # and called ``start_run`` to register the executor.
+                    # ``executor_factory`` builds the kernel + LLM gateway
+                    # and can take 10-100 ms.  Calling ``fail`` here would
+                    # bump ``attempt_count`` toward ``max_attempts`` (3),
+                    # DLQing the run after a few worker iterations and
+                    # wedging it in ``state=created`` for the caller.
+                    # Instead we release the lease back to ``'queued'``
+                    # WITHOUT bumping ``attempt_count`` so the next
+                    # iteration (after a brief sleep) can re-claim once
+                    # the executor is registered.
+                    if not self._run_queue.release_lease(run_id, "run_manager"):
+                        # Lease already lost (e.g. expired + recovered).
+                        # Not a transient race - fall back to fail.
+                        self._run_queue.fail(
+                            run_id, "run_manager", "executor_not_found"
+                        )
+                        continue
+                    import time as _time
+
+                    _time.sleep(0.05)
                     continue
                 acquired = self._semaphore.acquire(timeout=self._queue_timeout_s)
                 if not acquired:
@@ -779,11 +825,15 @@ class RunManager:
             ):
                 # RO-7: map run.state to one of the four canonical terminal codes.
                 _terminal = _run_state_to_terminal(run.state)
+                # Track D C-7: persist HTTP status code so replay returns
+                # the original outcome (e.g. 500 for failed) not always 200.
+                _status_code = _run_state_to_status_code(run.state)
                 self._idempotency_store.mark_complete(
                     run.tenant_id,
                     run.idempotency_key,
                     json.dumps(self.to_dict(run)),
                     terminal_state=_terminal,
+                    status_code=_status_code,
                 )
             # Notify PostmortemEngine when a project-scoped run is terminal.
             if self._postmortem_engine is not None and run.project_id:
@@ -1013,12 +1063,16 @@ class RunManager:
                 and self._idempotency_store is not None
             ):
                 # RO-7: map run.state to one of the four canonical terminal codes.
-                _terminal = _run_state_to_terminal(run.state)
+                _terminal_d = _run_state_to_terminal(run.state)
+                # Track D C-7: persist HTTP status code so replay returns
+                # the original outcome (e.g. 500 for failed) not always 200.
+                _status_code_d = _run_state_to_status_code(run.state)
                 self._idempotency_store.mark_complete(
                     run.tenant_id,
                     run.idempotency_key,
                     json.dumps(self.to_dict(run)),
-                    terminal_state=_terminal,
+                    terminal_state=_terminal_d,
+                    status_code=_status_code_d,
                 )
             # Notify PostmortemEngine when a project-scoped run is terminal.
             if self._postmortem_engine is not None and run.project_id:

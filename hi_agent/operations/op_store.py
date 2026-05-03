@@ -65,6 +65,9 @@ class LongRunningOpStore:
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db, check_same_thread=False)
         conn.row_factory = sqlite3.Row
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(conn)
         return conn
 
     def _init_db(self) -> None:

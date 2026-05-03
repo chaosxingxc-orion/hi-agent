@@ -25,7 +25,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
-_CURRENT_WAVE_FILE = ROOT / "docs" / "governance" / "current-wave.txt"
+_CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 
 _DOCS_ONLY_GAP = re.compile(r"--allow-docs-only-gap")
 _CONTINUE_ON_ERROR = re.compile(r"^\s*continue-on-error:\s*true", re.MULTILINE)
@@ -45,7 +45,7 @@ _NOT_APPLICABLE_COMMENT = re.compile(
 
 
 def _current_wave() -> int:
-    """Return the current wave number from docs/governance/current-wave.txt."""
+    """Return the current wave number from docs/current-wave.txt."""
     try:
         return int(_CURRENT_WAVE_FILE.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):

@@ -115,3 +115,47 @@ class TestFailWithMaxAttempts:
         q.claim_next("worker-A")
         q.complete("run-1", "worker-A")
         assert q.claim_next("worker-B") is None
+
+
+class TestReleaseLease:
+    """Verify ``release_lease`` returns the row to ``queued`` without
+    touching ``attempt_count``.  Used by the run_manager to recover from
+    the create_run/start_run race without DLQing the run after 3 hits.
+    """
+
+    def test_release_lease_returns_to_queued(self, q: RunQueue) -> None:
+        """release_lease must put the run back in 'queued' state."""
+        q.enqueue("run-1", priority=0)
+        item = q.claim_next("worker-A")
+        assert item is not None
+        # Now release without bumping attempt_count.
+        ok = q.release_lease("run-1", "worker-A")
+        assert ok is True
+        # Should be claimable again with attempt_count unchanged.
+        reclaimed = q.claim_next("worker-B")
+        assert reclaimed is not None
+        assert reclaimed["run_id"] == "run-1"
+
+    def test_release_lease_does_not_bump_attempt_count(self, q: RunQueue) -> None:
+        """Repeated release_lease must NOT exhaust max_attempts (=3)."""
+        q.enqueue("run-1", priority=0)
+        # 5 release/reclaim cycles must all succeed - no DLQ.
+        for cycle in range(5):
+            worker = f"worker-{cycle}"
+            item = q.claim_next(worker)
+            assert item is not None, f"cycle {cycle}: claim failed"
+            assert q.release_lease("run-1", worker) is True
+        # Final claim must still succeed (run is NOT DLQed).
+        final = q.claim_next("worker-final")
+        assert final is not None, "release_lease should not DLQ the run"
+        assert final["run_id"] == "run-1"
+
+    def test_release_lease_wrong_worker_returns_false(self, q: RunQueue) -> None:
+        """release_lease only succeeds for the worker that holds the lease."""
+        q.enqueue("run-1", priority=0)
+        q.claim_next("worker-A")
+        # worker-B does not hold the lease.
+        assert q.release_lease("run-1", "worker-B") is False
+
+    def test_release_lease_unknown_run_returns_false(self, q: RunQueue) -> None:
+        assert q.release_lease("nonexistent", "worker-A") is False

@@ -58,6 +58,9 @@ class SqliteKnowledgeGraphBackend:
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(self._conn)
         self._conn.executescript(self._DDL)
         self._conn.commit()
 

@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import random
+import threading
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
@@ -207,20 +208,41 @@ class CredentialPool:
         if not entries:
             raise ValueError("CredentialPool requires at least one CredentialEntry.")
         self._entries: list[CredentialEntry] = list(entries)
+        # Track D C-2: round-robin index so successive calls don't pin the
+        # head of the pool when every credential is healthy. Guarded by an
+        # atomic threading.Lock so concurrent callers each see a distinct
+        # starting offset.
+        self._round_robin_index: int = -1
+        self._rr_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def next_eligible(self) -> CredentialEntry | None:
-        """Return the first credential whose cooldown has expired.
+        """Return the next eligible credential using round-robin rotation.
 
-        Credentials are checked in insertion order. Returns ``None`` when
-        all credentials are still cooling down.
+        Track D C-2: previously this returned the FIRST eligible entry,
+        which pinned every retry to the head of the pool and produced a
+        thundering herd against the first credential. Now we advance the
+        round-robin pointer atomically and start the search from
+        ``(idx + 1) % len`` so each call begins at a fresh offset.
+
+        Returns ``None`` when every credential is still cooling down.
         """
         now = time.time()
-        for entry in self._entries:
+        n = len(self._entries)
+        with self._rr_lock:
+            self._round_robin_index = (self._round_robin_index + 1) % n
+            start = self._round_robin_index
+        # Probe up to n entries starting at `start`; first eligible wins.
+        for offset in range(n):
+            idx = (start + offset) % n
+            entry = self._entries[idx]
             if entry.cooldown_until < now:
+                # Lock idx so the next call resumes from here, not start.
+                with self._rr_lock:
+                    self._round_robin_index = idx
                 return entry
         return None
 
@@ -294,7 +316,9 @@ class RetryPolicy:
 
             delay = min(base_delay_ms * 2**attempt, max_delay_ms)
 
-        Optionally adds uniform jitter in ``[0, base_delay_ms)`` ms.
+        With multiplicative jitter the result is multiplied by a uniform
+        random factor in ``[0.5, 1.5)`` so two clients computing back-off
+        for the same attempt do not retry in lock-step (Track D C-2).
 
         Args:
             attempt: Zero-indexed attempt number.
@@ -305,7 +329,10 @@ class RetryPolicy:
         raw_ms = self.base_delay_ms * (2**attempt)
         clamped_ms = min(raw_ms, self.max_delay_ms)
         if self.jitter:
-            clamped_ms += random.uniform(0, self.base_delay_ms)
+            # Track D C-2: multiplicative jitter spreads concurrent retries
+            # across a 2x window so retry storms can't synchronize across
+            # callers sharing a CredentialPool.
+            clamped_ms = clamped_ms * random.uniform(0.5, 1.5)
         return clamped_ms / 1000.0
 
 

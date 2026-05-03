@@ -181,7 +181,12 @@ async def handle_create_run(request: Request) -> JSONResponse:
         if managed_run.response_snapshot:
             try:
                 snapshot_body = json.loads(managed_run.response_snapshot)
-                return JSONResponse(snapshot_body, status_code=200)
+                # Track D C-7: return the cached HTTP status_code so a replay
+                # of a failed run surfaces a 5xx (not a misleading 200).
+                # Fall back to 200 only when no code was persisted (legacy
+                # rows pre-dating the status_code column).
+                replay_status_code = managed_run.response_status_code or 200
+                return JSONResponse(snapshot_body, status_code=replay_status_code)
             except (ValueError, json.JSONDecodeError):  # rule7-exempt: expiry_wave="permanent"
                 pass
         # Original run is still in-flight — return pending notice.

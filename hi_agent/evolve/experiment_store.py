@@ -171,8 +171,10 @@ class SqliteExperimentStore:
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
+        # Track D C-1: WAL + busy_timeout via shared helper. ``enable_foreign_keys``
+        # opts back in to the FK enforcement this store had pre-Track-D.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(conn, enable_foreign_keys=True)
         return conn
 
     def _init_db(self) -> None:

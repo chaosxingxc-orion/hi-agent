@@ -13,7 +13,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
@@ -36,6 +36,11 @@ class IdempotencyRecord:
     project_id: str = ""
     user_id: str = ""
     session_id: str = ""
+    # Track D C-7: HTTP status code captured at terminal state so the replay
+    # path can return the original outcome (5xx for failed, 200 for success)
+    # instead of always returning 200. Defaults to 200 for legacy rows that
+    # were stored before this column existed (treated as "succeeded").
+    status_code: int = 200
 
 
 def _hash_payload(payload: dict[str, Any]) -> str:
@@ -67,6 +72,7 @@ CREATE TABLE IF NOT EXISTS idempotency_records (
     project_id        TEXT    NOT NULL,
     user_id           TEXT    NOT NULL DEFAULT '',
     session_id        TEXT    NOT NULL DEFAULT '',
+    status_code       INTEGER NOT NULL DEFAULT 200,
     UNIQUE (tenant_id, idempotency_key)
 )
 """
@@ -92,7 +98,9 @@ ON idempotency_records (tenant_id, idempotency_key)
             str(self._db_path),
             check_same_thread=False,
         )
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(self._conn)
         self._conn.execute(self._CREATE_TABLE)
         self._conn.execute(self._CREATE_INDEX)
         self._conn.commit()
@@ -116,9 +124,18 @@ ON idempotency_records (tenant_id, idempotency_key)
             cx.execute(
                 "ALTER TABLE idempotency_records ADD COLUMN session_id TEXT NOT NULL DEFAULT ''"
             )
+        # Track D C-7: status_code column for replay HTTP-status fidelity.
+        if "status_code" not in cols:
+            cx.execute(
+                "ALTER TABLE idempotency_records "
+                "ADD COLUMN status_code INTEGER NOT NULL DEFAULT 200"
+            )
         cx.commit()
 
     def _row_to_record(self, row: tuple) -> IdempotencyRecord:
+        # row carries 12 spine fields plus an optional status_code at index 12
+        # (legacy SELECTs that omit it pass len 12 — default to 200).
+        status_code = int(row[12]) if len(row) > 12 and row[12] is not None else 200
         return IdempotencyRecord(
             tenant_id=row[0],
             idempotency_key=row[1],
@@ -132,6 +149,7 @@ ON idempotency_records (tenant_id, idempotency_key)
             project_id=row[9],
             user_id=row[10],
             session_id=row[11],
+            status_code=status_code,
         )
 
     # -- public API ----------------------------------------------------------
@@ -232,7 +250,7 @@ ON idempotency_records (tenant_id, idempotency_key)
             cur = self._conn.execute(
                 "SELECT tenant_id, idempotency_key, request_hash, run_id, "
                 "status, response_snapshot, created_at, updated_at, expires_at, "
-                "project_id, user_id, session_id "
+                "project_id, user_id, session_id, status_code "
                 "FROM idempotency_records "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
                 (tenant_id, idempotency_key),
@@ -292,12 +310,29 @@ ON idempotency_records (tenant_id, idempotency_key)
             return response_json
         return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
+    # Track D C-7: default HTTP status codes per terminal_state. Callers can
+    # override via the ``status_code`` kwarg when the upstream layer knows
+    # the exact code that was originally returned (e.g. 409 for conflict).
+    _DEFAULT_STATUS_CODE_BY_TERMINAL: ClassVar[dict[str, int]] = {
+        "succeeded": 200,
+        "failed": 500,
+        "cancelled": 499,  # client-cancelled — same convention as nginx 499
+        "timed_out": 504,
+    }
+
+    @classmethod
+    def default_status_code_for(cls, terminal_state: str) -> int:
+        """Return the default HTTP status code for a terminal_state."""
+        return cls._DEFAULT_STATUS_CODE_BY_TERMINAL.get(terminal_state, 500)
+
     def mark_complete(
         self,
         tenant_id: str,
         idempotency_key: str,
         response_json: str,
         terminal_state: str = "succeeded",
+        *,
+        status_code: int | None = None,
     ) -> None:
         """Mark an idempotency record as complete with a terminal state snapshot.
 
@@ -309,40 +344,64 @@ ON idempotency_records (tenant_id, idempotency_key)
         ``response_json`` before storage so a replay does not re-emit the
         original request's trace metadata.
 
+        Track D C-7: ``status_code`` records the original HTTP status code so
+        a replay returns the same code (e.g. 500 for a failed run, 200 for a
+        completed run). When omitted, a default is inferred from
+        ``terminal_state`` via :meth:`default_status_code_for`.
+
         Args:
             tenant_id: Tenant owning the record.
             idempotency_key: Client-supplied idempotency key.
             response_json: JSON-serialized final result.
             terminal_state: One of "succeeded", "failed", "cancelled",
                 "timed_out". Stored verbatim as the record status.
+            status_code: HTTP status code that was originally returned for
+                this run. When None, defaulted from ``terminal_state``.
         """
         _valid = frozenset({"succeeded", "failed", "cancelled", "timed_out"})
         status = terminal_state if terminal_state in _valid else "succeeded"
+        resolved_code = (
+            int(status_code)
+            if status_code is not None
+            else self.default_status_code_for(status)
+        )
         normalized_response = self._normalize_response_for_replay(response_json)
         now = time.time()
         with self._lock:
             self._conn.execute(
                 "UPDATE idempotency_records "
-                "SET status = ?, response_snapshot = ?, updated_at = ? "
+                "SET status = ?, response_snapshot = ?, updated_at = ?, status_code = ? "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
-                (status, normalized_response, now, tenant_id, idempotency_key),
+                (status, normalized_response, now, resolved_code, tenant_id, idempotency_key),
             )
             self._conn.commit()
 
-    def mark_failed(self, tenant_id: str, idempotency_key: str) -> None:
+    def mark_failed(
+        self,
+        tenant_id: str,
+        idempotency_key: str,
+        *,
+        status_code: int = 500,
+    ) -> None:
         """Mark an idempotency record as failed.
+
+        Track D C-7: persists ``status_code`` (default 500) so a replay
+        surfaces the original failure rather than masquerading as 200.
 
         Args:
             tenant_id: Tenant owning the record.
             idempotency_key: Client-supplied idempotency key.
+            status_code: HTTP status code that was originally returned;
+                defaulted to 500 when the failure happened before a code
+                was determined.
         """
         now = time.time()
         with self._lock:
             self._conn.execute(
                 "UPDATE idempotency_records "
-                "SET status = 'failed', updated_at = ? "
+                "SET status = 'failed', updated_at = ?, status_code = ? "
                 "WHERE tenant_id = ? AND idempotency_key = ?",
-                (now, tenant_id, idempotency_key),
+                (now, int(status_code), tenant_id, idempotency_key),
             )
             self._conn.commit()
 

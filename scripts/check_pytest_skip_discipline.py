@@ -24,7 +24,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TESTS_DIR = ROOT / "tests"
-CURRENT_WAVE_FILE = ROOT / "docs" / "governance" / "current-wave.txt"
+CURRENT_WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 
 _SKIP_PATTERN = re.compile(
     r"@pytest\.mark\.(skip|skipif|xfail)\s*\(",
@@ -55,7 +55,7 @@ _SKIPIF_PATTERN = re.compile(r"@pytest\.mark\.skipif\s*\(", re.IGNORECASE)
 
 
 def _read_current_wave() -> int:
-    """Read current wave number from docs/governance/current-wave.txt."""
+    """Read current wave number from docs/current-wave.txt."""
     try:
         return int(CURRENT_WAVE_FILE.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):

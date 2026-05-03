@@ -197,6 +197,9 @@ class RealKernelBackend:
         # closure; the RunManager wraps it in a worker thread.
         executor_factory = self._agent_server.executor_factory
         if executor_factory is None:
+            # Track A F4: revert the just-created ManagedRun before raising
+            # so the run dict / queue does not retain an orphan record.
+            self._cancel_orphan_run(managed_run.run_id, tenant_id)
             err = ContractError(
                 "executor factory is not configured on the kernel",
                 tenant_id=tenant_id,
@@ -205,24 +208,71 @@ class RealKernelBackend:
             )
             raise err
         run_data = dict(task_contract, run_id=managed_run.run_id)
+        # Track A F4: wrap executor_factory() AND start_run() in a single
+        # try-block so any failure between create_run() and start_run()
+        # cancels the orphan run before re-raising.
         try:
-            task_runner = executor_factory(run_data)
-        except RuntimeError as exc:
-            # AgentServer raises RuntimeError("platform_not_ready: ...")
-            # when prod-mode subsystem checks fail. Surface as a 503.
-            err = ContractError(
-                str(exc),
-                tenant_id=tenant_id,
-                detail="platform_not_ready",
-                http_status=503,
-            )
-            raise err from exc
+            try:
+                task_runner = executor_factory(run_data)
+            except RuntimeError as exc:
+                # AgentServer raises RuntimeError("platform_not_ready: ...")
+                # when prod-mode subsystem checks fail. Surface as a 503.
+                err = ContractError(
+                    str(exc),
+                    tenant_id=tenant_id,
+                    detail="platform_not_ready",
+                    http_status=503,
+                )
+                raise err from exc
 
-        def _executor_fn(_managed_run: Any) -> Any:
-            return task_runner()
+            def _executor_fn(_managed_run: Any) -> Any:
+                return task_runner()
 
-        self._agent_server.run_manager.start_run(managed_run.run_id, _executor_fn)
+            self._agent_server.run_manager.start_run(managed_run.run_id, _executor_fn)
+        except Exception:
+            # Any failure above leaves a ManagedRun in the manager dict and
+            # potentially in the durable run_queue. Revert by cancelling so
+            # /runs/{id} returns 404 (per Rule 8 step-6 cancel semantics)
+            # rather than an orphaned 'created' record that never advances.
+            self._cancel_orphan_run(managed_run.run_id, tenant_id)
+            raise
         return self._record_to_dict(managed_run.run_id, tenant_id)
+
+    def _cancel_orphan_run(self, run_id: str, tenant_id: str) -> None:
+        """Track A F4: revert a partially-created run on start_run failure.
+
+        Called when ``executor_factory(...)`` or ``run_manager.start_run(...)``
+        raises before the run is actually executing. We mark the run cancelled
+        so it cannot leak into ``list_runs`` or be claimed by a worker, then
+        emit a structured silent-degradation log if the cancel itself fails.
+        Errors here MUST NOT shadow the original failure — the caller swallows
+        any exception we raise so the original error reaches the HTTP layer.
+        """
+        try:
+            self._agent_server.run_manager.cancel_run(
+                run_id,
+                workspace=KernelTenantContext(tenant_id=tenant_id),
+            )
+        except Exception as exc:  # pragma: no cover — defensive cleanup
+            # Loud signal: orphan cleanup failed. Use the silent-degradation
+            # spine so this is observable in metrics/logs, but never re-raise
+            # because we are already unwinding from a primary failure.
+            try:
+                from hi_agent.observability.silent_degradation import (
+                    record_silent_degradation,
+                )
+
+                record_silent_degradation(
+                    component="agent_server.runtime.kernel_adapter._cancel_orphan_run",
+                    reason="orphan_cancel_failed",
+                    exc=exc,
+                )
+            except Exception:  # pragma: no cover
+                _log.warning(
+                    "RealKernelBackend: orphan cancel for run_id=%s failed: %s",
+                    run_id,
+                    exc,
+                )
 
     def get_run(self, *, tenant_id: str, run_id: str) -> dict[str, Any]:
         """Return the dict-shaped record for ``run_id`` under ``tenant_id``.

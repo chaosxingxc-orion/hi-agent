@@ -130,7 +130,9 @@ class PostmortemEngine:  # scope: process-internal — injected into RunManager,
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self._db_path))
-        conn.execute("PRAGMA journal_mode=WAL")
+        # Track D C-1: WAL + busy_timeout via shared helper.
+        from hi_agent._sqlite_init import configure_sqlite_connection
+        configure_sqlite_connection(conn)
         return conn
 
     def _init_db(self) -> None:
