@@ -1,11 +1,19 @@
 """W31-N (Wave 31, Track A1, N.1): single bootstrap seam.
 
-This is the ONE module under ``agent_server/`` permitted to import from
-``hi_agent.*`` per R-AS-1. It assembles the production northbound app
-that the agent-server CLI (``serve.py``) hands to uvicorn, and that
-RIA team consumes.
+W32-A extends the single seam into a SECOND permitted seam under
+``agent_server/runtime/**`` (kernel adapter module) so the heavy
+``AgentServer`` wiring can live next to its facade-binding logic
+instead of growing this module past its LOC budget. The two-seam list
+under R-AS-1 is now:
 
-What it wires:
+  * ``agent_server/bootstrap.py`` (this file) — assembles the FastAPI
+    app, picks dev-stub vs real-kernel backend, hands the lifespan to
+    FastAPI.
+  * ``agent_server/runtime/**`` — the runtime adapter that owns the
+    AgentServer instance and exposes facade callables. Enforced by
+    ``scripts/check_facade_seams.py``.
+
+What this module wires:
 
 * :class:`hi_agent.server.idempotency.IdempotencyStore` — persistent
   SQLite-backed dedup, scoped under ``state_dir``.
@@ -14,10 +22,13 @@ What it wires:
 * :class:`agent_server.facade.run_facade.RunFacade`,
   :class:`~agent_server.facade.event_facade.EventFacade`,
   :class:`~agent_server.facade.artifact_facade.ArtifactFacade`,
-  :class:`~agent_server.facade.manifest_facade.ManifestFacade` — all
-  initialised against in-process stub callables. The real kernel
-  binding lands in a follow-up wave; W31-N1/N2 only require the seam
-  to exist and the middleware pipeline to be live.
+  :class:`~agent_server.facade.manifest_facade.ManifestFacade` — bound
+  to either :class:`agent_server.runtime.RealKernelBackend` (default
+  under all postures) or the legacy in-process stub
+  (``AGENT_SERVER_BACKEND=stub`` only, dev posture only). The stub
+  remains for the default-offline test profile (Rule 16); it is
+  forbidden under research/prod posture and the resolution helper
+  raises if requested there.
 * :class:`hi_agent.config.posture.Posture` — used to flip strict
   behaviour on research/prod.
 * :func:`agent_server.api.build_app` — assembles the FastAPI app.
@@ -25,18 +36,15 @@ What it wires:
   in the order that puts ``TenantContextMiddleware`` outermost (runs
   first) and ``IdempotencyMiddleware`` inner (consumes the validated
   tenant id).
-
-The in-process stub backends are intentionally minimal: they keep the
-default-offline test profile (Rule 16) self-contained. They do NOT
-attempt to run real LLM calls. Replacing them with the live kernel is
-strictly a follow-up: the bootstrap is the only seam that needs to
-change, by spec.
+* :func:`agent_server.runtime.build_real_kernel_lifespan` — wires the
+  AgentServer's startup rehydration and shutdown drain into the
+  FastAPI lifespan when the real backend is selected.
 """
 from __future__ import annotations
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI
 
@@ -54,6 +62,7 @@ from agent_server.facade.event_facade import EventFacade
 from agent_server.facade.idempotency_facade import IdempotencyFacade
 from agent_server.facade.manifest_facade import ManifestFacade
 from agent_server.facade.run_facade import RunFacade
+from agent_server.runtime import RealKernelBackend, build_real_kernel_lifespan
 
 __all__ = ["build_production_app"]
 
@@ -75,6 +84,36 @@ def _default_state_dir() -> Path:
     if home:
         return Path(home) / ".agent_server"
     return Path.cwd() / ".agent_server"
+
+
+def _resolve_backend_kind(posture: Posture) -> Literal["real", "stub"]:
+    """Decide whether the bootstrap binds the real kernel or the in-process stub.
+
+    Reads ``AGENT_SERVER_BACKEND`` (default ``"real"``). Values:
+
+      * ``"real"`` — bind facades to :class:`RealKernelBackend`.
+      * ``"stub"`` — keep the legacy :class:`_InProcessRunBackend`. This
+        is the default-offline test profile (Rule 16) path and is ONLY
+        valid under dev posture.
+
+    Under research/prod posture the stub is fail-closed: callers that
+    explicitly set ``AGENT_SERVER_BACKEND=stub`` get a ``ValueError``
+    so the misconfiguration surfaces at startup rather than turning a
+    production instance into a no-op responder.
+    """
+    import os
+
+    raw = os.environ.get("AGENT_SERVER_BACKEND", "real").strip().lower()
+    if raw not in ("real", "stub"):
+        raise ValueError(
+            f"AGENT_SERVER_BACKEND={raw!r} is not valid; expected 'real' or 'stub'."
+        )
+    if posture.is_strict and raw == "stub":
+        raise ValueError(
+            "AGENT_SERVER_BACKEND=stub is forbidden under research/prod posture; "
+            "set AGENT_SERVER_BACKEND=real (the default) or unset it."
+        )
+    return raw  # type: ignore[return-value]  # narrowed above
 
 
 class _InProcessRunBackend:
@@ -231,23 +270,56 @@ def build_production_app(
     def _tenant_event_emitter(tenant_id: str) -> None:
         emit_tenant_context(tenant_id=tenant_id)
 
-    # Run/event/artifact backends — in-process stubs for W31-N1/N2.
-    backend = _InProcessRunBackend()
-    run_facade = RunFacade(
-        start_run=backend.start_run,
-        get_run=backend.get_run,
-        signal_run=backend.signal_run,
-    )
-    event_facade = EventFacade(
-        cancel_run=backend.cancel_run,
-        get_run=backend.get_run,
-        iter_events=backend.iter_events,
-    )
-    artifact_facade = ArtifactFacade(
-        list_artifacts=backend.list_artifacts,
-        get_artifact=backend.get_artifact,
-    )
+    # W32-A: pick real-kernel vs stub backend. Real is default; stub is
+    # dev-only and exists for the default-offline test profile.
+    backend_kind = _resolve_backend_kind(posture)
+    real_backend: RealKernelBackend | None = None
+    stub_backend: _InProcessRunBackend | None = None
+    if backend_kind == "real":
+        real_backend = RealKernelBackend(
+            state_dir=resolved_state_dir, posture=posture
+        )
+        run_facade = RunFacade(
+            start_run=real_backend.start_run,
+            get_run=real_backend.get_run,
+            signal_run=real_backend.signal_run,
+        )
+        event_facade = EventFacade(
+            cancel_run=real_backend.cancel_run,
+            get_run=real_backend.get_run,
+            iter_events=real_backend.iter_events,
+        )
+        artifact_facade = ArtifactFacade(
+            list_artifacts=real_backend.list_artifacts,
+            get_artifact=real_backend.get_artifact,
+        )
+    else:
+        stub_backend = _InProcessRunBackend()
+        run_facade = RunFacade(
+            start_run=stub_backend.start_run,
+            get_run=stub_backend.get_run,
+            signal_run=stub_backend.signal_run,
+        )
+        event_facade = EventFacade(
+            cancel_run=stub_backend.cancel_run,
+            get_run=stub_backend.get_run,
+            iter_events=stub_backend.iter_events,
+        )
+        artifact_facade = ArtifactFacade(
+            list_artifacts=stub_backend.list_artifacts,
+            get_artifact=stub_backend.get_artifact,
+        )
     manifest_facade = ManifestFacade()
+
+    # When real-kernel is selected, hand a lifespan into build_app so
+    # the AgentServer's rehydration + drain hooks fire on FastAPI
+    # startup/shutdown. Under stub the lifespan stays None — the stub
+    # has no resources that outlive a request.
+    lifespan = (
+        build_real_kernel_lifespan(real_backend)
+        if real_backend is not None
+        else None
+    )
 
     app = build_app(
         run_facade=run_facade,
@@ -262,6 +334,7 @@ def build_production_app(
         # builds (route-level unit tests) keep them silent.
         include_mcp_tools=True,
         include_skills_memory=True,
+        lifespan=lifespan,
     )
 
     # Stash references so the uvicorn worker / shutdown hook can reach
@@ -275,4 +348,8 @@ def build_production_app(
     app.state.artifact_facade = artifact_facade
     app.state.manifest_facade = manifest_facade
     app.state.posture = posture
+    app.state.backend_kind = backend_kind
+    # W32-A: stash the active backend so tests/introspection can drive
+    # it directly (e.g. inject a stub skill that records invocation).
+    app.state.run_backend = real_backend if real_backend is not None else stub_backend
     return app

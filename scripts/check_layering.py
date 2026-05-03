@@ -47,7 +47,14 @@ SKIP_DIRS = frozenset({"venv", ".venv", "node_modules", ".git", "dist", "build",
 # W31-N3 adds ``agent_server/api`` (nested ``middleware`` is covered by
 # the os.walk recursion) with FORBIDDEN_PREFIXES = ("hi_agent",) and
 # allowlist disabled — there is no permitted "deferred" import escape
-# valve under R-AS-1.
+# valve under R-AS-1 for route handlers / middleware.
+#
+# W32-A: ``agent_server/bootstrap.py`` and ``agent_server/runtime/**`` are the
+# TWO permitted R-AS-1 seams. They are intentionally omitted from this scan
+# config (i.e. they may import from hi_agent freely). Every such import must
+# carry an ``# r-as-1-seam: <reason>`` annotation enforced by
+# ``scripts/check_facade_seams.py`` (which scans facade/ + runtime/) and the
+# bootstrap module is the canonical seam (W31-N1).
 SOURCE_ROOTS_CONFIG: tuple[tuple[str, tuple[str, ...], bool], ...] = (
     ("hi_agent", ("examples", "tests", "scripts", "docs"), True),
     ("agent_kernel", ("examples", "tests", "scripts", "docs"), True),

@@ -19,6 +19,8 @@ W31-N adds:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -63,6 +65,7 @@ def build_app(
     include_mcp_tools: bool = False,
     include_skills_memory: bool = False,
     include_gates: bool = True,
+    lifespan=None,
 ) -> FastAPI:
     """Construct the agent_server ASGI app with routes + middleware wired.
 
@@ -105,11 +108,21 @@ def build_app(
         only when ``idempotency_facade`` is wired.
     include_gates:
         When True (default), wire POST /v1/gates/{gate_id}/decide.
+    lifespan:
+        Optional FastAPI lifespan context manager (W32-A). When
+        provided, attached as the FastAPI app's lifespan so the
+        bootstrap can hook startup (rehydrate runs, warm caches) and
+        shutdown (drain RunManager, close stores) into the ASGI
+        startup/shutdown protocol. Tests and stub builds pass ``None``
+        and get FastAPI's default no-op lifespan.
     """
-    app = FastAPI(
-        title="agent_server northbound facade",
-        version=AGENT_SERVER_API_VERSION,
-    )
+    app_kwargs: dict[str, Any] = {
+        "title": "agent_server northbound facade",
+        "version": AGENT_SERVER_API_VERSION,
+    }
+    if lifespan is not None:
+        app_kwargs["lifespan"] = lifespan
+    app = FastAPI(**app_kwargs)
     # Middleware order at request time:
     #   TenantContext (validates X-Tenant-Id) -> Idempotency (consumes ctx)
     # FastAPI's add_middleware inserts at index 0 (last added is OUTERMOST

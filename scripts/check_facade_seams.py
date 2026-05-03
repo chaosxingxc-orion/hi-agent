@@ -1,19 +1,27 @@
 #!/usr/bin/env python
-"""W31-N4: facade-seam annotation gate.
+"""W31-N4 / W32-A: facade-seam annotation gate.
 
-Walks every ``.py`` file under ``agent_server/facade/**`` and asserts
-that any ``from hi_agent.`` import is annotated with the comment
+Walks every ``.py`` file under ``agent_server/facade/**`` AND
+``agent_server/runtime/**`` (W32-A) and asserts that any
+``from hi_agent.`` import is annotated with the comment
 ``# r-as-1-seam: <reason>`` either on the same line or on the
 immediately preceding line. The bootstrap module
 (``agent_server/bootstrap.py``) is exempt — it is the canonical seam by
 design (W31-N1).
 
-Why a separate gate from check_layering.py: the facade modules MUST
-reach into hi_agent (that's their entire purpose — to wrap a hi_agent
-class behind an agent_server contract). What we want to enforce is that
-each such reach is *intentional and documented*. The annotation comment
-forces the author to name the boundary they're crossing and gives
-reviewers a single string to grep when they audit R-AS-1.
+Why two scan roots: facade modules wrap one hi_agent class apiece
+(IdempotencyStore, etc.) so each cross-boundary import is small and
+local. The W32-A runtime adapter binds the broader AgentServer
+umbrella and therefore lives under ``agent_server/runtime/`` rather
+than ``facade/`` — but the annotation discipline is identical and the
+gate scans both.
+
+Why a separate gate from check_layering.py: the facade and runtime
+modules MUST reach into hi_agent (that's their entire purpose). What
+we want to enforce is that each such reach is *intentional and
+documented*. The annotation comment forces the author to name the
+boundary they're crossing and gives reviewers a single string to grep
+when they audit R-AS-1.
 
 Usage::
 
@@ -32,6 +40,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FACADE_DIR = ROOT / "agent_server" / "facade"
+RUNTIME_DIR = ROOT / "agent_server" / "runtime"
+SCAN_DIRS: tuple[Path, ...] = (FACADE_DIR, RUNTIME_DIR)
 EXEMPT_FILES = frozenset({"agent_server/bootstrap.py"})
 
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -83,47 +93,60 @@ def _scan_file(path: Path) -> list[dict[str, object]]:
 
 
 def evaluate() -> GateResult:
-    """Scan agent_server/facade/** for unannotated hi_agent imports."""
-    if not FACADE_DIR.exists():
+    """Scan facade + runtime seam roots for unannotated hi_agent imports."""
+    existing_dirs = [d for d in SCAN_DIRS if d.exists()]
+    if not existing_dirs:
         return GateResult(
             status=GateStatus.PASS,
             gate_name="facade_seams",
-            reason="agent_server/facade not yet created (vacuous PASS)",
-            evidence={"facade_dir_exists": False},
+            reason="agent_server/facade and agent_server/runtime not yet created (vacuous PASS)",
+            evidence={
+                "facade_dir_exists": False,
+                "runtime_dir_exists": False,
+            },
         )
 
     all_violations: list[dict[str, object]] = []
     files_scanned = 0
-    for dirpath, dirnames, filenames in os.walk(FACADE_DIR):
-        dirnames[:] = [d for d in dirnames if d not in {"__pycache__"}]
-        for filename in filenames:
-            if not filename.endswith(".py"):
-                continue
-            files_scanned += 1
-            all_violations.extend(_scan_file(Path(dirpath) / filename))
+    for scan_root in existing_dirs:
+        for dirpath, dirnames, filenames in os.walk(scan_root):
+            dirnames[:] = [d for d in dirnames if d not in {"__pycache__"}]
+            for filename in filenames:
+                if not filename.endswith(".py"):
+                    continue
+                files_scanned += 1
+                all_violations.extend(_scan_file(Path(dirpath) / filename))
 
+    scan_root_labels = ", ".join(
+        d.relative_to(ROOT).as_posix() for d in existing_dirs
+    )
     if all_violations:
         return GateResult(
             status=GateStatus.FAIL,
             gate_name="facade_seams",
             reason=(
                 f"{len(all_violations)} unannotated hi_agent import(s) under "
-                "agent_server/facade/ — every cross-boundary import must carry "
+                f"{scan_root_labels} — every cross-boundary import must carry "
                 "'# r-as-1-seam: <reason>' on the same or immediately preceding line"
             ),
             evidence={
                 "violations": all_violations,
                 "files_scanned": files_scanned,
+                "scan_roots": [d.relative_to(ROOT).as_posix() for d in existing_dirs],
             },
         )
     return GateResult(
         status=GateStatus.PASS,
         gate_name="facade_seams",
         reason=(
-            f"all hi_agent imports under agent_server/facade ({files_scanned} files) "
+            f"all hi_agent imports under {scan_root_labels} ({files_scanned} files) "
             "carry r-as-1-seam annotations"
         ),
-        evidence={"violations": [], "files_scanned": files_scanned},
+        evidence={
+            "violations": [],
+            "files_scanned": files_scanned,
+            "scan_roots": [d.relative_to(ROOT).as_posix() for d in existing_dirs],
+        },
     )
 
 
