@@ -2,8 +2,8 @@
   "wave": 33,
   "signoff_date": "2026-05-04",
   "signed_by": "platform-release-captain",
-  "manifest_id": "2026-05-03-fce71cc0",
-  "release_head": "fce71cc05c1aefe3a44c9d6f67a4ab1539126c81",
+  "manifest_id": "2026-05-03-a6cd40d3",
+  "release_head": "a6cd40d3641a...",
   "scorecard": {
     "raw_implementation_maturity": 94.5,
     "current_verified_readiness": 75.0,
@@ -17,7 +17,7 @@
   "tracks_closed": [
     {
       "track": "W33-A",
-      "title": "RIA W32 acceptance §5 soft drifts",
+      "title": "RIA W32 acceptance \u64025 soft drifts",
       "level": "verified_at_release_head",
       "code_commit": "4d9e4720",
       "test_or_gate": "scripts/check_wave_consistency.py exit 0; scripts/check_doc_truth.py exit 0",
@@ -77,5 +77,5 @@
     "research/docs/hi-agent-wave32-acceptance-2026-05-04.md (RIA M1 W32 acceptance)",
     "research/docs/hi-agent-wave31-acceptance-2026-05-03.md (RIA M1 W31 acceptance)"
   ],
-  "ria_score_cap_acceptance": "RIA accepted cap=75 per 2026-05-03 W31 acceptance §3; W33 reaffirms cap unchanged"
+  "ria_score_cap_acceptance": "RIA accepted cap=75 per 2026-05-03 W31 acceptance \u64023; W33 reaffirms cap unchanged"
 }
