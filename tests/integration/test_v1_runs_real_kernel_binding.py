@@ -253,7 +253,9 @@ def test_smoke_step4_get_runs_returns_real_state(
     final = _wait_for_terminal(real_client, run_id, timeout=10.0)
     assert final["run_id"] == run_id
     # The recording stub returns success; RunManager maps None -> completed.
-    assert final["state"] in {"completed", "failed"}, final
+    # We require strictly `completed` here (Rule 4 test honesty); if the run
+    # reaches `failed` instead, that's a real bug that should surface.
+    assert final["state"] == "completed", final
 
 
 # ---------------------------------------------------------------------------
