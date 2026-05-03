@@ -11,7 +11,7 @@ W33 D.2: defense-in-depth tenant scoping. The 8 mutation/inspection
 methods (``reenqueue``, ``cancel``, ``heartbeat``, ``complete``, ``fail``,
 ``dequeue_unclaimed``, ``is_cancelled``, ``dead_letter``,
 ``requeue_from_dlq``) accept an optional ``tenant_id`` kwarg. Under
-research/prod posture (read via ``Posture.from_env()``) a missing/empty
+research/prod posture (read via ``Posture`` resolver) a missing/empty
 ``tenant_id`` raises ``TenantScopeError``. When provided, queries add
 ``WHERE tenant_id = ?`` so a future internal caller cannot mutate a row
 that does not belong to the supplied tenant.

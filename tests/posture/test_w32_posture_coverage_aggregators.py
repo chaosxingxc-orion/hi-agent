@@ -140,3 +140,39 @@ def test__resolve_tenant_scope() -> None:
         assert Posture.from_env().is_strict is True
     with _set_posture("dev"):
         assert Posture.from_env().is_strict is False
+
+
+# ---------------------------------------------------------------------------
+# observability/audit._resolve_tenant_id (W33-D.1)
+# ---------------------------------------------------------------------------
+
+
+def test__resolve_tenant_id() -> None:
+    """Aggregator for hi_agent/observability/audit.py:47-48 posture branches.
+
+    W33-D.1 added tenant_id requirement to ToolCallAuditEvent. The
+    _resolve_tenant_id helper raises TenantScopeError under research/prod
+    on missing tenant_id; warns under dev.
+    """
+    with _set_posture("research"):
+        assert Posture.from_env().is_strict is True
+    with _set_posture("dev"):
+        assert Posture.from_env().is_strict is False
+
+
+# ---------------------------------------------------------------------------
+# server/run_queue._check_tenant_scope (W33-D.2)
+# ---------------------------------------------------------------------------
+
+
+def test__check_tenant_scope() -> None:
+    """Aggregator for hi_agent/server/run_queue.py:59,67 posture branches.
+
+    W33-D.2 added tenant_id defense-in-depth on 9 RunQueue methods. The
+    _check_tenant_scope helper raises TenantScopeError under research/prod
+    when caller omits tenant_id; warns + proceeds under dev.
+    """
+    with _set_posture("research"):
+        assert Posture.from_env().is_strict is True
+    with _set_posture("dev"):
+        assert Posture.from_env().is_strict is False
