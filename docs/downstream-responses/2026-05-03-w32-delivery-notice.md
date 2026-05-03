@@ -3,8 +3,9 @@
 **Date:** 2026-05-03
 **Wave:** 32
 Status: SHIP
-Manifest: 2026-05-03-8f305ca7
-Functional HEAD: 8f305ca7609eea61939b3d4add9c9ce6444e90b3
+Manifest: 2026-05-03-88d9a93b
+Functional HEAD: 04dc1f15288d721131b3e8a6f07747d68e35614c
+notice-pre-final-commit: true
 
 > **Cross-wave context:** Wave 32 closes RIA team's W32 expectation per `research/docs/hi-agent-wave31-acceptance-2026-05-03.md` §4: bind real `hi_agent.runtime` behind the agent_server v1 northbound routes, replacing the W31 `_InProcessRunBackend` stubs. In addition, this wave closes 22 hidden gaps surfaced by the W32 systematic audit beyond the RIA W33 carryover list (4 new + 18 from carryover), refreshes ARCHITECTURE.md across 16 subsystems, and resolves 6 doc-truth / governance drift items. Per Rule 14, this notice does NOT modify any prior wave's notice.
 

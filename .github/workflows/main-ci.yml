@@ -74,7 +74,7 @@ jobs:
         if: ${{ env.OPENAI_API_KEY != '' || env.ANTHROPIC_API_KEY != '' }}
         run: python -m pytest tests/integration/test_prod_e2e.py -q -m prod_e2e --tb=short --timeout=120
       - name: Coverage (unit + integration)
-        # TODO: promote to blocking in W29 — slow CI runners cause executor integration
+        # TODO: promote to blocking in W34 — slow CI runners cause executor integration
         # tests to hit the 120s per-test timeout under coverage instrumentation.
         # Real blocking gates are the named steps above (unit, security, contract, integration).
         continue-on-error: true

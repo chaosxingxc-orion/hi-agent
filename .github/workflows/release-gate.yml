@@ -94,7 +94,7 @@ jobs:
         run: python scripts/check_targeted_default_path.py --json
 
       - name: Check verification artifacts (W14-A1)
-        # TODO: promote to blocking in W29 once verify-on-functional-HEAD lands.
+        # TODO: promote to blocking in W34 once verify-on-functional-HEAD lands.
         # The release-gate workflow runs against `git rev-parse HEAD`, which is
         # always one commit past any locally-committed artifact (the artifact-
         # commit itself moves HEAD). --allow-docs-only-gap accepts artifacts
@@ -172,7 +172,7 @@ jobs:
       # --- W16 new gates ---
 
       - name: Manifest freshness (W16-A8)
-        # TODO: promote to blocking in W29 once CI generates+commits the
+        # TODO: promote to blocking in W34 once CI generates+commits the
         # manifest in a single atomic step (same migration as release_identity).
         # --allow-docs-only-gap: same exemption as the release_identity step
         # below. The manifest commit is itself a docs-only follow-on after the
@@ -183,7 +183,7 @@ jobs:
         run: python scripts/check_manifest_freshness.py --json --allow-docs-only-gap
 
       - name: Release identity (W16-A8)
-        # TODO: promote to blocking in W29 once manifest commit is atomic at release HEAD.
+        # TODO: promote to blocking in W34 once manifest commit is atomic at release HEAD.
         # Manifest is generated at the functional commit but committed in a docs-only
         # follow-on; --allow-docs-only-gap is the right exemption (same as verification
         # artifacts check above). Promotion target: W29 when CI generates+commits manifest

@@ -31,11 +31,14 @@ from _governance.multistatus import (
 
 @pytest.fixture()
 def patched_facade_dir(tmp_path: Path, monkeypatch):
-    """Override the gate's FACADE_DIR + ROOT to a tmp_path tree."""
+    """Override the gate's FACADE_DIR + ROOT + SCAN_DIRS to a tmp_path tree."""
     fac_dir = tmp_path / "agent_server" / "facade"
     fac_dir.mkdir(parents=True)
+    rt_dir = tmp_path / "agent_server" / "runtime"
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "FACADE_DIR", fac_dir)
+    monkeypatch.setattr(gate, "RUNTIME_DIR", rt_dir)
+    monkeypatch.setattr(gate, "SCAN_DIRS", (fac_dir, rt_dir))
     return fac_dir
 
 
@@ -112,8 +115,11 @@ def test_bootstrap_module_exempt(tmp_path: Path, monkeypatch) -> None:
         "from hi_agent.config.posture import Posture\n_ = Posture\n",
         encoding="utf-8",
     )
+    rt_dir = tmp_path / "agent_server" / "runtime"
     monkeypatch.setattr(gate, "ROOT", tmp_path)
     monkeypatch.setattr(gate, "FACADE_DIR", fac_dir)
+    monkeypatch.setattr(gate, "RUNTIME_DIR", rt_dir)
+    monkeypatch.setattr(gate, "SCAN_DIRS", (fac_dir, rt_dir))
     # bootstrap is outside FACADE_DIR — gate doesn't even scan it. The
     # exemption matters when bootstrap appears INSIDE FACADE_DIR (e.g.
     # via a future move). Synthesise that case explicitly.
