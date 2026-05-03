@@ -12,12 +12,10 @@ in the same directory and by the integration suite.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
-import pytest
-
-from hi_agent.config.posture import Posture  # noqa: F401  expiry_wave: permanent  # gate marker
+from hi_agent.config.posture import Posture
 from hi_agent.contracts.errors import TenantScopeError
 
 
@@ -89,7 +87,9 @@ def test__require_tenant_id() -> None:
     """Aggregator for hi_agent/server/team_run_registry.py:219 posture
     branch (W32-B Gap 5: tenant_id required under research/prod).
     """
-    from hi_agent.server.team_run_registry import TeamRunRegistry  # noqa: F401  expiry_wave: permanent
+    from hi_agent.server.team_run_registry import (
+        TeamRunRegistry,  # noqa: F401  expiry_wave: permanent
+    )
 
     with _set_posture("research"):
         # Posture.is_strict triggers the require-tenant branch.

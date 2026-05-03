@@ -5,19 +5,20 @@ research/prod posture. The check_posture_coverage gate requires that every
 posture-sensitive callsite has a test for both dev-allow and research-reject
 paths. This module covers the 12 callsites under
 ``hi_agent/knowledge/knowledge_manager.py``: lines 320, 325 (read helper)
-and 343, 348 (write helper). Single test per (helper × posture) covers all
+and 343, 348 (write helper). Single test per (helper x posture) covers all
 the inner branch lines transitively.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 import pytest
-
-from hi_agent.config.posture import Posture  # noqa: F401  expiry_wave: permanent  # gate scans tests for this import to mark posture coverage
+from hi_agent.config.posture import (
+    Posture,  # noqa: F401  expiry_wave: permanent  # gate scans tests for this import to mark posture coverage
+)
 from hi_agent.contracts.errors import TenantScopeError
 from hi_agent.knowledge.knowledge_manager import KnowledgeManager
 
@@ -40,16 +41,14 @@ def _set_posture(value: str) -> Iterator[None]:
 
 def test__require_tenant_for_read_research_rejects_missing() -> None:
     """research posture raises TenantScopeError when tenant_id is empty."""
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError, match="tenant_id is missing"):
-            KnowledgeManager._require_tenant_for_read("", op="query")
+    with _set_posture("research"), pytest.raises(TenantScopeError, match="tenant_id is missing"):
+        KnowledgeManager._require_tenant_for_read("", op="query")
 
 
 def test__require_tenant_for_read_research_rejects_none() -> None:
     """research posture raises TenantScopeError when tenant_id is None."""
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError):
-            KnowledgeManager._require_tenant_for_read(None, op="get_stats")
+    with _set_posture("research"), pytest.raises(TenantScopeError):
+        KnowledgeManager._require_tenant_for_read(None, op="get_stats")
 
 
 def test__require_tenant_for_read_dev_allows_missing(caplog) -> None:
@@ -79,9 +78,8 @@ def test__require_tenant_for_read() -> None:
     cover behaviour; this wrapper satisfies the gate's strict
     name-match.
     """
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError):
-            KnowledgeManager._require_tenant_for_read("", op="query")
+    with _set_posture("research"), pytest.raises(TenantScopeError):
+        KnowledgeManager._require_tenant_for_read("", op="query")
     with _set_posture("dev"):
         KnowledgeManager._require_tenant_for_read("", op="query")
 
@@ -91,16 +89,14 @@ def test__require_tenant_for_read() -> None:
 
 def test__require_tenant_for_write_research_rejects_missing() -> None:
     """research posture raises TenantScopeError on empty tenant_id."""
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError, match="tenant_id is missing"):
-            KnowledgeManager._require_tenant_for_write("", op="ingest_text")
+    with _set_posture("research"), pytest.raises(TenantScopeError, match="tenant_id is missing"):
+        KnowledgeManager._require_tenant_for_write("", op="ingest_text")
 
 
 def test__require_tenant_for_write_research_rejects_whitespace() -> None:
     """research posture raises TenantScopeError on whitespace-only tenant_id."""
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError):
-            KnowledgeManager._require_tenant_for_write("   ", op="ingest_structured")
+    with _set_posture("research"), pytest.raises(TenantScopeError):
+        KnowledgeManager._require_tenant_for_write("   ", op="ingest_structured")
 
 
 def test__require_tenant_for_write_dev_allows_missing(caplog) -> None:
@@ -124,8 +120,7 @@ def test__require_tenant_for_write() -> None:
 
     See ``test__require_tenant_for_read`` for rationale.
     """
-    with _set_posture("research"):
-        with pytest.raises(TenantScopeError):
-            KnowledgeManager._require_tenant_for_write("", op="ingest_text")
+    with _set_posture("research"), pytest.raises(TenantScopeError):
+        KnowledgeManager._require_tenant_for_write("", op="ingest_text")
     with _set_posture("dev"):
         KnowledgeManager._require_tenant_for_write("", op="ingest_text")
