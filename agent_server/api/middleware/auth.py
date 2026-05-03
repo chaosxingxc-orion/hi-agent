@@ -53,7 +53,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._audience = audience
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]  expiry_wave: permanent
         path = request.url.path
         if path in _EXEMPT_PATHS:
             return await call_next(request)

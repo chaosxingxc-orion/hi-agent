@@ -253,8 +253,8 @@ def build_real_kernel_lifespan(backend: RealKernelBackend):
         # Stash on the backend so test/introspection code can assert
         # they were started without reaching into agent_server private
         # attributes.
-        backend._lease_expiry_task = lease_task  # type: ignore[attr-defined]
-        backend._current_stage_watchdog_task = watchdog_task  # type: ignore[attr-defined]
+        backend._lease_expiry_task = lease_task  # type: ignore[attr-defined]  expiry_wave: permanent
+        backend._current_stage_watchdog_task = watchdog_task  # type: ignore[attr-defined]  expiry_wave: permanent
         # Also stash on agent_server for parity with hi_agent.server.app.lifespan
         agent_server._lease_expiry_task = lease_task
         agent_server._current_stage_watchdog_task = watchdog_task
