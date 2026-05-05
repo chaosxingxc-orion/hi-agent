@@ -169,14 +169,20 @@ def test__belongs_to_tenant(monkeypatch, posture_name, tenantless_visible, tmp_p
 
     We test the underlying posture behaviour directly since _belongs_to_tenant
     is a nested closure and not directly importable.
+
+    W35-T1: spine validation rejects empty-tenant_id Artifact construction
+    under research/prod, so the legacy fixture is constructed under dev posture
+    before the target posture is applied for the visibility check.
     """
-    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     from hi_agent.artifacts.contracts import Artifact
     from hi_agent.artifacts.ledger import ArtifactLedger
 
+    art_empty = Artifact(tenant_id="")
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     ledger_path = None if posture_name == "dev" else (tmp_path / "artifacts.jsonl")
     ledger = ArtifactLedger(ledger_path=ledger_path)
-    art_empty = Artifact(tenant_id="")
     # _tenant_visible mirrors _belongs_to_tenant posture logic
     assert ledger._tenant_visible(art_empty, "some-tenant") is tenantless_visible
 

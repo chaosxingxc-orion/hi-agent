@@ -364,12 +364,14 @@ def test_register(monkeypatch, posture_name, empty_tenant_raises):
 
     dev: empty tenant_id registers with a warning.
     research/prod: empty tenant_id raises ValueError.
+
+    W35-T1: spine validation rejects empty-tenant_id TeamRun construction
+    under research/prod, so the empty-tenant fixture is built under dev
+    posture before the target posture is applied for the register() call.
     """
-    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     from hi_agent.contracts.team_runtime import TeamRun
     from hi_agent.server.team_run_registry import TeamRunRegistry
-
-    registry = TeamRunRegistry(db_path=":memory:")
 
     run = TeamRun(
         team_id="team-1",
@@ -377,6 +379,9 @@ def test_register(monkeypatch, posture_name, empty_tenant_raises):
         tenant_id="",
         project_id="proj-1",
     )
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+    registry = TeamRunRegistry(db_path=":memory:")
 
     if empty_tenant_raises:
         with pytest.raises(ValueError, match="tenant_id"):

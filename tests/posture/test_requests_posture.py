@@ -86,11 +86,18 @@ def test_start_run_response_requires_run_id(monkeypatch, posture_name):
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_human_gate_request_instantiates_under_posture(monkeypatch, posture_name):
-    """HumanGateRequest must be instantiable with required fields under all postures."""
+    """HumanGateRequest must be instantiable with required fields under all postures.
+
+    W35-T1: spine validation requires tenant_id under research/prod; supply it
+    so the test exercises the constructor's normal-path behaviour.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import HumanGateRequest
 
-    req = HumanGateRequest(run_id="r1", gate_type="human", gate_ref="ref-abc")
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    req = HumanGateRequest(
+        run_id="r1", gate_type="human", gate_ref="ref-abc", tenant_id=tenant_id
+    )
     assert req.run_id == "r1"
     assert req.gate_type == "human"
     assert req.gate_ref == "ref-abc"
@@ -103,11 +110,16 @@ def test_human_gate_request_instantiates_under_posture(monkeypatch, posture_name
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_run_result_instantiates_under_posture(monkeypatch, posture_name):
-    """RunResult must be instantiable under all postures."""
+    """RunResult must be instantiable under all postures.
+
+    W35-T1: spine validation requires tenant_id under research/prod; supply it
+    so the test exercises the constructor's normal-path behaviour.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import RunResult
 
-    result = RunResult(run_id="r1", status="completed")
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    result = RunResult(run_id="r1", status="completed", tenant_id=tenant_id)
     assert result.run_id == "r1"
     assert result.status == "completed"
     assert result.success is True
@@ -116,22 +128,32 @@ def test_run_result_instantiates_under_posture(monkeypatch, posture_name):
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_run_result_failed_under_posture(monkeypatch, posture_name):
-    """RunResult with failed status has correct success flag under all postures."""
+    """RunResult with failed status has correct success flag under all postures.
+
+    W35-T1: spine validation requires tenant_id under research/prod.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import RunResult
 
-    result = RunResult(run_id="r1", status="failed", error="some error")
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    result = RunResult(
+        run_id="r1", status="failed", error="some error", tenant_id=tenant_id
+    )
     assert result.success is False
     assert result.error == "some error"
 
 
 @pytest.mark.parametrize("posture_name", ["dev", "research", "prod"])
 def test_run_result_to_dict_under_posture(monkeypatch, posture_name):
-    """RunResult.to_dict returns JSON-serializable dict under all postures."""
+    """RunResult.to_dict returns JSON-serializable dict under all postures.
+
+    W35-T1: spine validation requires tenant_id under research/prod.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     from hi_agent.contracts.requests import RunResult
 
-    result = RunResult(run_id="r1", status="completed")
+    tenant_id = "" if posture_name == "dev" else "tenant-test"
+    result = RunResult(run_id="r1", status="completed", tenant_id=tenant_id)
     d = result.to_dict()
     assert d["run_id"] == "r1"
     assert d["status"] == "completed"

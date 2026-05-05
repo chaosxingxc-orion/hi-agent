@@ -66,14 +66,21 @@ def test__allow_legacy(monkeypatch, posture_name, expect_allowed, tmp_path):
 
     dev: tenantless artifact passes through.
     research/prod: tenantless artifact is denied (None returned).
+
+    W35-T1: spine validation now rejects empty-tenant_id Artifact construction
+    under research/prod, so the legacy fixture is constructed under dev posture
+    (where construction succeeds with WARNING) before the test switches the
+    posture and verifies ledger-level filtering.
     """
-    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     from hi_agent.artifacts.contracts import Artifact
     from hi_agent.artifacts.ledger import ArtifactLedger
 
+    art = Artifact(tenant_id="")
+    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+
     ledger_path = None if posture_name == "dev" else (tmp_path / "artifacts.jsonl")
     ledger = ArtifactLedger(ledger_path=ledger_path)
-    art = Artifact(tenant_id="")
 
     result = ledger._allow_legacy(art, "some-tenant")
     if expect_allowed:
@@ -97,20 +104,26 @@ def test__tenant_visible(monkeypatch, posture_name, tenantless_visible, tmp_path
     dev: tenantless artifact is visible.
     research/prod: tenantless artifact is hidden.
     Matching tenant_id is always visible.
+
+    W35-T1: spine validation now rejects empty-tenant_id Artifact construction
+    under research/prod, so the legacy fixture is constructed under dev posture
+    (where construction succeeds with WARNING) before the test switches the
+    posture and verifies ledger-level filtering.
     """
-    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     from hi_agent.artifacts.contracts import Artifact
     from hi_agent.artifacts.ledger import ArtifactLedger
 
+    # Tenantless artifact constructed under dev posture
+    art_empty = Artifact(tenant_id="")
+    # Matching tenant artifact (always allowed regardless of posture)
+    art_match = Artifact(tenant_id="t-abc")
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", posture_name)
     ledger_path = None if posture_name == "dev" else (tmp_path / "artifacts.jsonl")
     ledger = ArtifactLedger(ledger_path=ledger_path)
 
-    # Tenantless artifact
-    art_empty = Artifact(tenant_id="")
     assert ledger._tenant_visible(art_empty, "some-tenant") is tenantless_visible
-
-    # Matching tenant is always visible
-    art_match = Artifact(tenant_id="t-abc")
     assert ledger._tenant_visible(art_match, "t-abc") is True
 
 
