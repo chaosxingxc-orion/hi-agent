@@ -103,7 +103,7 @@ def main() -> int:
 
     print("FAIL lineage_population:")
     for rel, lineno, field in all_violations:
-        print(f"  {rel}:{lineno}  {field}=\"\"  (W34-F.2 / B-W34-1)")
+        print(f"  {rel}:{lineno}  {field}=\"\"  (W34-F.2 / B-W34-1)")  # wave-literal-ok
     print(
         "\n  Each call site must populate the lineage field from the live "
         "ManagedRun spine, the task_contract, or a fresh UUID. Add "

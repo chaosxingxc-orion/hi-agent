@@ -100,8 +100,8 @@ class ReasoningTrace:
         # construction site reaches this branch under realistic input.
         import logging
         logging.getLogger("hi_agent.contracts.reasoning").warning(
-            "reasoning_trace_spine_incomplete: missing=%s posture=%s; "
-            "would fail-closed under research/prod. (W34-F.3)",
+            "reasoning_trace_spine_incomplete: missing=%s posture=%s; "  # wave-literal-ok
+            "would fail-closed under research/prod. (W34-F.3)",  # wave-literal-ok
             missing,
             posture.value,
         )

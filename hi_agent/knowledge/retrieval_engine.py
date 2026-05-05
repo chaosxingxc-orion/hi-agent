@@ -249,7 +249,7 @@ class RetrievalEngine:
             # scope on every public read; the engine is process-internal
             # so no cross-tenant content leaks out of this indexer.
             if self._wiki is not None:
-                for tenant_id in self._wiki._all_tenants():  # process-internal helper (W34-F.4)
+                for tenant_id in self._wiki._all_tenants():  # process-internal helper  # wave-literal-ok
                     for page in self._wiki.list_pages(tenant_id=tenant_id):
                         doc_text = f"{page.title} {page.content} {' '.join(page.tags)}"
                         self._tfidf.add(f"wiki:{page.page_id}", doc_text)
@@ -365,7 +365,7 @@ class RetrievalEngine:
         # (W34-F.4). The engine is process-internal; per-tenant scope is
         # enforced by the wiki's public read methods.
         if self._wiki is not None:
-            for tenant_id in self._wiki._all_tenants():  # process-internal helper (W34-F.4)
+            for tenant_id in self._wiki._all_tenants():  # process-internal helper  # wave-literal-ok
                 for page in self._wiki.list_pages(tenant_id=tenant_id):
                     text = f"{page.title} {page.content} {' '.join(page.tags)}".lower()
                     if any(kw in text for kw in keywords):

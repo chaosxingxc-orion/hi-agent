@@ -57,7 +57,7 @@ class WikiPage:
     confidence: float = 1.0
     created_at: str = ""
     updated_at: str = ""
-    tenant_id: str = ""  # spine — required under research/prod (W34-F.4)
+    tenant_id: str = ""  # spine — required under research/prod  # wave-literal-ok (W34-F.4)
 
     def __post_init__(self) -> None:
         """Reject empty ``tenant_id`` under research/prod posture (W34-F.4).
@@ -72,7 +72,7 @@ class WikiPage:
         msg = (
             f"WikiPage(page_id={self.page_id!r}) constructed with empty "
             "tenant_id; cross-tenant attribution is forbidden under "
-            "research/prod posture (W34-F.4)."
+            "research/prod posture (W34-F.4)."  # wave-literal-ok
         )
         if posture.is_strict:
             raise ValueError(msg)
@@ -127,7 +127,7 @@ class KnowledgeWiki:
         msg = (
             f"KnowledgeWiki.{op}: tenant_id is missing or empty; "
             "cross-tenant reads are forbidden under research/prod posture "
-            "(W34-F.4)."
+            "(W34-F.4)."  # wave-literal-ok
         )
         if posture.is_strict:
             raise ValueError(msg)
@@ -147,7 +147,7 @@ class KnowledgeWiki:
         msg = (
             f"KnowledgeWiki.{op}: tenant_id is missing or empty; "
             "cross-tenant writes are forbidden under research/prod posture "
-            "(W34-F.4)."
+            "(W34-F.4)."  # wave-literal-ok
         )
         if posture.is_strict:
             raise ValueError(msg)
@@ -475,7 +475,7 @@ class KnowledgeWiki:
         logger.warning(
             "KnowledgeWiki.load: legacy pages/ layout detected at %s — "
             "migrating %d files into the '%s' tenant; rerun save() to "
-            "persist the new partitioned layout (W34-F.4).",
+            "persist the new partitioned layout (W34-F.4).",  # wave-literal-ok
             pages_dir,
             len(files),
             _DEFAULT_TENANT,

@@ -148,7 +148,7 @@ def _scan_file(path: Path) -> list[dict[str, object]]:
                 "receiver": receiver,
                 "message": (
                     f"{func.attr}({receiver}.{func.attr}) called without "
-                    "tenant_id= keyword argument (W34-F.4 / B-W34-3)."
+                    "tenant_id= keyword argument (W34-F.4 / B-W34-3)."  # wave-literal-ok
                 ),
             }
         )

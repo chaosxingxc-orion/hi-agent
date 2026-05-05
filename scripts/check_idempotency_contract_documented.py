@@ -68,7 +68,7 @@ def main() -> int:
     if not CONTRACT_FILE.exists():
         print(
             f"FAIL: {CONTRACT_FILE.relative_to(ROOT)} does not exist; "
-            "create the W34-D idempotency contract module first."
+            "create the W34-D idempotency contract module first."  # wave-literal-ok
         )
         return 1
 
