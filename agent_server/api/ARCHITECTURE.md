@@ -1,5 +1,7 @@
 # agent_server/api/ Architecture
 
+> Last refreshed: Wave 33 (2026-05-04). Adds W33-C.4 JWT auth middleware.
+
 ---
 
 ## 1. Purpose & Position in System
@@ -41,6 +43,7 @@ The API layer publishes the v1 northbound HTTP surface. All paths are prefixed `
 | `POST` | `/v1/mcp/tools/{name}` | `routes_mcp_tools.py` | Invoke an MCP tool (L1 stub) |
 
 Headers required on mutating routes (research/prod posture):
+- `Authorization: Bearer <jwt>` — required on every route except `/v1/health`, `/health`, `/metrics` under research/prod (W33-C.4); passthrough under dev. The token must be HMAC-signed with `HI_AGENT_JWT_SECRET` and carry the expected audience.
 - `X-Tenant-Id` — tenant identity (always required, every posture).
 - `Idempotency-Key` — required on `POST /v1/runs`, `POST /v1/runs/{id}/signal`, `POST /v1/runs/{id}/cancel`, `POST /v1/skills`, `POST /v1/memory/write`, `POST /v1/gates/{id}/decide` under research/prod.
 - Optional context headers: `X-Project-Id`, `X-Profile-Id`, `X-Session-Id`.
@@ -77,6 +80,7 @@ graph TD
     end
 
     subgraph MIDDLEWARE["Middleware Pipeline (outer -> inner)"]
+        JWT["JWTAuthMiddleware (W33-C.4)<br/>middleware/auth.py<br/>Validates Authorization: Bearer"]
         TC["TenantContextMiddleware<br/>middleware/tenant_context.py<br/>Validates X-Tenant-Id"]
         IDEM["IdempotencyMiddleware<br/>middleware/idempotency.py<br/>Reserves/replays Idempotency-Key"]
     end
@@ -96,7 +100,8 @@ graph TD
         F["RunFacade / EventFacade /<br/>ArtifactFacade / ManifestFacade /<br/>IdempotencyFacade"]
     end
 
-    HTTPC --> TC
+    HTTPC --> JWT
+    JWT --> TC
     TC --> IDEM
     IDEM --> RUNS
     IDEM --> RUNX
@@ -105,7 +110,7 @@ graph TD
     IDEM --> MANI
     IDEM --> SKM
     IDEM --> MCPT
-    IDEM --> HEALTH
+    HTTPC -. "exempt: /v1/health,<br/>/health, /metrics" .-> HEALTH
 
     RUNS --> F
     RUNX --> F
@@ -125,6 +130,7 @@ graph TD
 | `routes_manifest.py` | `GET /v1/manifest` | `# tdd-red-sha: 3bc0a83` |
 | `routes_skills_memory.py` | `POST /v1/skills`, `POST /v1/memory/write` | `# tdd-red-sha: e2c8c34a` |
 | `routes_mcp_tools.py` | `GET/POST /v1/mcp/tools` | `# tdd-red-sha: e2c8c34a` |
+| `middleware/auth.py` | `JWTAuthMiddleware` (W33-C.4); validates Bearer JWT via `runtime/auth_seam`; exempts `/v1/health`/`/health`/`/metrics` | – |
 | `middleware/tenant_context.py` | `TenantContextMiddleware`, header parsing, spine emission | – |
 | `middleware/idempotency.py` | `IdempotencyMiddleware`, reserve/replay/conflict | – |
 
@@ -230,17 +236,23 @@ The middleware order at request time is critical and counter-intuitive:
 ```python
 # agent_server/api/__init__.py
 # FastAPI's add_middleware inserts at index 0 — last added is OUTERMOST.
-# To get TenantContext outermost we therefore add idempotency FIRST and
-# tenant LAST.
+# Order of registration (innermost to outermost):
 if idempotency_facade is not None:
     register_idempotency_middleware(app, facade=idempotency_facade, strict=...)
 if tenant_event_emitter is not None:
     app.add_middleware(TenantContextMiddleware, tenant_event_emitter=...)
 else:
     app.add_middleware(TenantContextMiddleware)
+# W33-C.4: JWT auth is outermost so unauthenticated requests are
+# rejected before the tenant or idempotency layers see them.
+app.add_middleware(JWTAuthMiddleware)
 ```
 
-Resulting order at request time (outer → inner): `TenantContext → Idempotency → Route handler`.
+Resulting order at request time (outer → inner):
+`JWTAuth → TenantContext → Idempotency → Route handler`.
+
+Health and metrics paths bypass `JWTAuthMiddleware` via the `_EXEMPT_PATHS` allowlist
+(`/v1/health`, `/health`, `/metrics`).
 
 Lifespan integration:
 - The `IdempotencyStore` is built by `bootstrap.py` and lives for the app's lifetime.
@@ -259,7 +271,10 @@ Error flow:
 
 ```mermaid
 flowchart TD
-    A[Client request] --> B{TenantContextMiddleware}
+    A[Client request] --> AJ{JWTAuthMiddleware}
+    AJ -->|exempt path| B
+    AJ -->|missing/invalid JWT, strict posture| AJR[401 unauthorized envelope]
+    AJ -->|dev passthrough OR valid JWT| B{TenantContextMiddleware}
     B -->|missing X-Tenant-Id| C[401 AuthError envelope]
     B -->|valid| D{IdempotencyMiddleware}
     D -->|key reuse + body mismatch| E[409 ConflictError envelope]
@@ -372,6 +387,7 @@ What this design does NOT handle well:
 
 - Builder: `agent_server/api/__init__.py:54` (`build_app`)
 - Middleware:
+  - `agent_server/api/middleware/auth.py:44` (`JWTAuthMiddleware`, W33-C.4)
   - `agent_server/api/middleware/tenant_context.py:50` (`TenantContextMiddleware`)
   - `agent_server/api/middleware/idempotency.py:101` (`IdempotencyMiddleware`)
   - `agent_server/api/middleware/idempotency.py:232` (`register_idempotency_middleware`)

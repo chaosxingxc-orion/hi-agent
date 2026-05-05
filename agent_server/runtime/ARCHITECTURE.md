@@ -1,14 +1,18 @@
 # agent_server/runtime/ Architecture
 
-> **Status:** Sub-package created in W32 Track A. Document captures the intended state. The `kernel_adapter.py` and `lifespan.py` modules referenced below land in W32 Track A; the sibling tracks F1 (this doc), B (hidden-gap closure), and C (chaos provenance) run in parallel.
+> Last refreshed: Wave 33 (2026-05-04). Sub-package shipped in W32 Track A; W33-C.4 added the auth seam, W33-C.5 made `iter_events` a true live stream, W33-C.1 wired the lifespan into FastAPI startup with active watchdog tasks.
 
 ---
 
 ## 1. Purpose & Position in System
 
-`agent_server/runtime/` is the **second R-AS-1 seam** under `agent_server/`, paired with `bootstrap.py`. Its single responsibility is to bind the contract-shaped facade callables (defined in `agent_server/facade/`) to a live `hi_agent.server.app.AgentServer` instance whose `run_manager`, `event_store`, `run_store`, and `idempotency_store` are durable SQLite-backed.
+`agent_server/runtime/` is the **second R-AS-1 seam** under `agent_server/`, paired with `bootstrap.py`. It carries three concerns:
 
-Before W32, `agent_server/bootstrap.py::_InProcessRunBackend` returned `state="queued"` without ever executing the run — this satisfied the route-level test profile but was a "fake" northbound idempotency claim under research/prod. W32 Track A replaces that stub with `RealKernelBackend` from this sub-package.
+1. **Real-kernel binding (W32 Track A)** — `RealKernelBackend` exposes the seven contract-shaped facade callables backed by a live `hi_agent.server.app.AgentServer` whose `run_manager`, `event_store`, `run_store`, `run_queue`, `idempotency_store`, `gate_store`, `team_event_store` are durable SQLite-backed.
+2. **Lifespan integration (W32-A + W33-C.1)** — `build_real_kernel_lifespan` builds the AgentServer on FastAPI startup, runs `_rehydrate_runs`, and starts module-level helper tasks (`_lease_expiry_loop`, `_current_stage_watchdog`) that are cancelled cleanly on shutdown.
+3. **Auth validation seam (W33-C.4)** — `auth_seam.validate_authorization` reuses the platform's JWT primitives so `agent_server/api/middleware/auth.py` can validate tokens without itself crossing the R-AS-1 boundary.
+
+Before W32, `agent_server/bootstrap.py::_InProcessRunBackend` returned `state="queued"` without ever executing the run — this satisfied the route-level test profile but was a "fake" northbound idempotency claim under research/prod. W32 Track A replaced that stub with `RealKernelBackend` from this sub-package; `AGENT_SERVER_BACKEND=real` is the default under all postures and the only legal setting under research/prod.
 
 What it does NOT own:
 - HTTP transport (`agent_server/api/`).
@@ -22,12 +26,14 @@ It is a **thin adapter**: every method returns a contract-shaped dict identical 
 
 ## 2. External Interfaces
 
-The runtime sub-package exposes exactly two public symbols:
+The runtime sub-package exposes the following public symbols:
 
 | Symbol | Type | Purpose |
 |---|---|---|
-| `RealKernelBackend` | class | Wraps an `AgentServer` instance; exposes the seven callables `start_run` / `get_run` / `signal_run` / `cancel_run` / `iter_events` / `list_artifacts` / `get_artifact` |
-| `build_real_kernel_lifespan` | function | FastAPI lifespan handler factory; constructs `AgentServer` on startup, drains and closes on shutdown |
+| `RealKernelBackend` | class | Wraps an `AgentServer` instance; exposes the seven callables `start_run` / `get_run` / `signal_run` / `cancel_run` / `iter_events` / `list_artifacts` / `get_artifact`. `iter_events` is a true live stream (W33-C.5) — it yields events as they appear in the event store and only closes when the run reaches a terminal state. |
+| `build_real_kernel_lifespan` | function | FastAPI lifespan handler factory; constructs `AgentServer` on startup, runs `_rehydrate_runs`, starts watchdog tasks (`_lease_expiry_loop`, `_current_stage_watchdog`), and drains/closes on shutdown (W33-C.1). |
+| `validate_authorization` | function | Pure JWT validator (W33-C.4); accepts the raw `Authorization` header, returns `ValidationOutcome(ok, status, reason, claims)`. Used by `agent_server/api/middleware/auth.py`. |
+| `ValidationOutcome` | dataclass | Immutable result of `validate_authorization`. |
 
 Callable signatures (all keyword-only, returning `dict[str, Any]` modeled on the existing facade contract):
 
@@ -57,7 +63,8 @@ The constructor takes a fully-built `AgentServer`; this means the sub-package do
 graph TD
     subgraph runtime["agent_server/runtime/ (R-AS-1 seam #2)"]
         ADAPTER["kernel_adapter.py<br/>RealKernelBackend"]
-        LIFESPAN["lifespan.py<br/>build_real_kernel_lifespan()"]
+        LIFESPAN["lifespan.py<br/>build_real_kernel_lifespan()<br/>+ _lease_expiry_loop<br/>+ _current_stage_watchdog"]
+        AUTH["auth_seam.py (W33-C.4)<br/>validate_authorization()<br/>ValidationOutcome"]
     end
 
     subgraph hi_agent_umbrella["hi_agent.server.app.AgentServer (umbrella)"]
@@ -67,12 +74,19 @@ graph TD
         RQ["_run_queue: RunQueue"]
         ES["_event_store: SQLiteEventStore"]
         IS["_idempotency_store: IdempotencyStore"]
-        REHYDRATE["_rehydrate_runs() (called by AgentServer's own lifespan)"]
+        GS["_gate_store: GateStore"]
+        TS["_team_event_store: TeamEventStore"]
+        REHYDRATE["_rehydrate_runs()"]
+    end
+
+    subgraph hi_agent_auth["hi_agent.auth + server.auth_middleware"]
+        JWTPRIM["validate_jwt_claims<br/>_verify_jwt<br/>_decode_jwt_payload"]
     end
 
     BOOTSTRAP["agent_server/bootstrap.py<br/>build_production_app()"]
+    APIMW["agent_server/api/middleware/auth.py<br/>JWTAuthMiddleware"]
 
-    BOOTSTRAP -->|"AGENT_SERVER_BACKEND=real"| ADAPTER
+    BOOTSTRAP -->|"AGENT_SERVER_BACKEND=real (default)"| ADAPTER
     BOOTSTRAP --> LIFESPAN
     LIFESPAN --> AS
     ADAPTER --> AS
@@ -81,13 +95,18 @@ graph TD
     AS --> RQ
     AS --> ES
     AS --> IS
+    AS --> GS
+    AS --> TS
     LIFESPAN --> REHYDRATE
+    APIMW --> AUTH
+    AUTH -. "r-as-1-seam: JWT primitives" .-> JWTPRIM
 ```
 
 | Component | Responsibility |
 |---|---|
-| `kernel_adapter.py::RealKernelBackend` | Binds AgentServer's run_manager / event_store callables to the seven contract-shaped facade entry points; converts `ManagedRun` objects to dicts via `RunManager.to_dict` |
-| `lifespan.py::build_real_kernel_lifespan` | Returns an async context manager that: (a) constructs `AgentServer`, (b) triggers `_rehydrate_runs`, (c) drains in-flight work and closes durable stores on shutdown |
+| `kernel_adapter.py::RealKernelBackend` | Binds AgentServer's run_manager / event_store callables to the seven contract-shaped facade entry points; converts `ManagedRun` objects to dicts via `RunManager.to_dict`; `iter_events` is a live stream (W33-C.5) |
+| `lifespan.py::build_real_kernel_lifespan` | Returns an async context manager that: (a) constructs `AgentServer`, (b) triggers `_rehydrate_runs`, (c) starts module-level watchdog tasks (`_lease_expiry_loop`, `_current_stage_watchdog`) — W33-C.1, (d) drains in-flight work and cancels watchdogs on shutdown |
+| `auth_seam.py::validate_authorization` | W33-C.4: pure function returning `ValidationOutcome`; passthrough under dev posture, fail-closed (401) under research/prod; bridges `hi_agent.auth.jwt_middleware` and `hi_agent.server.auth_middleware` JWT primitives |
 | `__init__.py` | Public surface — `__all__ = ["RealKernelBackend", "build_real_kernel_lifespan"]` and the R-AS-1 seam annotation comment |
 
 ---
@@ -230,18 +249,23 @@ All events flow through `hi_agent/observability/event_emitter.py::RunEventEmitte
 
 ## 8. Security Boundary
 
-`agent_server/runtime/kernel_adapter.py` carries the explicit annotation:
+`agent_server/runtime/{kernel_adapter,lifespan,auth_seam}.py` each carry the explicit annotation:
 
 ```python
-# r-as-1-seam: real-kernel-binding
+# r-as-1-seam: <reason>
 ```
 
 This is the lint-recognized marker that `scripts/check_layering.py` consults to allow `hi_agent.*` imports. Two seams exist under `agent_server/`:
 
 1. `agent_server/bootstrap.py` — builds the FastAPI app, wires facades.
-2. `agent_server/runtime/kernel_adapter.py` + `lifespan.py` — binds the real kernel.
+2. `agent_server/runtime/**` — `kernel_adapter.py` + `lifespan.py` bind the real kernel; `auth_seam.py` (W33-C.4) reuses JWT primitives.
 
 No other module under `agent_server/` is permitted to `from hi_agent...` or `import hi_agent`. The gate fails CI on any third seam.
+
+**Auth seam contract (W33-C.4):**
+- Bearer extraction is permissive: a malformed prefix returns `None` so the validator can choose dev-passthrough vs strict-reject.
+- Under research/prod, missing `HI_AGENT_JWT_SECRET` is itself a fail-closed condition — forged tokens cannot be rejected without a key, so the validator returns `status=401, reason=jwt_secret_missing`.
+- The `HI_AGENT_ALLOW_UNSIGNED_JWT_FOR_TESTS` escape hatch is dev-only and short-circuits to `_decode_jwt_payload`; production callers MUST set the secret.
 
 Tenant isolation: `RealKernelBackend` passes `tenant_id` through to the kernel verbatim. Every `RunManager` / `EventStore` call is tenant-scoped at the SQL layer. The adapter does not perform its own access control — that is the kernel's responsibility.
 
@@ -277,10 +301,11 @@ What this design does NOT handle well:
 
 ## 11. References
 
-- Sub-package files (created in W32 Track A):
+- Sub-package files:
   - `agent_server/runtime/__init__.py`
-  - `agent_server/runtime/kernel_adapter.py` — `RealKernelBackend`
-  - `agent_server/runtime/lifespan.py` — `build_real_kernel_lifespan`
+  - `agent_server/runtime/kernel_adapter.py` — `RealKernelBackend` (W32-A; SSE live stream W33-C.5)
+  - `agent_server/runtime/lifespan.py` — `build_real_kernel_lifespan` (W32-A; active watchdogs W33-C.1)
+  - `agent_server/runtime/auth_seam.py` — `validate_authorization`, `ValidationOutcome` (W33-C.4)
 - Bootstrap: `agent_server/bootstrap.py:188` (`build_production_app`)
 - Kernel umbrella: `hi_agent/server/app.py:1645` (`AgentServer`)
 - Rehydration: `hi_agent/server/app.py:1196` (`_rehydrate_runs`)

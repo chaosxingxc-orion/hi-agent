@@ -1,11 +1,17 @@
 # Architecture: hi-agent Platform (arc42)
 
+> **Last refreshed:** Wave 33 (2026-05-04). Manifest `2026-05-03-ce9330fa`.
+>
 > **Document hierarchy**
 > - L0 system boundary: this file
-> - L1 hi-agent detail: `hi_agent/ARCHITECTURE.md`
-> - L1 agent-server detail: `agent_server/ARCHITECTURE.md`
-> - L1 agent-kernel detail: `agent_kernel/ARCHITECTURE.md`
-> - Stable codebase facts: `docs/architecture-reference.md`
+> - L1 agent-server detail: [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md)
+>   - L2 transport (`api/`): [`agent_server/api/ARCHITECTURE.md`](agent_server/api/ARCHITECTURE.md)
+>   - L2 adapters (`facade/`): [`agent_server/facade/ARCHITECTURE.md`](agent_server/facade/ARCHITECTURE.md)
+>   - L2 contracts (`contracts/`): [`agent_server/contracts/ARCHITECTURE.md`](agent_server/contracts/ARCHITECTURE.md)
+>   - L2 kernel binding (`runtime/`): [`agent_server/runtime/ARCHITECTURE.md`](agent_server/runtime/ARCHITECTURE.md)
+>   - L2 operator CLI (`cli/`): [`agent_server/cli/ARCHITECTURE.md`](agent_server/cli/ARCHITECTURE.md)
+>   - L2 config surfaces (`config/`): [`agent_server/config/ARCHITECTURE.md`](agent_server/config/ARCHITECTURE.md)
+> - Stable codebase facts: [`docs/architecture-reference.md`](docs/architecture-reference.md)
 
 ---
 
@@ -36,12 +42,15 @@ versioned, operationally observable API surface for running long-lived autonomou
 |---|---|
 | Python 3.12+ | `pyproject.toml` |
 | FastAPI/Starlette for HTTP | `pyproject.toml` dependencies |
-| No business logic in `hi_agent/` or `agent_kernel/` | CLAUDE.md G1 gate |
-| `agent_server/` routes must not import from `hi_agent.*` directly | R-AS-1 rule |
-| v1 contract is digest-frozen after release; breaking changes require `v2/` sub-package | CLAUDE.md AS-CO track |
+| No business logic in `hi_agent/` (capability layer only) | CLAUDE.md G1 gate |
+| `agent_server/` may import `hi_agent.*` only from two seams: `bootstrap.py` and `runtime/**` | R-AS-1 rule, `scripts/check_layering.py` |
+| Annotated `# r-as-1-seam:` imports tolerated only in facade modules with documented rationale | `scripts/check_facade_seams.py` |
+| v1 contract is digest-frozen at SHA `8c6e22f1`; breaking changes require `contracts/v2/` sub-package | CLAUDE.md AS-CO track, `scripts/check_contract_freeze.py` |
 | Every new route handler requires `# tdd-red-sha: <sha>` annotation | CLAUDE.md R-AS-5 |
+| Every facade module must stay ≤200 LOC | CLAUDE.md R-AS-8, `scripts/check_facade_loc.py` |
 | `asyncio.run(` outside entry points is forbidden; sync callers use `sync_bridge` | CLAUDE.md Rule 5 |
 | Inline fallbacks of the shape `x or DefaultX()` are forbidden | CLAUDE.md Rule 6 |
+| Every persistent record carries `tenant_id` (Contract Spine Completeness) | CLAUDE.md Rule 12, `scripts/check_contract_spine_completeness.py` |
 | SQLite for default persistence; PostgreSQL optional via `asyncpg` | `pyproject.toml` optional deps |
 
 ---
@@ -50,24 +59,25 @@ versioned, operationally observable API surface for running long-lived autonomou
 
 ```mermaid
 flowchart LR
-    DS["Research Intelligence App\n(downstream team)"]
-    AS["agent_server\nnorthbound facade\nPORT 8000"]
-    HA["hi_agent\nagent brain"]
-    AK["agent_kernel\nexecution substrate"]
-    LLM["LLM Providers\nAnthropic / OpenAI\nVolces Ark"]
-    DB[(SQLite / PostgreSQL)]
-    MCP["MCP Tool Servers\n(plugin-registered)"]
+    DS["Research Intelligence App<br/>(downstream team)"]
+    SDK["Third-party SDK<br/>(JWT bearer)"]
+    AS["agent_server<br/>northbound facade<br/>uvicorn :8080"]
+    HA["hi_agent<br/>cognitive runtime<br/>+ inlined kernel<br/>(Wave 11)"]
+    LLM["LLM Providers<br/>Anthropic / OpenAI-compatible<br/>Volces Ark"]
+    DB[(SQLite stores<br/>runs / events / queue<br/>idempotency / gates / team)]
+    MCP["MCP Tool Servers<br/>(plugin-registered)"]
 
-    DS -->|"HTTP /v1/runs\n/v1/artifacts\n/v1/gates\n/v1/skills\n/v1/memory\n/v1/mcp/tools"| AS
-    AS -->|facade calls| HA
-    HA -->|KernelFacade\nor HTTP RPC| AK
-    HA -->|"chat completions\n(OpenAI-compatible)"| LLM
-    AK -->|read/write| DB
+    DS -->|"HTTP /v1/* + JWT (research/prod)"| AS
+    SDK -->|"HTTP /v1/* + JWT"| AS
+    AS -->|"R-AS-1 seam: bootstrap.py<br/>R-AS-1 seam: runtime/**"| HA
+    HA -->|"chat completions<br/>(OpenAI-compatible)"| LLM
+    HA -->|read/write| DB
     HA -->|stdio transport| MCP
 ```
 
-**Downstream** uses only the `agent_server` HTTP API. Direct access to `hi_agent` or
-`agent_kernel` endpoints is not a supported integration pattern.
+**Downstream** uses only the `agent_server` HTTP API. Direct `import hi_agent` from RIA is
+unsupported and CI-rejected. The `agent_kernel` package was inlined into `hi_agent/server/`
+in Wave 11; references to `agent_kernel/*` in older docs map to `hi_agent/server/*` today.
 
 ---
 
@@ -75,10 +85,12 @@ flowchart LR
 
 | Decision | Rationale |
 |---|---|
-| Three-package structure in one repo | Clear ownership boundaries; `agent_kernel` inlined from external dep on 2026-04-19 for atomic versioning |
-| Frozen v1 contract in `agent_server/contracts/` | Downstream teams must not be broken by internal refactors |
+| Two-package structure (`hi_agent/` + `agent_server/`); kernel inlined into `hi_agent/server/` at W11 | Atomic versioning; eliminates submodule coordination overhead |
+| Frozen v1 contract in `agent_server/contracts/` (snapshot at SHA `8c6e22f1`) | Downstream teams must not be broken by internal refactors |
+| Two-seam R-AS-1 boundary (`bootstrap.py` + `runtime/**`) | Single point of `hi_agent.*` ingress per concern: assembly vs kernel binding |
 | Posture enum (`dev`/`research`/`prod`) read from env | Enables the same binary to run permissively in dev and fail-closed in production without code changes |
 | Async-first core; sync bridge for sync-facing callers | Avoids cross-loop async resource lifetime bugs (Rule 5) |
+| JWT validation outermost in middleware chain (W33-C.4) | Reject unauthenticated traffic before tenant or idempotency layers see it |
 | TierRouter with active calibration | Routes LLM calls to appropriate model tier based on quality signals; avoids expensive models for lightweight steps |
 | Four-layer retrieval (grep -> BM25 -> graph -> embedding) | Cost-efficient retrieval without requiring embedding infrastructure for all queries |
 | Rule 8 operator-shape gate before any delivery | Prevents "passes tests but fails in production" class of defects |
@@ -90,53 +102,50 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph agent_server["agent_server — northbound facade"]
-        MW["TenantContextMiddleware\nIdempotencyMiddleware"]
-        RT["Route handlers\n/v1/runs /v1/artifacts\n/v1/gates /v1/skills\n/v1/memory /v1/mcp/tools"]
-        FA["Facades\nRunFacade EventFacade\nArtifactFacade ManifestFacade\nIdempotencyFacade"]
-        CO["Frozen contracts v1\nRunRequest RunResponse\nTenantContext ContractError"]
-        CLI2["CLI\nserve run cancel tail-events"]
+        MW["JWTAuthMiddleware (outermost)<br/>TenantContextMiddleware<br/>IdempotencyMiddleware"]
+        RT["Route handlers<br/>/v1/runs /v1/artifacts<br/>/v1/gates /v1/skills<br/>/v1/memory /v1/mcp/tools<br/>/v1/manifest /v1/health"]
+        FA["Facades (≤200 LOC each)<br/>RunFacade EventFacade<br/>ArtifactFacade ManifestFacade<br/>IdempotencyFacade"]
+        CO["Frozen contracts v1<br/>RunRequest RunResponse<br/>TenantContext ContractError<br/>+ skill/gate/memory/streaming"]
+        CLI2["CLI (R-AS-1 stdlib only)<br/>serve run cancel tail-events"]
+        BS["bootstrap.py (R-AS-1 seam #1)<br/>build_production_app"]
+        RTM["runtime/ (R-AS-1 seam #2)<br/>RealKernelBackend<br/>build_real_kernel_lifespan<br/>auth_seam (W33)"]
     end
 
-    subgraph hi_agent["hi_agent — agent brain"]
-        RUN["runner.py\nRunExecutor\nexecute / execute_graph\nexecute_async / resume"]
-        LLM2["llm/\nLLMGateway TierRouter\nModelSelector FailoverChain\nBudgetTracker"]
-        MEM["memory/\nL0 Raw L1 STM\nL2 Dream L3 LongTerm"]
-        KNW["knowledge/\nWiki KnowledgeGraph\nFourLayerRetrieval"]
-        SKL["skill/\nSkillLoader\nSkillVersionManager\nSkillEvolver A/B"]
-        EVO["evolve/\nPostmortemEngine\nExperimentStore\nChampionChallenger"]
-        OBS["observability/\nRunEventEmitter\n12 typed events\nPrometheus metrics"]
-        CFG["config/\nTraceConfig Posture\nSystemBuilder builders"]
-        SRV["server/\nRunManager DreamScheduler\nEventBus SSE RunStore"]
-        RTA["runtime_adapter/\nRuntimeAdapter protocol\nKernelFacadeAdapter\nResilientKernelAdapter"]
-    end
-
-    subgraph agent_kernel["agent_kernel — execution substrate"]
-        KF["adapters/facade/\nKernelFacade\n(sole legal entry point)"]
-        KRN["kernel/\nsix authorities\nevent log idempotency\ntask manager recovery"]
-        PER["kernel/persistence/\nSQLite PostgreSQL\nevent log dedupe projection"]
-        SUB["substrate/\nLocalFSMAdaptor\nTemporalAdaptor (optional)"]
-        SVC["service/\nHTTP server (Starlette)\nauth middleware"]
+    subgraph hi_agent["hi_agent — cognitive runtime + inlined kernel"]
+        RUN["runner.py / runner_stage.py<br/>RunExecutor<br/>TRACE S1–S5"]
+        LLM2["llm/<br/>LLMGateway TierRouter<br/>ModelSelector FailoverChain<br/>BudgetTracker"]
+        MEM["memory/<br/>L0 Raw L1 STM<br/>L2 Dream L3 LongTerm"]
+        KNW["knowledge/<br/>Wiki KnowledgeGraph<br/>FourLayerRetrieval"]
+        SKL["skill/<br/>SkillLoader<br/>SkillVersionManager<br/>SkillEvolver A/B"]
+        EVO["evolve/<br/>PostmortemEngine<br/>ExperimentStore<br/>ChampionChallenger"]
+        OBS["observability/<br/>RunEventEmitter<br/>12 typed events<br/>Prometheus metrics<br/>spine_events"]
+        CFG["config/<br/>TraceConfig Posture<br/>SystemBuilder builders"]
+        SRV["server/ (kernel-inlined W11)<br/>AgentServer RunManager<br/>SQLiteRunStore SQLiteEventStore<br/>IdempotencyStore RunQueue<br/>GateStore TeamRunRegistry"]
+        AUTH["auth/ + server/auth_middleware<br/>JWT validation primitives"]
+        RTA["runtime_adapter/<br/>RuntimeAdapter protocol<br/>KernelFacadeAdapter<br/>ResilientKernelAdapter"]
     end
 
     subgraph providers["LLM Providers"]
         ANT["Anthropic Claude"]
-        OAI["OpenAI-compatible\nVolces Ark"]
+        OAI["OpenAI-compatible<br/>Volces Ark"]
     end
 
+    MW --> RT
     RT --> FA
-    FA --> RUN
-    FA --> SRV
+    FA --> RTM
+    BS --> MW
+    BS --> FA
+    BS --> RTM
+    RTM --> SRV
+    SRV --> RUN
     RUN --> LLM2
     RUN --> MEM
     RUN --> KNW
     RUN --> SKL
     RUN --> EVO
     RUN --> OBS
+    RTM -.-> AUTH
     SRV --> RTA
-    RTA --> KF
-    KF --> KRN
-    KRN --> PER
-    KRN --> SUB
     LLM2 --> ANT
     LLM2 --> OAI
 ```
@@ -145,55 +154,63 @@ flowchart TB
 
 ## 6. Runtime View
 
-The following sequence shows the happy-path flow for `POST /v1/runs`.
+The following sequence shows the happy-path flow for `POST /v1/runs` under the Wave 33
+middleware chain (JWT outermost → TenantContext → Idempotency → route).
 
 ```mermaid
 sequenceDiagram
     participant C as Downstream Client
-    participant MW as TenantContextMiddleware
+    participant JWT as JWTAuthMiddleware
+    participant TC as TenantContextMiddleware
+    participant IM as IdempotencyMiddleware
     participant RH as routes_runs.py
     participant RF as RunFacade
-    participant SRV as server/RunManager
+    participant RKB as RealKernelBackend
+    participant RM as hi_agent RunManager
     participant RUN as runner.py (RunExecutor)
     participant LLM as llm/TierRouter+Gateway
-    participant KRN as agent_kernel (KernelFacade)
     participant OBS as observability/RunEventEmitter
 
-    C->>MW: POST /v1/runs {goal, profile_id, project_id}
-    MW->>MW: inject TenantContext into request.state
-    MW->>RH: forward request
+    C->>JWT: POST /v1/runs + Authorization: Bearer <jwt>
+    Note over JWT: research/prod: validate signature + claims;<br/>dev: passthrough with anonymous claims
+    JWT->>TC: forward (request.state.auth_claims)
+    TC->>TC: validate X-Tenant-Id; emit tenant_context spine event
+    TC->>IM: forward (request.state.tenant_context)
+    IM->>IM: reserve_or_replay(tenant_id, key, body)
+    IM->>RH: forward (new key) or short-circuit (replay/conflict)
     RH->>RF: run_facade.start(ctx, RunRequest)
-    RF->>SRV: enqueue run
-    SRV-->>RF: run_id, state=queued
-    RF-->>RH: RunResponse {run_id, state}
-    RH-->>C: 200 {run_id, state=queued}
+    RF->>RKB: start_run(tenant_id, profile_id, goal, ...)
+    RKB->>RM: create_run + start_run(executor)
+    RM-->>RKB: ManagedRun(state=queued)
+    RKB-->>RF: dict (kernel-shaped)
+    RF-->>RH: RunResponse
+    RH-->>IM: 201 + JSON
+    IM->>IM: mark_complete(tenant_id, key, body, 201)
+    IM-->>C: 201 Created {run_id, state=queued}
 
-    Note over SRV,RUN: Background execution
+    Note over RM,RUN: Background TRACE execution
 
-    SRV->>RUN: execute(task_contract)
-    RUN->>KRN: emit run_started event
-    KRN-->>RUN: ack
-    RUN->>OBS: record_stage_entered(S1)
+    RM->>RUN: execute(task_contract)
+    RUN->>OBS: record_run_started + record_stage_started(S1)
     loop TRACE stages S1 -> S5
         RUN->>LLM: chat_completion(task_view)
         LLM-->>RUN: LLMResponse
-        RUN->>KRN: emit action_dispatched event
-        RUN->>OBS: record_action_executed
+        RUN->>OBS: record_action_executed / record_stage_completed
     end
-    RUN->>KRN: emit run_completed event
-    RUN->>OBS: record_run_terminal(state=done)
-    SRV->>SRV: update run state=done
+    RUN->>OBS: record_run_completed(state=done)
 
-    C->>RH: GET /v1/runs/{run_id}
-    RH->>RF: run_facade.status(ctx, run_id)
-    RF->>SRV: get_status(run_id)
-    SRV-->>RF: RunStatus {state=done, current_stage}
-    RF-->>RH: RunStatusResponse
-    RH-->>C: 200 {state=done, finished_at}
+    C->>RH: GET /v1/runs/{run_id}/events (SSE)
+    RH->>RKB: iter_events(tenant_id, run_id)
+    RKB-->>RH: live event stream
+    RH-->>C: text/event-stream chunks until terminal
 ```
 
 **Cancellation contract:** `POST /v1/runs/{id}/cancel` on a known live run returns 200 and
 drives the run to a terminal state. On an unknown run ID it returns 404 (not 200).
+
+**SSE live-stream contract (W33-C.5):** `GET /v1/runs/{id}/events` keeps the connection
+open and yields events as they are appended to the event store; the stream closes once the
+run reaches a terminal state. Snapshot-and-close behaviour was retired in W33.
 
 ---
 
@@ -313,14 +330,19 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 
 | Decision | Wave | Rationale |
 |---|---|---|
-| Inline `agent_kernel` into the repo | W5 (2026-04-19) | Atomic versioning; eliminates git-submodule coordination overhead |
+| Inline `agent_kernel` into `hi_agent/server/` | W11 | Atomic versioning; eliminates git-submodule coordination overhead |
 | Introduce `agent_server` as a separate northbound package | W11 | Hard platform/business boundary; frozen v1 contract independent of internal refactors |
-| Freeze v1 contract with digest check | W24 | Downstream must not be broken by platform upgrades; breaking changes require `v2/` sub-package |
+| Freeze v1 contract with digest check at SHA `8c6e22f1` | W24 | Downstream must not be broken by platform upgrades; breaking changes require `v2/` sub-package |
 | Three-posture system (`dev`/`research`/`prod`) | W9 | Single binary deployable safely in all environments; Rule 11 |
 | TierRouter with active calibration signals | W27 | Dynamic routing adapts to quality feedback without manual tuning (P-6 closed) |
 | `RunEventEmitter` with 12 typed event methods | W27 | Structured observability spine for runs; replaces ad-hoc log scraping |
 | Reject Neo4j in favour of SQLite-backed KG | W10 | JSON-backed L3 covers all graph operations at current scale; Neo4j adds service dependency |
 | Rule 8 operator-shape gate mandatory before delivery | W12 | Prevents green-pytest-but-broken-in-prod class of failures |
+| Architectural 7×24 (5-assertion check) replaces wall-clock soak | W28 | Architectural property assertable in seconds; W33 re-confirmed 5/5 PASS |
+| Promote `agent_server/runtime/` to second R-AS-1 seam (`RealKernelBackend`) | W32 | Real-kernel binding without bloating `bootstrap.py` |
+| Add `JWTAuthMiddleware` outermost; reuse `hi_agent.auth` primitives via `runtime/auth_seam` | W33 | Unauthenticated traffic rejected before tenant/idempotency layers; R-AS-1 preserved |
+| SSE `iter_events` becomes a true live stream | W33 | Streaming contract honoured end-to-end; snapshot-and-close retired |
+| Unify `HI_AGENT_ENV` reads through `Posture.resolve_runtime_mode` | W33 | Rule 11 posture-aware defaults; CI gate `check_no_hi_agent_env_direct_read.py` |
 
 ---
 
@@ -328,9 +350,9 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 
 | Quality attribute | Target | Enforcement |
 |---|---|---|
-| Test pass rate | 9,135+ offline tests, 0 failures | `default-offline` CI profile; `scripts/verify_clean_env.py` |
-| Verified readiness | 94.55 (Wave 28) | Release manifest + `scripts/build_release_manifest.py` |
-| 7x24 operational readiness | 94.55 (W28+) — architectural property, not wall-clock soak | `scripts/run_arch_7x24.py` (5 assertions, runs in seconds) |
+| Test pass rate | 9,256+ offline tests, 0 failures (W33 manifest) | `default-offline` CI profile; `scripts/verify_clean_env.py` |
+| Verified readiness | 75.0 (Wave 33; cap held by `soak_evidence_not_real` waiver) | Release manifest + `scripts/build_release_manifest.py` |
+| 7x24 operational readiness | 90.0 (W33) — architectural property, 5/5 PASS at HEAD `ac37383` | `scripts/run_arch_7x24.py` (5 assertions, runs in seconds) |
 | T3 invariance | Gate valid only at recorded SHA; hot-path commits invalidate until re-run | `scripts/check_manifest_freshness.py` |
 | LLM fallback count | 0 for all T3 runs | Rule 8 step 3; `llm_fallback_count == 0` asserted |
 | Cancellation round-trip | known-id: 200+terminal; unknown-id: 404 | Rule 8 step 6; `tests/integration/` |
@@ -338,6 +360,8 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 | Lint | ruff exits 0; no `# noqa` without `expiry_wave` annotation | `scripts/check_rules.py`; CI |
 | Contract spine | every persistent record carries `tenant_id` | `scripts/check_contract_spine_completeness.py` |
 | Posture coverage | 100% (all validation sites posture-aware) | posture coverage gate; W27 Lane 5 |
+| Auth boundary | research/prod rejects malformed/expired/missing JWT with 401 | `tests/integration/test_v1_jwt_auth_middleware.py` (W33-C.4) |
+| Spine lineage | event/run records carry `parent_run_id` + `attempt_id` + `phase_id` | Rule 12; `tests/unit/test_spine_lineage_fields.py` (W33-F.1) |
 
 ---
 

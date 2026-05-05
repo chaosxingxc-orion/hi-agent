@@ -1,6 +1,6 @@
 # agent_server Architecture
 
-> Last refreshed: Wave 32 (2026-05-03). Sub-package docs: [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md), [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md), [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md), [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md).
+> Last refreshed: Wave 33 (2026-05-04). Sub-package docs: [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md), [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md), [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md), [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md), [`cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md), [`config/ARCHITECTURE.md`](config/ARCHITECTURE.md).
 
 ---
 
@@ -92,6 +92,7 @@ graph TD
 
     subgraph API["api/ — HTTP transport"]
         APIB["__init__.py::build_app()"]
+        MID_J["middleware/auth.py<br/>JWTAuthMiddleware (W33-C.4)"]
         MID_T["middleware/tenant_context.py"]
         MID_I["middleware/idempotency.py"]
         ROUTES["routes_runs.py<br/>routes_runs_extended.py<br/>routes_artifacts.py<br/>routes_gates.py<br/>routes_manifest.py<br/>routes_skills_memory.py<br/>routes_mcp_tools.py"]
@@ -126,9 +127,11 @@ graph TD
     BOOT -. "imports hi_agent.*<br/>(seam #1)" .-> HIA
     RT -. "imports hi_agent.*<br/>(seam #2)" .-> HIA
 
+    APIB --> MID_J
     APIB --> MID_T
     APIB --> MID_I
     APIB --> ROUTES
+    MID_J -. "validates JWT via runtime/auth_seam" .-> RT
     ROUTES --> F
     F --> CT
     F -. "calls injected callables" .-> RT
@@ -273,10 +276,14 @@ Rule 5 (Async/Sync Resource Lifetime) compliance:
 - No `asyncio.run` per request. The middleware chain is `BaseHTTPMiddleware` (async-native).
 - Synchronous facades dispatch to the kernel's existing threadsafe entry points without a per-call sync bridge.
 
-Middleware order at request time (outer → inner, see `api/__init__.py:118` for the registration trick):
-1. `TenantContextMiddleware` — validates `X-Tenant-Id`, builds `TenantContext`, calls spine emitter.
-2. `IdempotencyMiddleware` — reserves or replays mutating-route requests.
-3. Route handler.
+Middleware order at request time (outer → inner, see `api/__init__.py` for the registration trick — last `add_middleware` call is OUTERMOST):
+1. `JWTAuthMiddleware` (W33-C.4) — validates `Authorization: Bearer <jwt>` via the runtime auth seam; passthrough under dev posture, fail-closed (401) under research/prod.
+2. `TenantContextMiddleware` — validates `X-Tenant-Id`, builds `TenantContext`, emits `tenant_context` spine event.
+3. `IdempotencyMiddleware` — reserves or replays mutating-route requests by `(tenant_id, key, body_hash)`.
+4. Route handler.
+
+Health and metrics paths (`/v1/health`, `/health`, `/metrics`) bypass `JWTAuthMiddleware`
+so operators can probe the surface without secrets.
 
 ---
 
@@ -323,9 +330,10 @@ R-AS-1 single-seam discipline:
 ```
 agent_server/                    <- can NOT import hi_agent.* anywhere except:
 ├── bootstrap.py                 [SEAM #1] assembly module
-└── runtime/                     [SEAM #2] kernel binding (W32)
+└── runtime/                     [SEAM #2] kernel binding (W32) + auth (W33)
     ├── kernel_adapter.py        # r-as-1-seam: real-kernel-binding
-    └── lifespan.py              # r-as-1-seam: real-kernel-binding
+    ├── lifespan.py              # r-as-1-seam: real-kernel-binding
+    └── auth_seam.py             # r-as-1-seam: JWT validation reuses hi_agent primitives (W33-C.4)
 ```
 
 All `hi_agent.*` imports outside these two locations cause `scripts/check_layering.py` to fail CI. Annotated seams in `agent_server/facade/idempotency_facade.py` and `agent_server/facade/artifact_facade.py` are tolerated because each carries the explicit `# r-as-1-seam:` comment with rationale, parsed by `scripts/check_facade_seams.py`.
@@ -337,11 +345,11 @@ Tenant isolation (R-AS-4):
 
 Posture-aware behaviour (Rule 11):
 
-| `HI_AGENT_POSTURE` | Tenant header | Idempotency-Key | Project ID |
-|---|---|---|---|
-| `dev` | required (always) | optional, warning log if absent | optional |
-| `research` | required | required on mutating routes | required on `POST /v1/runs` |
-| `prod` | required + JWT validation (planned) | required on mutating routes | required on `POST /v1/runs` |
+| `HI_AGENT_POSTURE` | Tenant header | Idempotency-Key | Project ID | JWT (W33-C.4) |
+|---|---|---|---|---|
+| `dev` | required (always) | optional, warning log if absent | optional | passthrough; anonymous claims injected |
+| `research` | required | required on mutating routes | required on `POST /v1/runs` | required (`HI_AGENT_JWT_SECRET` HMAC) |
+| `prod` | required | required on mutating routes | required on `POST /v1/runs` | required (`HI_AGENT_JWT_SECRET` HMAC) |
 
 Contract freeze (R-AS-3): once `V1_RELEASED = True` (already the case as of 2026-04-30), every modification under `agent_server/contracts/` triggers `scripts/check_contract_freeze.py` to invalidate the snapshot. Breaking changes go to `contracts/v2/`.
 
@@ -384,10 +392,12 @@ Operational notes (Wave 28+):
 ## 11. References
 
 Per-component architecture documents:
-- [`agent_server/api/ARCHITECTURE.md`](api/ARCHITECTURE.md) — route handlers + middleware
+- [`agent_server/api/ARCHITECTURE.md`](api/ARCHITECTURE.md) — route handlers + middleware (incl. W33-C.4 JWT)
 - [`agent_server/facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md) — contract↔kernel adaptation
 - [`agent_server/contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md) — frozen v1 schemas
-- [`agent_server/runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md) — real-kernel binding (W32)
+- [`agent_server/runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md) — real-kernel binding (W32) + auth seam (W33)
+- [`agent_server/cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md) — operator-facing CLI (`agent-server`)
+- [`agent_server/config/ARCHITECTURE.md`](config/ARCHITECTURE.md) — settings, version constants, contract freeze
 
 Implementation entry points:
 - `agent_server/__init__.py` — `AGENT_SERVER_API_VERSION`

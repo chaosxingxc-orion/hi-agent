@@ -40,7 +40,14 @@ pip install -e ".[llm,dev]"
 pytest -m "not live_api and not network and not requires_secret"
 ```
 
-Current baseline: 9,135 passed (Wave 28, default-offline profile, 2026-05-02).
+Or via the canonical wrapper that produces fresh evidence JSON:
+
+```bash
+python scripts/verify_clean_env.py --profile default-offline
+```
+
+Current baseline: 9,256 passed / 8 skipped / 0 failed (Wave 33, default-offline profile,
+2026-05-04).
 
 ### Start the northbound API server
 
@@ -59,26 +66,34 @@ agent-server serve --prod
 
 ### Submit a run
 
+Write the request body to a JSON file (`request.json`), then:
+
 ```bash
-agent-server run --goal "summarise quarterly results" --profile default
+agent-server run --tenant tenant-a --request-json request.json
 ```
 
-Or via HTTP:
+Or via HTTP. Under research/prod posture every mutating route requires both `X-Tenant-Id`
+and `Idempotency-Key`, plus a Bearer JWT signed with `HI_AGENT_JWT_SECRET`:
 
 ```bash
 curl -s -X POST http://localhost:8080/v1/runs \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $JWT" \
   -H "X-Tenant-Id: tenant-a" \
   -H "Idempotency-Key: $(uuidgen)" \
-  -d '{"goal": "summarise quarterly results", "profile_id": "default", "project_id": "proj-1"}'
+  -d '{"tenant_id": "tenant-a", "profile_id": "default", "goal": "summarise quarterly results", "project_id": "proj-1"}'
 ```
 
 ### Cancel a run and stream events
 
 ```bash
-agent-server cancel <run_id>
-agent-server tail-events <run_id>
+agent-server cancel --tenant tenant-a --run-id <run_id>
+agent-server tail-events --tenant tenant-a --run-id <run_id>
 ```
+
+The `tail-events` command consumes the live SSE stream from
+`GET /v1/runs/{id}/events` (W33-C.5 made it a true live stream rather than a
+snapshot-and-close).
 
 ---
 
@@ -93,45 +108,48 @@ graph TB
 
     subgraph CAPLAYER["Capability Layer (this repo)"]
         subgraph NB["Northbound facade — agent_server/"]
-            NB_API["api/ — FastAPI routes + middleware"]
-            NB_FAC["facade/ — Contract↔kernel adapters"]
-            NB_CON["contracts/ — Frozen v1 schemas"]
-            NB_RT["runtime/ — Real-kernel binding (W32)"]
-            NB_BS["bootstrap.py — Assembly seam"]
+            NB_API["api/ — FastAPI routes + middleware<br/>(JWTAuth → TenantContext → Idempotency)"]
+            NB_FAC["facade/ — Contract↔kernel adapters<br/>(≤200 LOC each)"]
+            NB_CON["contracts/ — Frozen v1 schemas<br/>(SHA 8c6e22f1)"]
+            NB_RT["runtime/ — Real-kernel binding<br/>(RealKernelBackend, lifespan,<br/>auth_seam)"]
+            NB_CLI["cli/ — Operator commands<br/>(serve · run · cancel · tail-events)"]
+            NB_CFG["config/ — settings, version"]
+            NB_BS["bootstrap.py — Assembly seam #1<br/>build_production_app"]
         end
-        subgraph HI["Cognitive runtime — hi_agent/"]
-            HI_LLM["llm/ — Gateway, tier router, budget"]
-            HI_RUN["server/ — RunManager + durable stores<br/>(SQLite event log, run store, idempotency)"]
+        subgraph HI["Cognitive runtime + inlined kernel — hi_agent/"]
+            HI_LLM["llm/ — Gateway, tier router, budget,<br/>failover chain"]
+            HI_RUN["server/ — AgentServer + RunManager +<br/>durable SQLite stores (runs, events,<br/>queue, idempotency, gates, team)"]
             HI_RT["runtime/, runtime_adapter/<br/>— Sync bridge, kernel adapters"]
             HI_MEM["memory/, knowledge/, skill/<br/>— Cognitive subsystems"]
-            HI_OBS["observability/ — RunEventEmitter,<br/>spine events, metrics"]
-        end
-        subgraph AK["Execution substrate (Wave 11 inlined)"]
-            AKS["hi_agent/server/<br/>(formerly agent_kernel/)<br/>RunManager, EventBus,<br/>SQLite stores"]
+            HI_OBS["observability/ — RunEventEmitter,<br/>spine events, audit log, metrics"]
+            HI_AUTH["auth/ + server/auth_middleware<br/>— JWT validation primitives"]
         end
     end
 
-    RIA -->|HTTP /v1/*| NB_API
-    SDK -->|HTTP /v1/*| NB_API
+    RIA -->|"HTTP /v1/* + Bearer JWT (research/prod)"| NB_API
+    SDK -->|"HTTP /v1/* + Bearer JWT"| NB_API
+    NB_CLI --> NB_BS
     NB_API --> NB_FAC
     NB_FAC --> NB_CON
     NB_BS --> NB_API
     NB_BS --> NB_FAC
+    NB_BS --> NB_RT
     NB_BS -. "import hi_agent.*<br/>(R-AS-1 seam #1)" .-> HI
     NB_RT -. "import hi_agent.*<br/>(R-AS-1 seam #2)" .-> HI
+    NB_RT -. "auth_seam reuses<br/>hi_agent JWT primitives" .-> HI_AUTH
     NB_FAC -. "injected callables" .-> NB_RT
-    HI --> AK
 ```
 
-Three repository packages cooperate:
+Two repository packages cooperate:
 
 | Package | Role |
 |---|---|
-| `agent_server/` | Versioned northbound HTTP facade (v1 contract frozen); the **only contract surface** RIA depends on |
-| `hi_agent/` | Cognitive runtime: LLM gateway, runner, memory, knowledge, skills, config, observability |
-| `agent_kernel/` (Wave 11 inlined) | Execution substrate now part of `hi_agent/server/`: run lifecycle, event log, idempotency, durable persistence |
+| `agent_server/` | Versioned northbound HTTP facade (v1 contract frozen at SHA `8c6e22f1`); the **only contract surface** RIA depends on |
+| `hi_agent/` | Cognitive runtime + inlined execution kernel: LLM gateway, runner, memory, knowledge, skills, config, observability, durable run stores |
 
-R-AS-1 (single-seam discipline): only `agent_server/bootstrap.py` and `agent_server/runtime/` may import `hi_agent.*`. CI enforces.
+> The historical `agent_kernel/` package was inlined into `hi_agent/server/` at Wave 11. References to `agent_kernel.*` in older docs map to `hi_agent.server.*` today.
+
+R-AS-1 (two-seam discipline): only `agent_server/bootstrap.py` and `agent_server/runtime/**` may import `hi_agent.*`. CI gate `scripts/check_layering.py` enforces; annotated `# r-as-1-seam:` imports in two facade modules carry rationale and are policed by `scripts/check_facade_seams.py`.
 
 Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-reference.md). Per-subsystem docs in §[Reference Map](#reference-map).
 
@@ -157,9 +175,10 @@ Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-refe
 | W28 | Architectural 7×24 tier (`run_arch_7x24.py`); soak retired | closed |
 | W29–W30 | Substantive closure passes | closed |
 | W31 | RIA directive 13/14 IDs PASS; verified=55.0 (capped by `soak_evidence_not_real`); 79/91 hidden findings closed | closed |
-| W32 | Real-kernel binding for v1 northbound; ARCHITECTURE refresh; hidden-gap closure; cleanup | **in this PR** |
+| W32 | Real-kernel binding for v1 northbound; ARCHITECTURE refresh; hidden-gap closure; cleanup | closed |
+| W33 | RIA acceptance follow-ups: JWT middleware (C.4); SSE live-stream (C.5); SIGTERM graceful drain (C.2); RunQueue tenant defense-in-depth (D.2); spine lineage (F.1); `HI_AGENT_ENV` unification (E.1); audit-log tenant_id (D.1) | closed |
 
-Current verified readiness: 55.0 (W31 cap — expected 75 post-soak). Architectural 7×24: 5/5 PASS at HEAD `953d36cb`.
+Current verified readiness: **75.0** (Wave 33 manifest `2026-05-03-ce9330fa`; cap held by `soak_evidence_not_real` waiver per RIA acceptance §2). Architectural 7×24: 5/5 PASS at HEAD `ac37383`.
 
 | Capability | Level | Notes |
 |---|---|---|
@@ -185,11 +204,13 @@ Maturity levels: L0 demo · L1 tested component · L2 public contract · L3 prod
 |---|---|---|
 | `HI_AGENT_POSTURE` | `dev` | Execution posture: `dev` permissive, `research`/`prod` fail-closed (Rule 11) |
 | `HI_AGENT_LLM_MODE` | `heuristic` | `real` routes to actual LLM provider |
-| `HI_AGENT_ENV` | `dev` | `prod` enables fail-fast 503 on missing credentials |
-| `HI_AGENT_KERNEL_BASE_URL` | – | Routes kernel RPC to a detached service (deprecated; W11 inlined) |
-| `AGENT_SERVER_BACKEND` | `stub` (W31) → `real` (W32 default under research/prod) | `real` binds `RealKernelBackend` from `agent_server/runtime/`; `stub` keeps `_InProcessRunBackend` for default-offline tests |
-| `AGENT_SERVER_STATE_DIR` | – | Persistent state directory (idempotency SQLite, future stores) |
+| `HI_AGENT_ENV` | `dev` | `prod` enables fail-fast 503 on missing credentials. Read only via `Posture.resolve_runtime_mode()` (W33-E.1) |
+| `AGENT_SERVER_BACKEND` | `real` | `real` binds `RealKernelBackend` from `agent_server/runtime/`; `stub` keeps `_InProcessRunBackend` for the default-offline test profile (forbidden under research/prod) |
+| `AGENT_SERVER_STATE_DIR` | – | Persistent state directory (SQLite stores: runs, events, queue, idempotency, gates, team) |
 | `HI_AGENT_HOME` | – | Fallback state-dir parent: `$HI_AGENT_HOME/.agent_server` |
+| `AGENT_SERVER_HOST` / `AGENT_SERVER_PORT` | `0.0.0.0` / `8080` | Settings for `AgentServerSettings.load_settings()` |
+| `HI_AGENT_JWT_SECRET` | – | HMAC secret for `JWTAuthMiddleware` (W33-C.4); required under research/prod |
+| `HI_AGENT_KERNEL_BASE_URL` | – | Legacy detached-kernel RPC (deprecated; kernel inlined at W11) |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `VOLCES_API_KEY` | – | LLM provider credentials |
 
 Full environment matrix: [`docs/deployment-env-matrix.md`](docs/deployment-env-matrix.md).
@@ -198,26 +219,20 @@ Full environment matrix: [`docs/deployment-env-matrix.md`](docs/deployment-env-m
 
 ## Reference Map
 
-Per-subsystem architecture docs (each follows the standard 11-section template, all diagrams in mermaid):
+Per-subsystem architecture docs (each follows the standard 11-section SE template, all
+diagrams in mermaid):
 
 | Subsystem | Document |
 |---|---|
-| Top-level agent_server | [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md) |
-| HTTP routes + middleware | [`agent_server/api/ARCHITECTURE.md`](agent_server/api/ARCHITECTURE.md) |
-| Contract↔kernel adaptation | [`agent_server/facade/ARCHITECTURE.md`](agent_server/facade/ARCHITECTURE.md) |
-| Frozen v1 contracts | [`agent_server/contracts/ARCHITECTURE.md`](agent_server/contracts/ARCHITECTURE.md) |
-| Real-kernel binding (W32) | [`agent_server/runtime/ARCHITECTURE.md`](agent_server/runtime/ARCHITECTURE.md) |
-| hi_agent server kernel | `hi_agent/server/ARCHITECTURE.md` (W32 Track F2) |
-| hi_agent runtime/harness | `hi_agent/runtime/ARCHITECTURE.md` (W32 Track F2) |
-| hi_agent runtime_adapter | `hi_agent/runtime_adapter/ARCHITECTURE.md` (W32 Track F2) |
-| LLM gateway | `hi_agent/llm/ARCHITECTURE.md` (W32 Track F2) |
-| Observability spine | `hi_agent/observability/ARCHITECTURE.md` (W32 Track F2) |
-| Memory layer | `hi_agent/memory/ARCHITECTURE.md` (W32 Track F2) |
-| Knowledge layer | `hi_agent/knowledge/ARCHITECTURE.md` (W32 Track F2) |
-| Skill subsystem | `hi_agent/skill/ARCHITECTURE.md` (W32 Track F2) |
-| Capability registry | `hi_agent/capability/ARCHITECTURE.md` (W32 Track F2) |
-
-Codebase reference (canonical module index, R-AS rules, gate map): [`docs/architecture-reference.md`](docs/architecture-reference.md).
+| **L0 system** | [`ARCHITECTURE.md`](ARCHITECTURE.md) (arc42-style) |
+| **L1 agent_server** | [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md) |
+| L2 HTTP routes + middleware | [`agent_server/api/ARCHITECTURE.md`](agent_server/api/ARCHITECTURE.md) |
+| L2 Contract↔kernel adaptation | [`agent_server/facade/ARCHITECTURE.md`](agent_server/facade/ARCHITECTURE.md) |
+| L2 Frozen v1 contracts | [`agent_server/contracts/ARCHITECTURE.md`](agent_server/contracts/ARCHITECTURE.md) |
+| L2 Real-kernel binding | [`agent_server/runtime/ARCHITECTURE.md`](agent_server/runtime/ARCHITECTURE.md) |
+| L2 Operator CLI | [`agent_server/cli/ARCHITECTURE.md`](agent_server/cli/ARCHITECTURE.md) |
+| L2 Config + version constants | [`agent_server/config/ARCHITECTURE.md`](agent_server/config/ARCHITECTURE.md) |
+| **L1 hi_agent codebase reference** | [`docs/architecture-reference.md`](docs/architecture-reference.md) — canonical module index, R-AS rules, gate map |
 
 ---
 
@@ -226,10 +241,10 @@ Codebase reference (canonical module index, R-AS rules, gate map): [`docs/archit
 | Pointer | Purpose |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Seventeen engineering rules + ownership tracks + narrow-trigger rules. CI-enforced. |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans (W12 onward); W32 plan: `2026-05-03-wave-32-real-kernel-binding-and-cleanup.md` |
+| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans (W12 onward); latest: `2026-05-04-wave-33-ria-acceptance-followups.md` |
 | [`docs/governance/`](docs/governance/) | Closure taxonomy, evidence-provenance schema, allowlists, recurrence ledger |
 | [`docs/platform/`](docs/platform/) | Public surface descriptions: `agent-server-northbound-contract-v1.md`, runtime profile guide |
-| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices to downstream teams |
+| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices to downstream teams (latest: `2026-05-04-w33-delivery-notice.md`) |
 
 Owner tracks govern review responsibilities (see `CLAUDE.md`):
 
