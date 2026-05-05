@@ -50,6 +50,13 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
         except Exception as exc:  # pragma: no cover - defensive
             err = ContractError("invalid JSON body", detail=str(exc), http_status=400)
             return _error_response(err)
+        # W35-T8 follow-up: accept Idempotency-Key from header when not in body.
+        # The IdempotencyMiddleware is header-driven (per W34-IDEMPOTENCY
+        # contract: docs at agent_server/contracts/idempotency.py), so a client
+        # that only sets the header should not get a 400 from the facade body
+        # validator. Body field still wins when both are present.
+        _body_idem = str(body.get("idempotency_key", ""))
+        _header_idem = request.headers.get("Idempotency-Key", "") if not _body_idem else ""
         try:
             req = RunRequest(
                 tenant_id=ctx.tenant_id,
@@ -57,7 +64,7 @@ def build_router(*, run_facade: RunFacade) -> APIRouter:
                 goal=str(body.get("goal", "")),
                 project_id=str(body.get("project_id", "")),
                 run_id=str(body.get("run_id", "")),
-                idempotency_key=str(body.get("idempotency_key", "")),
+                idempotency_key=_body_idem or _header_idem,
                 metadata=dict(body.get("metadata", {}) or {}),
             )
             resp = run_facade.start(ctx, req)

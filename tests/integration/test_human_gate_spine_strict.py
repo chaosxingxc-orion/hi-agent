@@ -1,8 +1,6 @@
 """Integration tests: HumanGateRequest spine propagation under strict posture (Wave 10.3 W3-A)."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 from hi_agent.contracts.requests import HumanGateRequest
 
@@ -75,16 +73,23 @@ class TestOpenHumanGateSpinePropagation:
         assert payload.project_id == "proj-456"
 
     def test_empty_tenant_under_research_raises(self, monkeypatch):
-        """Under research posture, open_human_gate with empty tenant_id raises ValueError."""
+        """Under research posture, HumanGateRequest with empty tenant_id raises.
+
+        W35-T1 moved the tenant_id enforcement up into the contract dataclass
+        `__post_init__` (SpineCompletenessError, a ValueError subclass), so the
+        rejection happens at construction time — before open_human_gate is even
+        called. The original test was constructing the request directly under
+        research; we now build it under dev (where the contract layer warns
+        instead of raises) and assert the construction itself fails under
+        research.
+        """
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-
-        adapter = self._make_adapter(MagicMock())  # B1: SUT-internal mock — schedule replacement with boundary mock  # noqa: E501  # expiry_wave: permanent
-
-        req = HumanGateRequest(
-            run_id="r1",
-            gate_type="contract_correction",
-            gate_ref="gr-1",
-            tenant_id="",
-        )
-        with pytest.raises(ValueError, match="empty tenant_id"):
-            adapter.open_human_gate(req)
+        with pytest.raises(SpineCompletenessError, match="tenant_id"):
+            HumanGateRequest(
+                run_id="r1",
+                gate_type="contract_correction",
+                gate_ref="gr-1",
+                tenant_id="",
+            )

@@ -88,15 +88,37 @@ def test_serve_subcommand_boots_agent_server_app(tmp_path) -> None:
         "--port",
         str(port),
     ]
+    # W35: capture output to a tempfile rather than PIPE. Bootstrap now
+    # emits spine-validation WARNING logs for legacy artifacts at startup
+    # (W35-T1); on CI runners the volume can fill the OS PIPE buffer and
+    # block the subprocess before it reaches the uvicorn bind call.
+    # File-backed stdio drains continuously and removes the deadlock
+    # while still capturing output for the failure message.
+    import tempfile as _tempfile
+    _stdout_f = _tempfile.TemporaryFile()  # noqa: SIM115 — closed in finally  expiry_wave: permanent
+    _stderr_f = _tempfile.TemporaryFile()  # noqa: SIM115 — closed in finally  expiry_wave: permanent
     proc = subprocess.Popen(
         cmd,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=_stdout_f,
+        stderr=_stderr_f,
     )
+
+    def _drain_io() -> tuple[bytes, bytes]:
+        import contextlib
+        for f in (_stdout_f, _stderr_f):
+            with contextlib.suppress(Exception):
+                f.seek(0)
+        out = _stdout_f.read() if hasattr(_stdout_f, "read") else b""
+        err = _stderr_f.read() if hasattr(_stderr_f, "read") else b""
+        return out, err
+
     try:
-        if not _wait_for_port(host, port, timeout=20.0):
-            stdout, stderr = proc.communicate(timeout=5.0)
+        # W35: bumped from 20s to 60s. Bootstrap now constructs more spine-
+        # validating dataclasses at startup (W35-T1), which adds boot-time
+        # logging overhead.
+        if not _wait_for_port(host, port, timeout=60.0):
+            stdout, stderr = _drain_io()
             pytest.fail(
                 f"agent-server serve did not bind to {host}:{port}; "
                 f"stdout={stdout!r} stderr={stderr!r}"
@@ -121,6 +143,11 @@ def test_serve_subcommand_boots_agent_server_app(tmp_path) -> None:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=5.0)
+        try:
+            _stdout_f.close()
+            _stderr_f.close()
+        except Exception:
+            pass
 
 
 @pytest.mark.serial

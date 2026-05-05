@@ -48,9 +48,19 @@ def _run_workload_against_backend(backend_marker: str, *, n: int, m: int) -> lis
     # equivalence target is the durable-write path, not the kernel-execute
     # path. The stub backend exercises the same idempotency + run_store
     # write surface and reaches "queued" terminal deterministically.
+    # We set + restore in a try/finally so the env mutation does not leak
+    # into subsequent tests in the same pytest session (e.g. the JWT auth
+    # tests, which fail under research posture if AGENT_SERVER_BACKEND=stub
+    # is still set when build_production_app runs).
+    _prev_backend = os.environ.get("AGENT_SERVER_BACKEND")
     os.environ["AGENT_SERVER_BACKEND"] = "stub"
-
-    app = build_production_app()
+    try:
+        app = build_production_app()
+    finally:
+        if _prev_backend is None:
+            os.environ.pop("AGENT_SERVER_BACKEND", None)
+        else:
+            os.environ["AGENT_SERVER_BACKEND"] = _prev_backend
     client = TestClient(app)
 
     states: list[str] = []
