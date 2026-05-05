@@ -1,0 +1,67 @@
+{
+  "schema": "hi-agent.wave-signoff.v1",
+  "wave": 35,
+  "signed_at": "2026-05-05T16:50:00Z",
+  "release_captain": "hi-agent platform team",
+  "manifest_id": "2026-05-05-12fd4bea",
+  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-12fd4be.json",
+  "release_head": "12fd4beacf29100393ea2f98424c94a52e4c6ecf",
+  "predecessor_manifest_id": "2026-05-05-77222f8b",
+  "directive": "docs/upstream-directives/2026-05-05-hi-agent-wave35-acceptance-and-wave36-expectations.md",
+  "delivery_notice": "docs/downstream-responses/2026-05-05-w35-delivery-notice.md",
+  "plan": "docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md",
+  "scores": {
+    "raw_implementation_maturity": 94.5,
+    "current_verified_readiness": 70.0,
+    "seven_by_24_operational_readiness": 94.5,
+    "conditional_readiness_after_blockers": 75.0
+  },
+  "cap_factors_active": [
+    "soak_evidence_not_real",
+    "dirty_worktree_at_manifest_build_time"
+  ],
+  "cap_factors_resolution": {
+    "soak_evidence_not_real": "Held per RIA W35 directive §6 explicit no-cap-change. RIA's Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement.",
+    "dirty_worktree_at_manifest_build_time": "Self-resolves once this signoff commit lands; a manifest-only re-build at the next HEAD is the canonical Rule 14 sequence."
+  },
+  "acceptance_ids": {
+    "W35-T1": "PASS",
+    "W35-T2": "PASS",
+    "W35-T3": "PASS",
+    "W35-T4": "PASS",
+    "W35-T5": "PASS-deferred",
+    "W35-T6": "PASS",
+    "W35-T7": "PASS-deferred",
+    "W35-T8": "PASS",
+    "W35-T9": "PASS"
+  },
+  "ria_designation": {
+    "W35-T1": "HIGH",
+    "W35-T2": "MEDIUM",
+    "W35-T3": "HIGH",
+    "W35-T4": "HIGH",
+    "W35-T5": "LOW",
+    "W35-T6": "MEDIUM",
+    "W35-T7": "LOW",
+    "W35-T8": "MEDIUM",
+    "W35-T9": "HIDDEN-HIGH-A4-4"
+  },
+  "hidden_findings": {
+    "total": 91,
+    "closed_in_w35": 38,
+    "scoped_w36": 32,
+    "scoped_w37_plus": 17,
+    "audit_doc": "docs/governance/systematic-audit-w35-2026-05-05.md",
+    "retention_roadmap": "docs/governance/retention-roadmap.md",
+    "boot_time_assertions_roadmap": "docs/governance/boot-time-assertions-roadmap.md"
+  },
+  "evidence": {
+    "t3_real_volces": "docs/delivery/2026-05-05-12fd4be-t3-volces.json",
+    "default_offline_clean_env": "docs/verification/12fd4be-default-offline-clean-env.json",
+    "arch_7x24": "docs/verification/12fd4be-arch-7x24.json",
+    "spine_validation_targets_count": 53,
+    "default_offline_pass_count": 9288,
+    "default_offline_skip_count": 8,
+    "default_offline_fail_count": 0
+  }
+}
