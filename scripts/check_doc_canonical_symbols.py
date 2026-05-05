@@ -49,6 +49,13 @@ SKIP_DIRS = {
 SKIP_FILES = {
     DOCS_ROOT / "hi-agent-optimization-requests-2026-04-15-round2.md",
     DOCS_ROOT / "hi-agent-optimization-requests-2026-04-15-round3.md",
+    # W11 platform decoupling docs reference the pre-W11 module path
+    # `hi_agent.experiment.op_store` in their before/after migration tables
+    # as historical context. The shim itself was removed in W34-F, so the
+    # path is intentionally non-importable; these docs document the
+    # migration, they do not claim the symbol still works.
+    DOCS_ROOT / "downstream-responses" / "2026-04-27-wave11-comprehensive-platform-response.md",
+    DOCS_ROOT / "migration-guides" / "wave11-platform-decoupling.md",
 }
 
 # ---------------------------------------------------------------------------

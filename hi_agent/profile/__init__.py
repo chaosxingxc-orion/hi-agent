@@ -12,7 +12,7 @@ warnings.warn(
     stacklevel=2,
 )
 
-from hi_agent.profiles.directory import (  # expiry_wave: Wave 34
+from hi_agent.profiles.directory import (  # expiry_wave: Wave 35
     GLOBAL_PROFILE_ID,
     ProfileDirectoryManager,
 )

@@ -8,5 +8,5 @@ holds the platform's durable distributed-operation backbone (the canonical
 long-running machinery, 150+ in-package imports).
 
 The legacy ``hi_agent.ops`` import path still works via a deprecation shim
-and will be removed in Wave 34.
+and will be removed in Wave 35.
 """

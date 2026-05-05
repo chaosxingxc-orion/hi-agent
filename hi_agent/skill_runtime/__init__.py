@@ -11,7 +11,7 @@ DTO contracts (``SkillRequest``, ``SkillResult``, ``SkillDefinition``) remain in
 This package was renamed from ``hi_agent.skills`` to distinguish lifecycle
 (``hi_agent.skill``) from runtime strategy (``hi_agent.skill_runtime``).
 The legacy ``hi_agent.skills`` import path still works via a deprecation
-shim and will be removed in Wave 34.
+shim and will be removed in Wave 35.
 """
 
 from hi_agent.skill_runtime.contracts import (

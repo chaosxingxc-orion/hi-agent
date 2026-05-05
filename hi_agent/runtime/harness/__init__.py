@@ -2,7 +2,7 @@
 
 Moved from ``hi_agent.harness`` to ``hi_agent.runtime.harness`` so the
 runtime helper namespace is unified. The legacy ``hi_agent.harness`` import
-path still works via a deprecation shim and will be removed in Wave 34.
+path still works via a deprecation shim and will be removed in Wave 35.
 """
 
 from hi_agent.runtime.harness.contracts import (

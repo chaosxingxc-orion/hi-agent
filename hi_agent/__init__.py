@@ -13,7 +13,7 @@ Module split rule (errors / failures):
 
 The legacy ``hi_agent.errors`` import path still works via a
 deprecation shim (re-exporting from ``hi_agent.contracts.errors``) and
-will be removed in Wave 34.
+will be removed in Wave 35.
 """
 
 from hi_agent.executor_facade import (
