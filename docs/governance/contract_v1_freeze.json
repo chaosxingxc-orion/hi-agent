@@ -13,5 +13,5 @@
     "agent_server/contracts/tenancy.py": "c560c7239a4dde951931475239bf581e844c4dda02e43fe2d912f8d0d40b3f92",
     "agent_server/contracts/workspace.py": "e8731edca89e0e175cba96a82b26e985204f882e353be93200ec9d6c2e37c3b0"
   },
-  "v1_frozen_head": "8978f0eb7039cd3ea36668fcd76898a6369855f6"
+  "v1_frozen_head": "cc55145f61176595e6ac6eafe3f9256de71ee4fc"
 }

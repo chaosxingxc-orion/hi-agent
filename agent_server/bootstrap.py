@@ -309,7 +309,11 @@ def build_production_app(
             list_artifacts=stub_backend.list_artifacts,
             get_artifact=stub_backend.get_artifact,
         )
-    manifest_facade = ManifestFacade()
+    # W34-C (B-W34-5): the bootstrap is the canonical R-AS-1 seam, so it
+    # passes the resolved posture string directly to the manifest facade.
+    # This keeps the facade module's default resolver as a fallback only
+    # for embedders that construct ManifestFacade outside the bootstrap.
+    manifest_facade = ManifestFacade(posture_resolver=lambda: posture.value)
 
     # When real-kernel is selected, hand a lifespan into build_app so
     # the AgentServer's rehydration + drain hooks fire on FastAPI
