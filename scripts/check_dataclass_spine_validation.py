@@ -159,17 +159,22 @@ def _has_post_init_with_spine_check(
     # references at least one spine field name.
     src = ast.unparse(post_init)
     has_posture = "Posture" in src or "posture" in src
-    has_spine_ref = any(
-        field in src for field in ("tenant_id", "run_id", "stage_id", "parent_run_id", "attempt_id", "phase_id")
+    _spine_fields = (
+        "tenant_id", "run_id", "stage_id",
+        "parent_run_id", "attempt_id", "phase_id",
     )
+    has_spine_ref = any(field in src for field in _spine_fields)
     has_raise = "raise" in src or "SpineCompletenessError" in src
 
     delegates_to_helper = False
     for call in ast.walk(post_init):
-        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name):
-            if call.func.id in module_helpers:
-                delegates_to_helper = True
-                break
+        if (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id in module_helpers
+        ):
+            delegates_to_helper = True
+            break
 
     if delegates_to_helper and has_spine_ref:
         return True, ""
@@ -219,7 +224,8 @@ def main() -> int:
         )
         return 1
     print(
-        f"OK dataclass_spine_validation ({len(REQUIRED_VALIDATION_TARGETS)} targets, all carry __post_init__)"
+        f"OK dataclass_spine_validation ({len(REQUIRED_VALIDATION_TARGETS)} "
+        "targets, all carry __post_init__)"
     )
     return 0
 

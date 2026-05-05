@@ -424,9 +424,9 @@ class SQLiteEventStore:
             scope when supplied), or -1 if no events exist for this run_id.
         """
         if tenant_id is None or not tenant_id.strip():
-            from hi_agent.config.posture import Posture as _P
+            from hi_agent.config.posture import Posture
 
-            posture = _P.from_env()
+            posture = Posture.from_env()
             if posture.is_strict:
                 raise ValueError(
                     f"SQLiteEventStore.max_sequence requires tenant_id under "

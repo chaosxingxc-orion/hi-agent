@@ -65,6 +65,8 @@ ALLOWLIST: dict[str, frozenset[str]] = {
         "hi_agent/config/posture.py",                    # canonical anchor
         "agent_server/api/routes_skills_memory.py",      # posture-aware route gate
         "agent_server/contracts/gate.py",                # __post_init__ posture-strict
+        # W35-T1 _strict_posture() helper; R-AS-1: cannot import hi_agent.config
+        "agent_server/contracts/errors.py",
         "hi_agent/operator_tools/diagnostics.py",        # diagnostic dump
     }),
     "HI_AGENT_LLM_MODE": frozenset({
@@ -93,10 +95,13 @@ def _is_environ_get_for(node: ast.Call, var_name: str) -> bool:
     ) and node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == var_name:
         return True
     # os.getenv("VAR", ...)
-    if isinstance(func, ast.Attribute) and func.attr == "getenv":
-        if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == var_name:
-            return True
-    return False
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "getenv"
+        and bool(node.args)
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == var_name
+    )
 
 
 def _is_environ_index_for(node: ast.Subscript, var_name: str) -> bool:
@@ -122,7 +127,15 @@ def _scan_file(path: Path, var_name: str) -> list[int]:
         return []
     hits: list[int] = []
     for node in ast.walk(tree):
-        if (isinstance(node, ast.Call) and _is_environ_get_for(node, var_name)) or (isinstance(node, ast.Subscript) and _is_environ_index_for(node, var_name)):
+        is_call_match = (
+            isinstance(node, ast.Call)
+            and _is_environ_get_for(node, var_name)
+        )
+        is_index_match = (
+            isinstance(node, ast.Subscript)
+            and _is_environ_index_for(node, var_name)
+        )
+        if is_call_match or is_index_match:
             hits.append(node.lineno)
     return hits
 

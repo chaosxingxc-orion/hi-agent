@@ -222,7 +222,7 @@ ON idempotency_records (tenant_id, idempotency_key)
             if deleted >= 100:
                 try:
                     self._conn.execute("VACUUM")
-                except sqlite3.OperationalError as _vacuum_exc:  # rule7-exempt: VACUUM is best-effort disk reclamation; DELETE already succeeded
+                except sqlite3.OperationalError as _vacuum_exc:
                     # VACUUM fails on :memory: or read-only / locked-file
                     # backends; the DELETE has already succeeded so we
                     # treat reclaim as best-effort.

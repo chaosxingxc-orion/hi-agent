@@ -477,7 +477,8 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
             if effective is not None:
                 self._conn.execute(
                     "UPDATE run_records "
-                    "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
+                    "SET status = 'cancelled', cancellation_flag = 1, "
+                    "updated_at = ?, finished_at = ? "
                     "WHERE run_id = ? AND tenant_id = ?",
                     (now, now, run_id, effective),
                 )
@@ -485,7 +486,8 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
                 # Dev posture only — research/prod fails in _check_run_store_tenant_scope above.
                 self._conn.execute(
                     "UPDATE run_records "
-                    "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
+                    "SET status = 'cancelled', cancellation_flag = 1, "
+                    "updated_at = ?, finished_at = ? "
                     "WHERE run_id = ?",
                     (now, now, run_id),
                 )

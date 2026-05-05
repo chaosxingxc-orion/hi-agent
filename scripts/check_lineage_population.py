@@ -72,7 +72,12 @@ def _scan_file(path: Path) -> list[tuple[str, int, str]]:
                 # same line, OR explicitly listed in ALLOWLIST.
                 # A plain `parent_run_id=""` without the marker is the bug.
                 if kw.arg == "parent_run_id":
-                    line = src.splitlines()[kw.lineno - 1] if 0 < kw.lineno <= len(src.splitlines()) else ""
+                    src_lines = src.splitlines()
+                    line = (
+                        src_lines[kw.lineno - 1]
+                        if 0 < kw.lineno <= len(src_lines)
+                        else ""
+                    )
                     if "# scope: root-run" in line:
                         continue
                 # ``attempt_id=""`` and ``phase_id=""`` are always violations:
@@ -96,7 +101,10 @@ def main() -> int:
             all_violations.extend(_scan_file(py))
 
     if not all_violations:
-        print("OK lineage_population (no hardcoded-empty lineage in RunExecutionContext call sites)")
+        print(
+            "OK lineage_population (no hardcoded-empty lineage in "
+            "RunExecutionContext call sites)"
+        )
         return 0
 
     print("FAIL lineage_population:")
