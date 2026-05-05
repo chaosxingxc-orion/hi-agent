@@ -74,14 +74,14 @@ graph TD
 
     subgraph hi_agent_umbrella[hi_agent.server.app.AgentServer]
         AS[AgentServer instance]
-        RM[run_manager: RunManager]
-        RS[_run_store: SQLiteRunStore]
-        RQ[_run_queue: RunQueue]
-        ES[_event_store: SQLiteEventStore]
-        IS[_idempotency_store: IdempotencyStore]
-        GS[_gate_store: GateStore]
-        TS[_team_event_store: TeamEventStore]
-        REHYDRATE[_rehydrate_runs<br/>W35-T9: bumps attempt_id]
+        RM[run_manager RunManager]
+        RS[_run_store SQLiteRunStore]
+        RQ[_run_queue RunQueue]
+        ES[_event_store SQLiteEventStore]
+        IS[_idempotency_store IdempotencyStore]
+        GS[_gate_store GateStore]
+        TS[_team_event_store TeamEventStore]
+        REHYDRATE[_rehydrate_runs<br/>W35-T9 bumps attempt_id]
     end
 
     subgraph hi_agent_auth[hi_agent.auth + server.auth_middleware]
