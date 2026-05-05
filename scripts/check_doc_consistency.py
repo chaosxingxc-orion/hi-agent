@@ -353,16 +353,34 @@ def check_notice_sha_reachable(notice: Path | None) -> list[str]:
 
 _GOV_AND_DOCS_PREFIXES = ("docs/", "scripts/", ".github/")
 
+# Mirrors ``scripts/check_manifest_freshness.py::_is_gov_only_path`` so the
+# notice-HEAD gate and the manifest-freshness gate agree on what counts as
+# documentation. Without this alignment a docs-only refactor of root-level
+# README.md / ARCHITECTURE.md or any per-package ``**/ARCHITECTURE.md`` doc
+# would pass manifest_freshness but fail E1a notice-HEAD, forcing a manifest
+# rebuild for a pure-doc commit (the W17 anti-pattern).
+def _is_doc_only_path(path: str) -> bool:
+    """True if *path* is pure documentation (no functional impact)."""
+    if any(path.startswith(p) for p in _GOV_AND_DOCS_PREFIXES):
+        return True
+    # Top-level *.md files (README.md, ARCHITECTURE.md, CLAUDE.md, ...).
+    if "/" not in path and path.endswith(".md"):
+        return True
+    # Any per-package architecture document colocated with code.
+    return path.endswith("/ARCHITECTURE.md")
+
 
 def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
     """Return True if commits between base_sha..current_sha only touch governance/docs files.
 
     Governance files are docs/, scripts/, and .github/ — none of these touch
     functional product code (hi_agent/, agent_kernel/, tests/, pyproject.toml).
-    The Functional HEAD concept is about product code, so governance-only commits
-    after a declared Functional HEAD do not invalidate the HEAD claim.
+    Top-level README.md / ARCHITECTURE.md and any file matching
+    ``**/ARCHITECTURE.md`` are also treated as docs-only because they are pure
+    documentation by convention even when colocated with code.
 
-    Only used when --allow-docs-only-gap is explicitly passed.
+    The Functional HEAD concept is about product code, so governance-only
+    commits after a declared Functional HEAD do not invalidate the HEAD claim.
     """
     if base_sha == current_sha:
         return True
@@ -374,10 +392,7 @@ def _docs_only_gap(base_sha: str, current_sha: str) -> bool:
         if result.returncode != 0:
             return False
         changed = [f.strip() for f in result.stdout.splitlines() if f.strip()]
-        return (
-            all(any(f.startswith(p) for p in _GOV_AND_DOCS_PREFIXES) for f in changed)
-            and bool(changed)
-        )
+        return all(_is_doc_only_path(f) for f in changed) and bool(changed)
     except Exception:
         return False
 
