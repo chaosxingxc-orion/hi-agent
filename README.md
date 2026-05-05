@@ -225,14 +225,23 @@ diagrams in mermaid):
 | Subsystem | Document |
 |---|---|
 | **L0 system** | [`ARCHITECTURE.md`](ARCHITECTURE.md) (arc42-style) |
-| **L1 agent_server** | [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md) |
+| **L1 agent_server** (northbound facade) | [`agent_server/ARCHITECTURE.md`](agent_server/ARCHITECTURE.md) |
 | L2 HTTP routes + middleware | [`agent_server/api/ARCHITECTURE.md`](agent_server/api/ARCHITECTURE.md) |
 | L2 Contract↔kernel adaptation | [`agent_server/facade/ARCHITECTURE.md`](agent_server/facade/ARCHITECTURE.md) |
 | L2 Frozen v1 contracts | [`agent_server/contracts/ARCHITECTURE.md`](agent_server/contracts/ARCHITECTURE.md) |
 | L2 Real-kernel binding | [`agent_server/runtime/ARCHITECTURE.md`](agent_server/runtime/ARCHITECTURE.md) |
 | L2 Operator CLI | [`agent_server/cli/ARCHITECTURE.md`](agent_server/cli/ARCHITECTURE.md) |
 | L2 Config + version constants | [`agent_server/config/ARCHITECTURE.md`](agent_server/config/ARCHITECTURE.md) |
-| **L1 hi_agent codebase reference** | [`docs/architecture-reference.md`](docs/architecture-reference.md) — canonical module index, R-AS rules, gate map |
+| **L1 hi_agent** (cognitive runtime + inlined kernel) | [`hi_agent/ARCHITECTURE.md`](hi_agent/ARCHITECTURE.md) |
+| L2 server kernel (RunManager + durable stores) | [`hi_agent/server/ARCHITECTURE.md`](hi_agent/server/ARCHITECTURE.md) |
+| L2 runtime helpers (sync bridge, harness) | [`hi_agent/runtime/ARCHITECTURE.md`](hi_agent/runtime/ARCHITECTURE.md) |
+| L2 runtime_adapter (kernel facade spine) | [`hi_agent/runtime_adapter/ARCHITECTURE.md`](hi_agent/runtime_adapter/ARCHITECTURE.md) |
+| L2 LLM gateway / tier router / failover | [`hi_agent/llm/ARCHITECTURE.md`](hi_agent/llm/ARCHITECTURE.md) |
+| L2 Observability spine (events, metrics) | [`hi_agent/observability/ARCHITECTURE.md`](hi_agent/observability/ARCHITECTURE.md) |
+| L2 Knowledge layer (wiki + KG + retrieval) | [`hi_agent/knowledge/ARCHITECTURE.md`](hi_agent/knowledge/ARCHITECTURE.md) |
+| L2 Skill subsystem (load, version, evolve) | [`hi_agent/skill/ARCHITECTURE.md`](hi_agent/skill/ARCHITECTURE.md) |
+| L2 Capability registry | [`hi_agent/capability/ARCHITECTURE.md`](hi_agent/capability/ARCHITECTURE.md) |
+| **Codebase reference** | [`docs/architecture-reference.md`](docs/architecture-reference.md) — canonical module index, R-AS rules, gate map |
 
 ---
 
