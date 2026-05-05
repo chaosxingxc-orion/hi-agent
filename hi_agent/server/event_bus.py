@@ -109,6 +109,13 @@ class EventBus:
             _tenant_id = _ctx.tenant_id if _ctx else ""
             _user_id = _ctx.user_id if _ctx else ""
             _session_id = _ctx.session_id if _ctx else ""
+            # W34+ T1b: lineage spine carried from RuntimeEvent when present so
+            # postmortem reconstruction can chain attempts. RuntimeEvent
+            # producers populate these fields on the source object; missing
+            # values keep the legacy "" defaults.
+            _parent_run_id = getattr(event, "parent_run_id", "") or ""
+            _attempt_id = getattr(event, "attempt_id", "") or ""
+            _phase_id = getattr(event, "phase_id", "") or ""
             stored = StoredEvent(
                 event_id=event.event_id or str(uuid.uuid4()),
                 run_id=event.run_id,
@@ -118,6 +125,9 @@ class EventBus:
                 tenant_id=_tenant_id,
                 user_id=_user_id,
                 session_id=_session_id,
+                parent_run_id=_parent_run_id,
+                attempt_id=_attempt_id,
+                phase_id=_phase_id,
             )
             self._event_store.append(stored)
             logger.debug(

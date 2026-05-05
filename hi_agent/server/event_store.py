@@ -35,6 +35,41 @@ class StoredEvent:
     attempt_id: str = ""  # stable identifier per attempt (UUID4 or similar)
     phase_id: str = ""  # TRACE phase tagging (e.g. "intake", "execute", "finalize")
 
+    def __post_init__(self) -> None:
+        """W34+ T2a: posture-aware spine validation at construction.
+
+        Storage-layer reconstructions (``_row_to_event``) populate every
+        field from a SQL row, where ``tenant_id`` is NOT NULL at the
+        schema level — those calls satisfy the check trivially. The
+        check matters most at fresh-construction sites
+        (``RunManager._publish_run_event``, ``EventBus.publish``) where
+        empty spine fields would persist orphaned records.
+        """
+        from hi_agent.config.posture import Posture
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.event_id:
+            missing.append("event_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise ValueError(
+                "StoredEvent constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate the "
+                "fields at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.server.event_store").warning(
+            "stored_event_spine_incomplete: missing=%s posture=%s; would "
+            "fail-closed under research/prod.",
+            missing,
+            posture.value,
+        )
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS run_events (
@@ -365,21 +400,56 @@ class SQLiteEventStore:
         """
         return self._get_events_rows(run_id, None, offset, limit)
 
-    def max_sequence(self, run_id: str) -> int:
+    def max_sequence(self, run_id: str, *, tenant_id: str | None = None) -> int:
         """Return the highest stored sequence for run_id, or -1 if none.
 
         Callers use ``max_sequence(run_id) + 1`` as the seed for the next
         sequence number.  Returning -1 when no events exist means the first
         event will receive sequence 0.
 
+        W34+ D.2 mirror: ``tenant_id`` is required under research/prod posture
+        and warns under dev. Without it, sequence numbers across tenants for
+        the same ``run_id`` could be observed across the boundary (metadata
+        leak). Cross-tenant ``run_id`` collisions are unlikely given UUID4
+        identifiers but tenant scoping is the structural guarantee, not a
+        probabilistic one.
+
         Args:
             run_id: Run identifier to query.
+            tenant_id: Optional tenant scope. Required under research/prod;
+                dev back-compat allows ``None`` with a logged warning.
 
         Returns:
-            Highest sequence number stored for this run, or -1 if no events
-            exist for this run_id.
+            Highest sequence number stored for this run (within the tenant
+            scope when supplied), or -1 if no events exist for this run_id.
         """
+        if tenant_id is None or not tenant_id.strip():
+            from hi_agent.config.posture import Posture as _P
+
+            posture = _P.from_env()
+            if posture.is_strict:
+                raise ValueError(
+                    f"SQLiteEventStore.max_sequence requires tenant_id under "
+                    f"posture={posture.value}; cross-tenant sequence reads are "
+                    "forbidden (W34+ defense-in-depth)."
+                )
+            import logging
+            logging.getLogger("hi_agent.server.event_store").warning(
+                "max_sequence: tenant_id missing under posture=%s; proceeding "
+                "unscoped (dev back-compat). All callers should pass "
+                "tenant_id=<tenant_id>.",
+                posture.value,
+            )
+            tenant_id = None  # explicit None to signal unscoped path
         with self._lock:
+            if tenant_id:
+                row = self._conn.execute(
+                    "SELECT MAX(sequence) FROM run_events "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (run_id, tenant_id),
+                ).fetchone()
+                value = row[0] if row else None
+                return -1 if value is None else int(value)
             row = self._conn.execute(
                 "SELECT MAX(sequence) FROM run_events WHERE run_id = ?", (run_id,)
             ).fetchone()

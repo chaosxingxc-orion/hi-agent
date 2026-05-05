@@ -38,6 +38,12 @@ from agent_server.facade.idempotency_facade import IdempotencyFacade
 IDEMPOTENCY_HEADER = "Idempotency-Key"
 TENANT_HEADER = "X-Tenant-Id"
 
+# W34+ T1d: cap the Idempotency-Key header length. UUID4 (36 chars), ULID
+# (26 chars), nanoid (21 chars) and similar fit comfortably under 256.
+# Larger values are rejected with HTTP 400 so SQLite storage and request
+# matching stay bounded.
+_IDEMPOTENCY_KEY_MAX_LEN = 256
+
 # The exact paths and methods that demand idempotency. Anything else
 # (GET, status routes, future read-only endpoints) is forwarded
 # untouched.
@@ -143,6 +149,31 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         # If it is missing here, defer to the tenant middleware's 401.
         if not tenant_id:
             return await call_next(request)
+
+        # W34+ T1d: bound the Idempotency-Key length. Without this guard a
+        # client could submit an arbitrarily large key; SQLite would store
+        # it verbatim and reads/writes would slow down linearly. 256 chars
+        # is generous for UUID4 / ULID / nanoid shapes (32-26 chars) and
+        # fits the typical observability cardinality budget.
+        if key and len(key) > _IDEMPOTENCY_KEY_MAX_LEN:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "ContractError",
+                    "error_category": "contract_violation",
+                    "message": (
+                        f"{IDEMPOTENCY_HEADER} length {len(key)} exceeds "
+                        f"max {_IDEMPOTENCY_KEY_MAX_LEN}"
+                    ),
+                    "retryable": False,
+                    "next_action": (
+                        f"Use an Idempotency-Key ≤ {_IDEMPOTENCY_KEY_MAX_LEN} "
+                        "characters (UUID4 / ULID / nanoid recommended)."
+                    ),
+                    "tenant_id": tenant_id,
+                    "detail": "",
+                },
+            )
 
         if not key:
             if self._strict:

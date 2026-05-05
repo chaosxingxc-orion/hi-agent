@@ -25,6 +25,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_VALIDATION_TARGETS: tuple[tuple[str, str], ...] = (
     ("hi_agent/contracts/reasoning.py", "ReasoningTrace"),
+    # W34+ T2a — durable trio. RunRecord / StoredEvent are persisted
+    # and ManagedRun is the in-memory shape consumed by every emit path;
+    # all three now carry posture-aware __post_init__ that fails closed
+    # under research/prod when run_id / tenant_id (and event_id for
+    # StoredEvent) are empty. Mirrors the W34-F.3 ReasoningTrace pattern.
+    ("hi_agent/server/run_store.py", "RunRecord"),
+    ("hi_agent/server/event_store.py", "StoredEvent"),
+    ("hi_agent/server/run_manager.py", "ManagedRun"),
 )
 
 

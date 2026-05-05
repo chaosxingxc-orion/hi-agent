@@ -336,9 +336,18 @@ class RunLifecycle:
             try:
                 from hi_agent.observability.audit import emit as _audit_emit
 
+                # W34+ T1c: thread tenant_id so audit emit does not raise
+                # TenantScopeError under research/prod posture. The tenant_id
+                # is derived from the live exec_ctx (attached to RunExecutor
+                # at construction). Best-effort lookup to keep the path
+                # robust in unit tests where exec_ctx may be None.
+                _audit_tenant_id = getattr(
+                    getattr(self, "exec_ctx", None), "tenant_id", ""
+                ) or getattr(self, "_tenant_id", "")
                 _audit_emit(
                     "evolve.explicit_on_in_prod",
                     {"run_id": run_id, "runtime_mode": _runtime_mode},
+                    tenant_id=_audit_tenant_id or None,
                 )
             except Exception as _audit_exc:
                 _logger.debug("run.audit_emit_failed run_id=%s error=%s", run_id, _audit_exc)

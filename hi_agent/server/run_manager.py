@@ -119,6 +119,37 @@ class ManagedRun:
     phase_id: str = ""
     profile_id: str = ""
 
+    def __post_init__(self) -> None:
+        """W34+ T2a: posture-aware spine validation at construction.
+
+        ``ManagedRun`` is the in-memory live shape of a run; consumed by
+        ``RunExecutionContext.from_managed_run`` and every event/record
+        emission. An empty ``run_id`` or ``tenant_id`` here would silently
+        propagate to every persistent shape downstream.
+        """
+        from hi_agent.config.posture import Posture
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise ValueError(
+                "ManagedRun constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate "
+                "tenant_id from the authenticated workspace (Rule 12)."
+            )
+        # Dev posture: warn, allow construction.
+        logger.warning(
+            "managed_run_spine_incomplete: missing=%s posture=%s; would "
+            "fail-closed under research/prod.",
+            missing,
+            posture.value,
+        )
+
 
 class RunManager:
     """Thread-safe run lifecycle manager with bounded queue and backoff.
@@ -303,6 +334,9 @@ class RunManager:
                 self._event_seqs[run_id] = seed
             seq = self._event_seqs.get(run_id, 0)
             self._event_seqs[run_id] = seq + 1
+        # W34+ T1b: thread lineage spine from the live ManagedRun so
+        # postmortem reconstruction has the (parent_run_id, attempt_id,
+        # phase_id) chain on every persisted event.
         event = StoredEvent(
             event_id=str(uuid.uuid4()),
             run_id=run_id,
@@ -313,6 +347,9 @@ class RunManager:
             user_id=run.user_id or "__legacy__",
             session_id=run.session_id or "__legacy__",
             created_at=datetime.now(UTC).timestamp(),
+            parent_run_id=getattr(run, "parent_run_id", "") or "",
+            attempt_id=getattr(run, "attempt_id", "") or "",
+            phase_id=getattr(run, "phase_id", "") or "",
         )
         try:
             self._event_store.append(event)

@@ -6,6 +6,7 @@ thread safety, following the same pattern as SqliteEvidenceStore.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 import time
@@ -15,6 +16,50 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
+
+_logger = logging.getLogger("hi_agent.server.run_store")
+
+
+class TenantScopeError(ValueError):
+    """Raised when a research/prod-posture mutation is attempted without tenant_id.
+
+    W34+ defense-in-depth: every mutating SQLiteRunStore method must be
+    tenant-scoped under research/prod posture. The optional ``workspace`` /
+    ``tenant_id`` parameter remains for dev-posture back-compat (warns +
+    proceeds unscoped) but fails closed under research/prod.
+
+    Mirrors the pattern landed at ``hi_agent/server/run_queue.py`` in W33-D.2.
+    """
+
+
+def _check_run_store_tenant_scope(workspace: str | None, *, method: str) -> str | None:
+    """Posture-aware gate for SQLiteRunStore mutation methods (W34+ D.2-style).
+
+    Under research/prod posture, missing workspace raises ``TenantScopeError``.
+    Under dev posture, missing workspace emits a structured WARNING and
+    returns ``None`` so the caller proceeds unscoped (back-compat).
+
+    Returns the workspace string on the happy path so the caller can use
+    ``effective = _check_run_store_tenant_scope(workspace, method=...)``.
+    """
+    if workspace is not None and workspace.strip():
+        return workspace
+    from hi_agent.config.posture import Posture
+
+    posture = Posture.from_env()
+    if posture.is_strict:
+        raise TenantScopeError(
+            f"SQLiteRunStore.{method} requires workspace (tenant_id) under "
+            f"posture={posture.value}. Pass workspace=<tenant_id> to scope the "
+            "mutation; defense-in-depth (W34+ D.2 mirror)."
+        )
+    _logger.warning(
+        "run_store.%s: workspace=None under posture=%s; proceeding unscoped "
+        "(dev back-compat). All callers should pass workspace=<tenant_id>.",
+        method,
+        posture.value,
+    )
+    return None
 
 
 @dataclass
@@ -42,6 +87,47 @@ class RunRecord:
     parent_run_id: str = ""  # parent run identifier (lineage; empty for root runs)
     attempt_id: str = ""  # stable identifier per attempt (UUID4 or similar)
     phase_id: str = ""  # TRACE phase tagging (e.g. "intake", "execute", "finalize")
+
+    def __post_init__(self) -> None:
+        """W34+ T2a: posture-aware spine validation at construction.
+
+        Mirrors the W34-F.3 ReasoningTrace pattern: under research/prod the
+        durable record MUST carry non-empty ``run_id`` and ``tenant_id``;
+        empty values would persist a row that no tenant-scoped query can
+        ever read back. Under dev posture the constraint relaxes to a
+        WARNING so storage-layer reconstructions (``_row_to_record``) keep
+        working when reading legacy rows that pre-date W33-F.
+        """
+        # Storage-layer reconstructions (``_row_to_record``) populate every
+        # field from a SQL row — those rows always carry tenant_id NOT NULL
+        # at the schema level and so satisfy the check trivially. The
+        # validation matters most at fresh-construction sites in
+        # ``RunManager.create_run`` and any new caller building a record
+        # from a TaskContract.
+        from hi_agent.config.posture import Posture
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise ValueError(
+                "RunRecord constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate the "
+                "fields at the construction site (Rule 12)."
+            )
+        # Dev posture: warn but allow the construction so reconstruction
+        # paths keep working with legacy rows.
+        import logging
+        logging.getLogger("hi_agent.server.run_store").warning(
+            "run_record_spine_incomplete: missing=%s posture=%s; would "
+            "fail-closed under research/prod.",
+            missing,
+            posture.value,
+        )
 
 
 class SQLiteRunStore:
@@ -373,20 +459,36 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
                 ).fetchall()
         return [self._row_to_record(r) for r in rows]
 
-    def mark_cancelled(self, run_id: str) -> None:
+    def mark_cancelled(self, run_id: str, workspace: str | None = None) -> None:
         """Set status=cancelled and cancellation_flag=True.
+
+        W34+ D.2 mirror: the optional ``workspace`` (tenant_id) is required
+        under research/prod posture and warns under dev. Cross-tenant mutation
+        is structurally impossible once the call site is migrated to pass it.
 
         Args:
             run_id: Identifier of the run.
+            workspace: Optional tenant workspace ID. Required under research/
+                prod; dev back-compat allows None with a logged warning.
         """
+        effective = _check_run_store_tenant_scope(workspace, method="mark_cancelled")
         now = time.time()
         with self._lock:
-            self._conn.execute(
-                "UPDATE run_records "
-                "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
-                "WHERE run_id = ?",
-                (now, now, run_id),
-            )
+            if effective is not None:
+                self._conn.execute(
+                    "UPDATE run_records "
+                    "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
+                    "WHERE run_id = ? AND tenant_id = ?",
+                    (now, now, run_id, effective),
+                )
+            else:
+                # Dev posture only — research/prod fails in _check_run_store_tenant_scope above.
+                self._conn.execute(
+                    "UPDATE run_records "
+                    "SET status = 'cancelled', cancellation_flag = 1, updated_at = ?, finished_at = ? "
+                    "WHERE run_id = ?",
+                    (now, now, run_id),
+                )
             self._conn.commit()
 
     def mark_complete(
@@ -394,13 +496,16 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
     ) -> None:
         """Set status=completed and store result_summary.
 
+        W34+ D.2 mirror: ``workspace`` is required under research/prod;
+        dev back-compat allows None with a logged warning.
+
         Args:
             run_id: Identifier of the run.
             result_summary: Human-readable or serialized run result.
             workspace: Optional tenant workspace ID.  When provided, restricts
                 the UPDATE to rows owned by the given tenant.
-                # scope: process-internal — workspace scoping deferred, all callers must be audited
         """
+        workspace = _check_run_store_tenant_scope(workspace, method="mark_complete")
         now = time.time()
         with self._lock:
             if workspace is not None:
@@ -425,13 +530,15 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
     ) -> None:
         """Set status=failed and store error_summary.
 
+        W34+ D.2 mirror: ``workspace`` required under research/prod; dev warns.
+
         Args:
             run_id: Identifier of the run.
             error_summary: Error description.
             workspace: Optional tenant workspace ID.  When provided, restricts
                 the UPDATE to rows owned by the given tenant.
-                # scope: process-internal — workspace scoping deferred, all callers must be audited
         """
+        workspace = _check_run_store_tenant_scope(workspace, method="mark_failed")
         now = time.time()
         with self._lock:
             if workspace is not None:
@@ -454,15 +561,17 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
     def is_cancelled(self, run_id: str, workspace: str | None = None) -> bool:
         """Return True if the run's cancellation_flag is set.
 
+        W34+ D.2 mirror: ``workspace`` required under research/prod; dev warns.
+
         Args:
             run_id: Identifier of the run.
             workspace: Optional tenant workspace ID.  When provided, restricts
                 the query to rows owned by the given tenant.
-                # scope: process-internal — workspace scoping deferred, all callers must be audited
 
         Returns:
             True if the run exists and cancellation_flag is True, else False.
         """
+        workspace = _check_run_store_tenant_scope(workspace, method="is_cancelled")
         with self._lock:
             if workspace is not None:
                 cur = self._conn.execute(
@@ -507,12 +616,14 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
     def mark_running(self, run_id: str, workspace: str | None = None) -> None:
         """Set status=running. Called when RunManager begins execution.
 
+        W34+ D.2 mirror: ``workspace`` required under research/prod; dev warns.
+
         Args:
             run_id: Identifier of the run.
             workspace: Optional tenant workspace ID.  When provided, restricts
                 the UPDATE to rows owned by the given tenant.
-                # scope: process-internal — workspace scoping deferred, all callers must be audited
         """
+        workspace = _check_run_store_tenant_scope(workspace, method="mark_running")
         now = time.time()
         with self._lock:
             if workspace is not None:
@@ -532,12 +643,14 @@ ALTER TABLE run_records ADD COLUMN phase_id TEXT NOT NULL DEFAULT '';
     def delete(self, run_id: str, workspace: str | None = None) -> None:
         """Delete a run record. Used as rollback primitive when creation fails post-insert.
 
+        W34+ D.2 mirror: ``workspace`` required under research/prod; dev warns.
+
         Args:
             run_id: Identifier of the run to delete.
             workspace: Optional tenant workspace ID.  When provided, restricts
                 the DELETE to rows owned by the given tenant.
-                # scope: process-internal — workspace scoping deferred, all callers must be audited
         """
+        workspace = _check_run_store_tenant_scope(workspace, method="delete")
         with self._lock:
             if workspace is not None:
                 self._conn.execute(

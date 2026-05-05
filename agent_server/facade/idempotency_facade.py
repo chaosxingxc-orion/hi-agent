@@ -38,10 +38,43 @@ _IDENTITY_KEYS_TO_STRIP: tuple[str, ...] = (
 )
 
 
+def _nfc_normalize(value: Any) -> Any:
+    """Recursively normalise every str inside *value* to Unicode NFC.
+
+    W34+ T1e: without this, the same logical body that uses NFD-encoded
+    composed glyphs (e.g. "café" as ``e + U+0301``) hashes differently from
+    the NFC form (``é`` as ``U+00E9``). Both are valid UTF-8 and both can
+    arrive on the wire from clients with different IME / locale stacks; the
+    idempotency contract demands they be treated as the same body.
+
+    Limited to strings — int/float/bool/None pass through. ``json.dumps``
+    handles nested structures, but normalising *before* serialisation keeps
+    the canonical form independent of the json encoder.
+    """
+    import unicodedata
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, dict):
+        return {k: _nfc_normalize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_nfc_normalize(v) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_nfc_normalize(v) for v in value)
+    return value
+
+
 def _canonical_body_hash(body: dict[str, Any]) -> str:
-    """Return SHA-256 hex digest of canonical sorted-key JSON body."""
+    """Return SHA-256 hex digest of canonical sorted-key JSON body.
+
+    W34+ T1e: every string in *body* is Unicode-NFC-normalised first so
+    NFC-vs-NFD wire variants (same glyph, different code points) collapse
+    to one hash. Float canonicalization (``1`` vs ``1.0``) remains W35
+    carryover per docs/superpowers/plans/2026-05-05-wave-35-systematic-
+    audit-followups.md::W35-T5 — fixing it is a breaking change for
+    in-flight retries and needs a deprecation window.
+    """
     return hashlib.sha256(
-        json.dumps(body, sort_keys=True, ensure_ascii=True).encode("utf-8")
+        json.dumps(_nfc_normalize(body), sort_keys=True, ensure_ascii=True).encode("utf-8")
     ).hexdigest()
 
 
