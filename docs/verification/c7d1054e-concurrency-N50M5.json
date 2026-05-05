@@ -1,0 +1,55 @@
+{
+  "schema": "hi-agent.concurrency-baseline.v1",
+  "head_sha": "c7d1054e",
+  "provenance": "real",
+  "params": {
+    "N": 50,
+    "M": 5,
+    "backend": "stub",
+    "server": "http://127.0.0.1:18080"
+  },
+  "wall_clock_seconds": 0.5505,
+  "results": {
+    "p50_ms": 77.49135000040042,
+    "p95_ms": 200.41027999996004,
+    "p99_ms": 216.20156300019516,
+    "max_ms": 217.990699999973,
+    "mean_ms": 91.23523200001728,
+    "throughput_rps": 90.8289,
+    "successes": 50,
+    "failures": 0,
+    "fairness_coefficient": 1.4446
+  },
+  "per_tenant": {
+    "tenant-3": {
+      "requests": 10,
+      "p50_ms": 76.30209999979343,
+      "p95_ms": 140.86897999986832
+    },
+    "tenant-1": {
+      "requests": 10,
+      "p50_ms": 90.8498500002679,
+      "p95_ms": 191.24433499996482
+    },
+    "tenant-4": {
+      "requests": 10,
+      "p50_ms": 84.0973499998654,
+      "p95_ms": 177.25728499990504
+    },
+    "tenant-2": {
+      "requests": 10,
+      "p50_ms": 64.11995000007664,
+      "p95_ms": 108.9625250001063
+    },
+    "tenant-0": {
+      "requests": 10,
+      "p50_ms": 92.62519999992946,
+      "p95_ms": 216.34761500017703
+    }
+  },
+  "platform": {
+    "python": "3.14.3",
+    "platform": "win32"
+  },
+  "failure_samples": []
+}

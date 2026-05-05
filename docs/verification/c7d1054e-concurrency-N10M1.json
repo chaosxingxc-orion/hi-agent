@@ -1,0 +1,35 @@
+{
+  "schema": "hi-agent.concurrency-baseline.v1",
+  "head_sha": "c7d1054e",
+  "provenance": "real",
+  "params": {
+    "N": 10,
+    "M": 1,
+    "backend": "stub",
+    "server": "http://127.0.0.1:18080"
+  },
+  "wall_clock_seconds": 0.1155,
+  "results": {
+    "p50_ms": 27.992649999760033,
+    "p95_ms": 51.78225500030748,
+    "p99_ms": 54.01933100025417,
+    "max_ms": 54.57860000024084,
+    "mean_ms": 27.86905000002662,
+    "throughput_rps": 86.5491,
+    "successes": 10,
+    "failures": 0,
+    "fairness_coefficient": 1.0
+  },
+  "per_tenant": {
+    "tenant-0": {
+      "requests": 10,
+      "p50_ms": 27.992649999760033,
+      "p95_ms": 51.78225500030748
+    }
+  },
+  "platform": {
+    "python": "3.14.3",
+    "platform": "win32"
+  },
+  "failure_samples": []
+}
