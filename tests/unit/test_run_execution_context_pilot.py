@@ -27,7 +27,10 @@ def _make_managed_run(**overrides) -> ManagedRun:
 
 
 class TestToSpineKwargsFull:
-    def test_returns_all_ten_fields(self):
+    def test_returns_all_twelve_fields(self):
+        # W34-F.2: spine widened from 10 to 12 fields (added attempt_id +
+        # phase_id) to mirror the StoredEvent / RunRecord storage spine
+        # landed in W33-F.1.
         ctx = RunExecutionContext(
             tenant_id="t1",
             user_id="u1",
@@ -36,6 +39,8 @@ class TestToSpineKwargsFull:
             profile_id="prof1",
             run_id="r1",
             parent_run_id="r0",
+            attempt_id="attempt-1",
+            phase_id="execute",
             stage_id="stage_a",
             capability_name="search",
             request_id="req-42",
@@ -49,6 +54,8 @@ class TestToSpineKwargsFull:
             "profile_id": "prof1",
             "run_id": "r1",
             "parent_run_id": "r0",
+            "attempt_id": "attempt-1",
+            "phase_id": "execute",
             "stage_id": "stage_a",
             "capability_name": "search",
             "request_id": "req-42",

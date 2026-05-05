@@ -110,6 +110,14 @@ class ManagedRun:
     last_heartbeat_at: str | None = None
     current_action_id: str | None = None
     trace_id: str = ""
+    # W34-F.2 (B-W34-1): in-memory lineage spine. The persistent shapes
+    # (RunRecord + StoredEvent) already carry these per W33-F.1; ManagedRun
+    # mirrors them so RunExecutionContext.from_managed_run can populate the
+    # spine without reaching into storage.
+    parent_run_id: str = ""
+    attempt_id: str = ""
+    phase_id: str = ""
+    profile_id: str = ""
 
 
 class RunManager:
@@ -493,6 +501,11 @@ class RunManager:
         # --- normal run creation -------------------------------------------
         now = datetime.now(UTC).isoformat()
         _tc = _TRACE_CTX.current()
+        # W34-F.2: mint a fresh attempt_id at create-time. parent_run_id is
+        # empty for root runs; recovery / re-lease paths bump attempt_id and
+        # set parent_run_id back to this run_id so the lineage chain is
+        # reconstructible from persisted records alone.
+        _initial_attempt_id = str(uuid.uuid4())
         run = ManagedRun(
             run_id=run_id,
             task_contract=task_contract_dict,
@@ -505,6 +518,10 @@ class RunManager:
             idempotency_key=idempotency_key,
             outcome="created",
             trace_id=_tc.trace_id if _tc is not None else "",
+            parent_run_id="",
+            attempt_id=_initial_attempt_id,
+            phase_id=str(task_contract_dict.get("phase_id", "")) or "",
+            profile_id=str(task_contract_dict.get("profile_id", "")) or "",
         )
 
         # --- build exec_ctx from resolved spine fields ----------------
@@ -514,6 +531,10 @@ class RunManager:
             session_id=workspace.session_id if workspace else "",
             project_id=task_contract_dict.get("project_id", ""),
             run_id=run_id,
+            parent_run_id="",  # scope: root-run — newly created runs have no parent
+            attempt_id=_initial_attempt_id,
+            phase_id=run.phase_id,
+            profile_id=run.profile_id,
         )
 
         # --- duplicate task_id check and insertion under the same lock ------
@@ -584,6 +605,12 @@ class RunManager:
                     created_at=now_ts,
                     updated_at=now_ts,
                     project_id=task_contract_dict.get("project_id", ""),
+                    # W34-F.2: thread the lineage spine through the persistent
+                    # RunRecord so post-mortem reconstruction has the full
+                    # (parent_run_id, attempt_id, phase_id) chain available.
+                    parent_run_id=_exec_ctx.parent_run_id,
+                    attempt_id=_exec_ctx.attempt_id,
+                    phase_id=_exec_ctx.phase_id,
                 ),
                 exec_ctx=_exec_ctx,
             )

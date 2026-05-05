@@ -42,6 +42,16 @@ class ReasoningStep:
     timestamp: str = ""
 
 
+class SpineCompletenessError(ValueError):
+    """Raised when a spine-bearing dataclass is constructed with an empty required field.
+
+    W34-F.3 (B-W34-2): Rule 12 spine fields (``tenant_id``, ``run_id``,
+    ``stage_id`` for ReasoningTrace) must be populated under research/prod
+    posture. A bare ``ValueError`` would suffice but a typed subclass lets
+    upstream gates assert the failure mode without string-matching.
+    """
+
+
 @dataclass
 class ReasoningTrace:
     """A collection of reasoning steps for a single stage execution."""
@@ -51,6 +61,50 @@ class ReasoningTrace:
     tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
     trace_id: str = ""
     steps: list[ReasoningStep] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """W34-F.3 (B-W34-2): validate Rule 12 spine completeness at construction.
+
+        Under research/prod posture every ReasoningTrace MUST carry a
+        non-empty ``tenant_id``, ``run_id``, and ``stage_id``. Under dev
+        posture the constraints are relaxed to a warning so local tooling
+        and the default-offline test profile keep working.
+
+        The check is posture-aware (Rule 11): missing fields are a hard
+        failure under research/prod and a logged warning under dev. This
+        prevents the silent-empty-spine pattern flagged in W33's outstanding
+        items while preserving developer ergonomics.
+        """
+        # Imported lazily to avoid a hot-path import cycle during module
+        # initialisation; ``Posture.from_env`` is cheap.
+        from hi_agent.config.posture import Posture
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.stage_id:
+            missing.append("stage_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "ReasoningTrace constructed without required spine fields "
+                f"under posture={posture.value}: missing={missing}. "
+                "Populate the fields at the construction site (Rule 12)."
+            )
+        # Dev posture: emit a warning so the gap is visible without breaking
+        # local development. The W34 backfill test asserts no production
+        # construction site reaches this branch under realistic input.
+        import logging
+        logging.getLogger("hi_agent.contracts.reasoning").warning(
+            "reasoning_trace_spine_incomplete: missing=%s posture=%s; "
+            "would fail-closed under research/prod. (W34-F.3)",
+            missing,
+            posture.value,
+        )
 
     def append(self, step: ReasoningStep) -> None:
         """Append a step, assigning ``step_index`` if unset."""
@@ -84,7 +138,14 @@ class ReasoningTrace:
 
     @classmethod
     def from_dict(cls, data: dict) -> ReasoningTrace:
-        """Deserialize a ReasoningTrace from a dict."""
+        """Deserialize a ReasoningTrace from a dict.
+
+        W34-F.3: ``__post_init__`` runs as part of construction. Under
+        research/prod posture the deserialiser will raise
+        ``SpineCompletenessError`` if the persisted dict lacks any required
+        spine field — which is the desired behaviour: stale or corrupt
+        records should fail closed rather than re-enter the system.
+        """
         steps = [
             ReasoningStep(
                 description=s.get("description", ""),
