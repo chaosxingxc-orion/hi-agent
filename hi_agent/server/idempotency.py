@@ -222,11 +222,15 @@ ON idempotency_records (tenant_id, idempotency_key)
             if deleted >= 100:
                 try:
                     self._conn.execute("VACUUM")
-                except sqlite3.OperationalError:
+                except sqlite3.OperationalError as _vacuum_exc:  # rule7-exempt: VACUUM is best-effort disk reclamation; DELETE already succeeded
                     # VACUUM fails on :memory: or read-only / locked-file
                     # backends; the DELETE has already succeeded so we
                     # treat reclaim as best-effort.
-                    pass
+                    import logging as _logging
+                    _logging.getLogger(__name__).debug(
+                        "purge_expired: VACUUM skipped (%s); DELETE %d row(s) succeeded",
+                        _vacuum_exc, deleted,
+                    )
         # W35-T6: emit purged-count metric outside the SQLite lock so the
         # observability path never blocks the next reserve_or_replay caller.
         if deleted > 0:

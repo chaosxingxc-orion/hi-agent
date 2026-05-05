@@ -1390,8 +1390,14 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
                         if _refreshed is not None:
                             _mem_run.attempt_id = _refreshed.attempt_id
                             _mem_run.parent_run_id = _refreshed.parent_run_id
-                    except Exception:
-                        pass
+                    except Exception as _mirror_exc:  # rule7-exempt: in-memory mirror is best-effort; durable store is authoritative
+                        logger.warning(
+                            "_rehydrate_runs: in-memory ManagedRun mirror "
+                            "of attempt_id failed for run_id=%s: %s "
+                            "(durable store carries the authoritative value)",
+                            run_id,
+                            _mirror_exc,
+                        )
             try:
                 run_queue.reenqueue(run_id=run_id, tenant_id=tenant_id)
             except Exception as exc:

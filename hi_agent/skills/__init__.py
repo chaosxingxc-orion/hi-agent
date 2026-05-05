@@ -13,4 +13,4 @@ warnings.warn(
     stacklevel=2,
 )
 
-from hi_agent.skill_runtime import *  # noqa: F403  # expiry_wave: Wave 35
+from hi_agent.skill_runtime import *  # noqa: F403  # expiry_wave: Wave 36

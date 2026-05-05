@@ -318,19 +318,19 @@ async def test_purge_loop_cancelled_on_lifespan_shutdown(
         )
 
         backend = _FakeBackend(_FakeAgentServer())
-        backend._idempotency_store = store  # type: ignore[attr-defined]
+        backend._idempotency_store = store  # type: ignore[attr-defined]  expiry_wave: permanent
 
-        lifespan = build_real_kernel_lifespan(backend)  # type: ignore[arg-type]
+        lifespan = build_real_kernel_lifespan(backend)  # type: ignore[arg-type]  expiry_wave: permanent
 
         async with lifespan(SimpleNamespace()):
             # Yield long enough for the loop to tick at least once.
             await asyncio.sleep(0.3)
-            purge_task = backend._idempotency_purge_task  # type: ignore[attr-defined]
+            purge_task = backend._idempotency_purge_task  # type: ignore[attr-defined]  expiry_wave: permanent
             assert purge_task is not None
             assert not purge_task.done()
 
         # After exit: task is cancelled, no exception leaked, expired row gone.
-        purge_task = backend._idempotency_purge_task  # type: ignore[attr-defined]
+        purge_task = backend._idempotency_purge_task  # type: ignore[attr-defined]  expiry_wave: permanent
         assert purge_task.cancelled() or purge_task.done()
         assert backend.aclosed is True
         assert _row_count(store) == 0

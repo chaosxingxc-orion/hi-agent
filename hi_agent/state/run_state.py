@@ -2,11 +2,11 @@
 
 This re-export shim keeps callers using
 ``import hi_agent.state.run_state`` or
-``from hi_agent.state.run_state import ...`` working until Wave 35.
+``from hi_agent.state.run_state import ...`` working until Wave 36.
 """
 
-from hi_agent.run_state_store.run_state import *  # noqa: F403  # expiry_wave: Wave 35
-from hi_agent.run_state_store.run_state import (  # noqa: F401  # expiry_wave: Wave 35
+from hi_agent.run_state_store.run_state import *  # noqa: F403  # expiry_wave: Wave 36
+from hi_agent.run_state_store.run_state import (  # noqa: F401  # expiry_wave: Wave 36
     RunStateSnapshot,
     RunStateStore,
 )

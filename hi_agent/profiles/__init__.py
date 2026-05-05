@@ -3,7 +3,7 @@
 Includes profile-directory primitives (``ProfileDirectoryManager``,
 ``GLOBAL_PROFILE_ID``) merged here from the deprecated ``hi_agent.profile``
 package; the legacy import path still works via a deprecation shim and will
-be removed in Wave 35.
+be removed in Wave 36.
 """
 
 from hi_agent.profiles.contracts import ProfileSpec
