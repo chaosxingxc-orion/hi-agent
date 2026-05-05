@@ -3,26 +3,24 @@
   "wave": 35,
   "signed_at": "2026-05-05T16:50:00Z",
   "release_captain": "hi-agent platform team",
-  "manifest_id": "2026-05-05-04c1faa4",
-  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-04c1faa4.json",
-  "release_head": "04c1faa4cf0d3c118ec1e3cd03cc88b194357945",
+  "manifest_id": "2026-05-05-460a64bb",
+  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-460a64bb.json",
+  "release_head": "460a64bb65c80f0a04ccef02bd29ddf3c1c6df42",
   "predecessor_manifest_id": "2026-05-05-77222f8b",
   "directive": "docs/upstream-directives/2026-05-05-hi-agent-wave35-acceptance-and-wave36-expectations.md",
   "delivery_notice": "docs/downstream-responses/2026-05-05-w35-delivery-notice.md",
   "plan": "docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md",
   "scores": {
     "raw_implementation_maturity": 94.5,
-    "current_verified_readiness": 70.0,
+    "current_verified_readiness": 75.0,
     "seven_by_24_operational_readiness": 94.5,
     "conditional_readiness_after_blockers": 75.0
   },
   "cap_factors_active": [
-    "soak_evidence_not_real",
-    "dirty_worktree_at_manifest_build_time"
+    "soak_evidence_not_real"
   ],
   "cap_factors_resolution": {
-    "soak_evidence_not_real": "Held per RIA W35 directive \u00a76 explicit no-cap-change. RIA's Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement.",
-    "dirty_worktree_at_manifest_build_time": "Self-resolves once this signoff commit lands; a manifest-only re-build at the next HEAD is the canonical Rule 14 sequence."
+    "soak_evidence_not_real": "Held per RIA W35 directive \u00a76 explicit no-cap-change. RIA Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement."
   },
   "acceptance_ids": {
     "W35-T1": "PASS",
