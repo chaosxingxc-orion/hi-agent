@@ -1,141 +1,134 @@
-# agent_server Architecture
+# agent_server — Architecture
 
-> Last refreshed: Wave 33 (2026-05-04). Sub-package docs: [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md), [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md), [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md), [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md), [`cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md), [`config/ARCHITECTURE.md`](config/ARCHITECTURE.md).
+> Last refreshed: W35 close (2026-05-05). HEAD `8bce5bc`. W35 closed 38 hidden findings on top of the 8 binding RIA W35-T items; primary touchpoints in this package are W35-T4, W35-T6, W35-T8.
+>
+> Sub-package docs: [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md), [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md), [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md), [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md), [`cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md), [`config/ARCHITECTURE.md`](config/ARCHITECTURE.md).
 
 ---
 
-## 1. Purpose & Position in System
+## 1. Purpose / Responsibilities
 
-`agent_server/` is the **versioned northbound facade** that the hi-agent platform exposes to downstream business-layer applications (the Research Intelligence App and any third-party SDK). It is the **only contract surface** RIA depends on; direct `import hi_agent` from RIA is unsupported and CI-rejected.
+`agent_server/` is the **versioned northbound facade** that the hi-agent platform exposes
+to downstream business-layer applications (the Research Intelligence App and any third-
+party SDK). It is the **only contract surface** RIA depends on; direct
+`import hi_agent` from RIA is unsupported and CI-rejected.
 
 The package enforces three boundaries simultaneously:
 
-1. **Platform / business separation (Rule 10).** Domain logic, prompts, and business schemas live outside this repo. agent_server publishes only generic primitives — runs, events, artifacts, gates, manifests.
-2. **Versioned contract surface (R-AS-3).** v1 is RELEASED at SHA `8c6e22f1` (`agent_server/config/version.py::V1_FROZEN_HEAD`). Breaking changes go to `contracts/v2/`; in-place edits invalidate the freeze and fail CI.
-3. **R-AS-1 single-seam discipline.** Only two modules under `agent_server/` are permitted to import from `hi_agent.*`: `bootstrap.py` (assembly) and `runtime/` (W32 real-kernel binding). Every other module talks to the kernel exclusively through facade-injected callables. The gate is `scripts/check_layering.py`.
+1. **Platform / business separation** (Rule 10). Domain logic, prompts, and business
+   schemas live outside this repo. agent_server publishes only generic primitives — runs,
+   events, artifacts, gates, manifests.
+2. **Versioned contract surface** (R-AS-3). v1 is RELEASED at SHA `8c6e22f1`
+   (`agent_server/config/version.py::V1_FROZEN_HEAD`); the digest was re-rolled at W35-T1
+   after `__post_init__` blocks were added to 53 dataclasses.
+3. **R-AS-1 single-seam discipline.** Only two locations under `agent_server/` may
+   import from `hi_agent.*`: `bootstrap.py` (assembly) and `runtime/` (real-kernel
+   binding + auth seam). Every other module talks to the kernel exclusively through
+   facade-injected callables. Gate: `scripts/check_layering.py`.
 
 What this package does NOT own:
 - Agent execution, memory, cognition (`hi_agent/`).
-- Run lifecycle, durable persistence, event log (`hi_agent/server/`, formerly `agent_kernel/`).
+- Run lifecycle, durable persistence, event log (`hi_agent/server/`, formerly
+  `agent_kernel/`).
 - Business logic, prompts, domain schemas (out-of-repo, research team's overlay).
 
-| Concern | Owner |
-|---|---|
-| Northbound HTTP contract + versioning | `agent_server/` (this package) |
-| Agent execution, memory, cognition | `hi_agent/` |
-| Durable run lifecycle, event log, idempotency | `hi_agent/server/` (Arch-7 inlined Wave 11) |
-| Business logic, prompts, domain schemas | Research team (outside this repo) |
+---
+
+## 2. Module Boundary (R-AS-1 + Rule 6 layering)
+
+R-AS-1 single-seam discipline:
+
+```
+agent_server/                <- can NOT import hi_agent.* anywhere except:
+├── bootstrap.py             [SEAM #1] assembly module
+└── runtime/                 [SEAM #2] kernel binding + auth
+    ├── kernel_adapter.py     # r-as-1-seam: real-kernel-binding
+    ├── lifespan.py           # r-as-1-seam: real-kernel-binding (W33-C.1, W35-T4)
+    └── auth_seam.py          # r-as-1-seam: JWT primitives (W33-C.4)
+```
+
+Rule 6 single-construction-path:
+- `IdempotencyStore` — built by `bootstrap.py`; passed to `IdempotencyFacade` and
+  surfaced on `RealKernelBackend._idempotency_store` (W35-T4) so the lifespan purge loop
+  can find it without poking `app.state`.
+- `RealKernelBackend` — built by `bootstrap.py` exactly once.
+- `Posture` — read by `Posture.from_env()` at every enforcement call site; the bootstrap
+  caches it locally to feed `IdempotencyFacade(is_strict=...)` and `_resolve_backend_kind`.
+
+Consumers (downstream of this package):
+- Research Intelligence App via HTTP `/v1/*` + JWT
+- Third-party SDKs via the same surface
+- `agent-server` CLI (operator-facing) — also published by this package
 
 ---
 
-## 2. External Interfaces
-
-agent_server publishes:
-
-### HTTP routes (v1, all prefixed `/v1/`)
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/v1/health` | Health probe |
-| POST | `/v1/runs` | Create run (returns 201) |
-| GET | `/v1/runs/{id}` | Run status |
-| POST | `/v1/runs/{id}/signal` | Send control signal |
-| POST | `/v1/runs/{id}/cancel` | Cancel a live run |
-| GET | `/v1/runs/{id}/events` | SSE event stream |
-| GET | `/v1/runs/{id}/artifacts` | List run artifacts |
-| GET | `/v1/artifacts/{id}` | Get artifact |
-| POST | `/v1/artifacts` | Register artifact |
-| POST | `/v1/gates/{id}/decide` | Gate decision |
-| GET | `/v1/manifest` | Capability + posture matrix |
-| POST | `/v1/skills` | Register skill (L1 stub) |
-| POST | `/v1/memory/write` | Memory write (L1 stub) |
-| GET / POST | `/v1/mcp/tools[/{name}]` | MCP tools (L1 stub) |
-
-### CLI
-
-```
-agent-server serve         # uvicorn against build_production_app
-agent-server run           # POST /v1/runs and wait
-agent-server cancel <id>   # POST /v1/runs/{id}/cancel
-agent-server tail-events <id> # SSE stream to stdout
-```
-
-### Public Python surface
-
-- `agent_server.AGENT_SERVER_API_VERSION = "v1"` — re-exported.
-- `agent_server.bootstrap.build_production_app(*, settings=None, state_dir=None) -> FastAPI` — the assembly entry point uvicorn calls.
-- `agent_server.api.build_app(*, run_facade, ...) -> FastAPI` — lower-level builder used by tests with stub facades.
-
-### Required headers
-
-- `X-Tenant-Id` — every request, every posture.
-- `Idempotency-Key` — every mutating route under research/prod posture.
-- `X-Project-Id` / `X-Profile-Id` / `X-Session-Id` — optional context.
-
----
-
-## 3. Internal Components
+## 3. Component Diagram
 
 ```mermaid
 graph TD
-    subgraph EXT["External Caller"]
-        C["HTTP / CLI client"]
+    subgraph EXT[External Caller]
+        C[HTTP / CLI client]
     end
 
-    subgraph BS["Assembly seam #1"]
-        BOOT["bootstrap.py<br/>build_production_app()"]
+    subgraph BS[Assembly seam #1]
+        BOOT[bootstrap.py<br/>build_production_app]
     end
 
-    subgraph RT["Assembly seam #2 (W32)"]
-        RUN["runtime/__init__.py<br/>RealKernelBackend<br/>build_real_kernel_lifespan"]
+    subgraph RT[Assembly seam #2]
+        ADAPTER[runtime/kernel_adapter.py<br/>RealKernelBackend]
+        LIFESPAN[runtime/lifespan.py<br/>build_real_kernel_lifespan<br/>+ purge loop W35-T4]
+        AUTHSEAM[runtime/auth_seam.py<br/>validate_authorization]
     end
 
-    subgraph API["api/ — HTTP transport"]
-        APIB["__init__.py::build_app()"]
-        MID_J["middleware/auth.py<br/>JWTAuthMiddleware (W33-C.4)"]
-        MID_T["middleware/tenant_context.py"]
-        MID_I["middleware/idempotency.py"]
-        ROUTES["routes_runs.py<br/>routes_runs_extended.py<br/>routes_artifacts.py<br/>routes_gates.py<br/>routes_manifest.py<br/>routes_skills_memory.py<br/>routes_mcp_tools.py"]
+    subgraph API[api/ HTTP transport]
+        APIB[__init__.py build_app<br/>W35-T8 boot assertion]
+        MID_J[middleware/auth.py<br/>JWTAuthMiddleware]
+        MID_T[middleware/tenant_context.py]
+        MID_I[middleware/idempotency.py<br/>W35-T6 metrics]
+        ROUTES[routes_runs/runs_extended/<br/>artifacts/gates/manifest/<br/>skills_memory/mcp_tools]
     end
 
-    subgraph FAC["facade/ — Adaptation"]
-        F["RunFacade · EventFacade ·<br/>ArtifactFacade · ManifestFacade ·<br/>IdempotencyFacade"]
+    subgraph FAC[facade/ Adaptation]
+        F[RunFacade EventFacade<br/>ArtifactFacade ManifestFacade<br/>IdempotencyFacade]
     end
 
-    subgraph CON["contracts/ — Frozen v1 schemas"]
-        CT["RunRequest/Response/Status · TenantContext ·<br/>SkillRegistration · GateDecisionRequest ·<br/>MemoryWriteRequest · LLMRequest/Response ·<br/>ContractError + subclasses"]
+    subgraph CON[contracts/ Frozen v1 schemas]
+        CT[RunRequest RunResponse<br/>TenantContext SkillRegistration<br/>GateDecisionRequest MemoryWriteRequest<br/>LLMRequest ContractError<br/>SpineCompletenessError W35-T1]
     end
 
-    subgraph CFG["config/"]
-        CV["version.py<br/>V1_RELEASED, V1_FROZEN_HEAD"]
-        CS["settings.py<br/>AgentServerSettings"]
+    subgraph CFG[config/]
+        CV[version.py V1_FROZEN_HEAD]
+        CS[settings.py AgentServerSettings]
     end
 
-    subgraph CLI_PKG["cli/"]
-        CLIP["main.py + commands/{serve,run,cancel,tail_events}"]
+    subgraph CLI_PKG[cli/]
+        CLIP[main.py + commands/]
     end
 
-    subgraph HIA["hi_agent runtime (R-AS-1 boundary)"]
-        AS["hi_agent.server.app.AgentServer<br/>RunManager · SQLiteEventStore ·<br/>SQLiteRunStore · RunQueue · IdempotencyStore"]
+    subgraph HIA[hi_agent runtime R-AS-1 boundary]
+        AS[AgentServer<br/>RunManager SQLiteEventStore<br/>SQLiteRunStore RunQueue<br/>IdempotencyStore]
     end
 
     C --> APIB
     BOOT --> APIB
     BOOT --> F
-    BOOT --> RT
-    RT --> AS
-    BOOT -. "imports hi_agent.*<br/>(seam #1)" .-> HIA
-    RT -. "imports hi_agent.*<br/>(seam #2)" .-> HIA
+    BOOT --> ADAPTER
+    BOOT --> LIFESPAN
+    ADAPTER --> AS
+    LIFESPAN --> AS
+    BOOT -. r-as-1-seam: assembly .-> HIA
+    ADAPTER -. r-as-1-seam: kernel .-> HIA
+    LIFESPAN -. r-as-1-seam: kernel .-> HIA
+    AUTHSEAM -. r-as-1-seam: jwt .-> HIA
 
     APIB --> MID_J
     APIB --> MID_T
     APIB --> MID_I
     APIB --> ROUTES
-    MID_J -. "validates JWT via runtime/auth_seam" .-> RT
+    MID_J -. validates JWT via .-> AUTHSEAM
     ROUTES --> F
     F --> CT
-    F -. "calls injected callables" .-> RT
-    F -. "calls injected callables<br/>(stub backend)" .-> BOOT
+    F -. injected callables .-> ADAPTER
 
     CLIP --> BOOT
     APIB --> CV
@@ -144,71 +137,162 @@ graph TD
 
 | Component | Role |
 |---|---|
-| `bootstrap.py` | Production assembly seam — builds durable `IdempotencyStore`, picks backend (stub vs `RealKernelBackend`), wires every facade, returns FastAPI app |
-| `runtime/` (W32 Track A) | Second R-AS-1 seam — binds `RealKernelBackend` to `hi_agent.server.app.AgentServer` |
-| `api/` | FastAPI routers + middleware; thin handlers, no kernel imports |
+| `bootstrap.py` | Production assembly seam #1 — builds durable `IdempotencyStore`, picks backend (stub vs real), wires every facade, returns FastAPI app |
+| `runtime/` | Seam #2 — `RealKernelBackend`, lifespan with purge loop (W35-T4), JWT validation (W33-C.4) |
+| `api/` | FastAPI routers + middleware; thin handlers, no kernel imports; W35-T8 boot assertion |
 | `facade/` | Contract↔kernel adaptation; constructor-injected callables |
-| `contracts/` | Frozen v1 dataclasses; spine-complete (every wire-crossing type carries `tenant_id`) |
-| `config/` | `AgentServerSettings`, `V1_RELEASED`, `V1_FROZEN_HEAD` |
+| `contracts/` | Frozen v1 dataclasses + `SpineCompletenessError` (W35-T1) |
+| `config/` | `AgentServerSettings`, `V1_RELEASED`, `V1_FROZEN_HEAD` (re-rolled at W35-T1) |
 | `cli/` | `agent-server` argparse dispatcher (operator-facing) |
-
-Empty shell sub-packages `mcp/`, `observability/`, `tenancy/`, `workspace/` were removed in W31-H7. Their responsibilities are delegated upward to `hi_agent/` (`hi_agent/mcp/`, `hi_agent/observability/`) or the contract layer here (`agent_server/contracts/{tenancy,workspace}.py`). Gate: `scripts/check_no_shell_packages.py`.
 
 ---
 
-## 4. Data Flow
+## 4. Data Flow / Sequence Diagram
 
-Representative `POST /v1/runs` request through middleware, route, facade, and into the real kernel (W32 Track A path):
+`POST /v1/runs` end-to-end with W35 changes annotated:
 
 ```mermaid
 sequenceDiagram
     participant Client
+    participant JWT as JWTAuthMiddleware
     participant TC as TenantContextMiddleware
     participant IM as IdempotencyMiddleware
     participant RH as routes_runs.post_run
     participant RF as RunFacade.start
     participant RKB as RealKernelBackend
     participant RM as hi_agent RunManager
-    participant ES as SQLiteEventStore
 
-    Client->>+TC: POST /v1/runs<br/>X-Tenant-Id, Idempotency-Key, body
-    TC->>TC: validate header, build TenantContext<br/>attach to request.state
-    TC->>+IM: pass request
+    Client->>+JWT: POST /v1/runs body Authorization Bearer X-Tenant-Id Idempotency-Key
+    Note over JWT: research/prod validate JWT<br/>dev passthrough
+    JWT->>+TC: forward (auth_claims)
+    TC->>TC: validate X-Tenant-Id; emit tenant_context spine event
+    TC->>+IM: forward
     IM->>IM: facade.reserve_or_replay(tenant_id, key, body)
-    alt replayed
-        IM-->>Client: 2xx cached body
-    else conflict
-        IM-->>Client: 409 ConflictError envelope
-    else created (new key)
-        IM->>+RH: pass request
-        RH->>RH: ctx = request.state.tenant_context
-        RH->>RH: req = RunRequest(**body)
-        RH->>+RF: start(ctx, req)
-        RF->>RF: validate idempotency_key, profile_id
-        RF->>+RKB: start_run(tenant_id, profile_id, goal, ...)
-        RKB->>+RM: create_run(task_contract_dict, workspace=tenant_id)
-        RM->>RM: idempotency dedup → persist → enqueue
-        RM-->>-RKB: ManagedRun(state="queued")
-        RKB->>+RM: start_run(run_id, executor_fn) [background]
-        RM->>ES: append RunCreated event
-        RM-->>-RKB: None
-        RKB-->>-RF: dict (kernel-shaped)
-        RF->>RF: dict → RunResponse
-        RF-->>-RH: RunResponse
-        RH-->>-IM: 201 Created + JSON
-        IM->>IM: facade.mark_complete(tenant_id, key, body, 201)
-        IM-->>-TC: 201 response
-        TC-->>-Client: 201 + JSON
-    end
+    Note over IM: W35-T6 emits replay/conflict metrics
+    IM->>+RH: forward (created)
+    RH->>RH: ctx = request.state.tenant_context
+    RH->>RH: build RunRequest body — W35-T1 spine validation
+    RH->>+RF: start(ctx, req)
+    RF->>+RKB: start_run(tenant_id, profile_id, goal, ...)
+    RKB->>+RM: create_run(task_contract_dict, workspace=tenant_id)
+    Note over RM: W35-T3 auth-authoritative tenant_id<br/>body mismatch -> TenantScopeError under strict
+    RM-->>-RKB: ManagedRun(state=queued)
+    RKB-->>-RF: dict
+    RF-->>-RH: RunResponse
+    RH-->>-IM: 201 + JSON
+    IM->>IM: facade.mark_complete (replay cache populated)
+    IM-->>-TC: 201
+    TC-->>-JWT: 201
+    JWT-->>-Client: 201 Created run_id state=queued
 ```
 
-The seam discipline is visible at the kernel boundary: only `RealKernelBackend` (in `agent_server/runtime/`) holds a reference to `RunManager`. Routes, facades, and contracts never touch the kernel directly.
+Lifespan startup with all background tasks:
 
-For the stub-backend path used by route-level tests, the only difference is `RKB` → `_InProcessRunBackend` from `bootstrap.py:80`. Everything upstream is unchanged.
+```mermaid
+sequenceDiagram
+    participant Uvicorn
+    participant Bootstrap as build_production_app
+    participant Lifespan as build_real_kernel_lifespan
+    participant AS as AgentServer
+
+    Uvicorn->>+Bootstrap: build_production_app
+    Bootstrap->>Bootstrap: load_settings, Posture.from_env, mkdir state_dir
+    Bootstrap->>Bootstrap: build IdempotencyStore + IdempotencyFacade
+    Bootstrap->>Bootstrap: RealKernelBackend(state_dir, posture)
+    Bootstrap->>Bootstrap: real_backend._idempotency_store = idem_store (W35-T4)
+    Bootstrap->>Bootstrap: build run/event/artifact/manifest facades
+    Bootstrap->>Lifespan: build_real_kernel_lifespan(real_backend)
+    Bootstrap->>Bootstrap: build_app(... idempotency_facade ... lifespan)
+    Bootstrap-->>-Uvicorn: FastAPI app
+    Uvicorn->>+Lifespan: ASGI startup
+    Lifespan->>+AS: _rehydrate_runs (W35-T9 attempt_id bump)
+    AS-->>-Lifespan: done
+    Lifespan->>Lifespan: start _lease_expiry_loop _current_stage_watchdog
+    Lifespan->>Lifespan: start _idempotency_purge_loop W35-T4
+    Lifespan->>Lifespan: install SIGTERM handler W33-C.2
+    Lifespan-->>-Uvicorn: ready (yield)
+```
 
 ---
 
-## 5. State & Persistence
+## 5. Key Contracts / Public API
+
+```python
+# Top-level public surface
+agent_server.AGENT_SERVER_API_VERSION = "v1"
+agent_server.bootstrap.build_production_app(
+    *,
+    settings: AgentServerSettings | None = None,
+    state_dir: Path | str | None = None,
+) -> FastAPI
+
+agent_server.api.build_app(
+    *,
+    run_facade,
+    event_facade=None, artifact_facade=None, manifest_facade=None,
+    idempotency_facade=None, idempotency_strict=None,
+    tenant_event_emitter=None,
+    include_mcp_tools=False, include_skills_memory=False, include_gates=True,
+    lifespan=None,
+) -> FastAPI
+```
+
+Required HTTP headers:
+- `X-Tenant-Id` — every request, every posture.
+- `Idempotency-Key` — every mutating route under research/prod.
+- `Authorization: Bearer <jwt>` — every route except exempt paths under research/prod.
+- `X-Project-Id` / `X-Profile-Id` / `X-Session-Id` — optional context.
+
+CLI:
+```
+agent-server serve         # uvicorn against build_production_app
+agent-server run           # POST /v1/runs and wait
+agent-server cancel <id>   # POST /v1/runs/{id}/cancel
+agent-server tail-events <id> # SSE stream to stdout
+```
+
+W35-T8 boot-time invariant: `build_app` raises `ValueError` when `include_mcp_tools` or
+`include_skills_memory` is True without a non-`None` `idempotency_facade`.
+
+---
+
+## 6. Posture Behaviour (Rule 11)
+
+| Posture | Tenant header | Idempotency-Key | JWT (W33-C.4) | Backend selection | W35-T1 spine validation | W35-T3 cross-check |
+|---|---|---|---|---|---|---|
+| `dev` | required | optional, warn if absent | passthrough; anonymous claims | `real` (default) or `stub` permitted | warns | warns when body tenant_id ≠ middleware |
+| `research` | required | required on mutating routes | required (`HI_AGENT_JWT_SECRET` HMAC) | `real` only; `stub` raises at bootstrap | raises `SpineCompletenessError` (400) | raises `TenantScopeError` (400) |
+| `prod` | required | required on mutating routes | required | `real` only | raises | raises |
+
+W35-T1 reference impl: `hi_agent/contracts/reasoning.py::ReasoningTrace.__post_init__`.
+Mirror error class for agent_server: `agent_server/contracts/errors.py::SpineCompletenessError`.
+
+W35-T3 reference: `hi_agent/server/run_manager.py:443-489` — both postures honour the
+same auth-authoritative precedence; previously strict appeared more permissive than dev.
+
+---
+
+## 7. Failure Modes (Rule 7 fallback inventory)
+
+| Path | Countable | Attributable | Inspectable | Gate-asserted |
+|---|---|---|---|---|
+| `IdempotencyMiddleware` replay | `hi_agent_idempotency_replay_total` (W35-T6) | `INFO` log | cached response served | `tests/integration/test_idempotency_metrics.py` |
+| `IdempotencyMiddleware` body mismatch on same key | `hi_agent_idempotency_conflict_total` (W35-T6) | `WARNING` log | 409 envelope | `tests/integration/test_idempotency_metrics.py` |
+| `_idempotency_purge_loop` deletes expired records | `hi_agent_idempotency_purged_total` (W35-T6) | `INFO` "purged N records" | `disk size shrinks after VACUUM` | `tests/integration/test_idempotency_ttl_purge.py` |
+| `_idempotency_purge_loop` raises | `record_silent_degradation(component="idempotency_purge_loop")` | `WARNING` log + spine | next interval retries | `tests/integration/test_idempotency_ttl_purge.py` |
+| `_lease_expiry_loop` raises | `record_silent_degradation(component="lease_expiry_loop")` | `WARNING` log | next interval retries | `tests/integration/test_lease_expiry_runtime.py` |
+| `_current_stage_watchdog` warning >60s | `record_silent_degradation(component="current_stage_watchdog")` | `WARNING` log w/ run_id + age | spine event | Rule 8 step 5 |
+| `JWTAuthMiddleware` rejects token under strict | n/a (401 rate observable) | `WARNING` log per rejection | client receives 401 | `tests/integration/test_v1_jwt_auth_middleware.py` |
+| `RunRequest.__post_init__` missing spine field | n/a (typed exception) | `SpineCompletenessError` traceback | 400 envelope | `tests/unit/test_w34_plus_spine_validation.py` |
+| `RunManager.create_run` body tenant ≠ middleware | n/a | `WARNING` log under dev; `TenantScopeError` traceback under strict | 400 envelope | `tests/integration/test_run_manager_tenant_strict.py` |
+
+agent_server itself does NOT emit Prometheus metrics; cardinality control lives in
+`hi_agent/observability`. The W35-T6 metrics are emitted from `IdempotencyStore` and
+`IdempotencyMiddleware` via `hi_agent/observability/idempotency_metrics.py`.
+
+---
+
+## 8. Resource Lifecycle (Rule 5)
 
 agent_server itself owns minimal state:
 
@@ -216,224 +300,126 @@ agent_server itself owns minimal state:
 |---|---|---|
 | Tenant context per request | `request.state.tenant_context` | in-memory, request-scoped |
 | Idempotency reservations + cached responses | `IdempotencyStore` (SQLite) | `<state_dir>/idempotency.db` |
-| Facade instances | `app.state.{run_facade,event_facade,...}` | in-process refs, app lifetime |
-| FastAPI router cache | starlette internals | in-memory |
+| Facade instances | `app.state.{run_facade, ...}` | in-process refs, app lifetime |
 
-All other state — runs, events, artifacts, gates, sessions — lives in the kernel's stores under `hi_agent/server/`.
+All other state — runs, events, artifacts, gates, sessions — lives in the kernel's stores
+under `hi_agent/server/`.
 
 `state_dir` resolution (`bootstrap.py::_default_state_dir`):
 1. `AGENT_SERVER_STATE_DIR` env var (explicit override).
 2. `HI_AGENT_HOME/.agent_server`.
 3. `./.agent_server` (CWD-relative fallback).
 
-`bootstrap.py` calls `mkdir(parents=True, exist_ok=True)` before any store is opened.
-
----
-
-## 6. Concurrency & Lifecycle
-
-The lifespan flow integrates two concerns: bootstrapping the FastAPI app and starting the real kernel.
-
-```mermaid
-sequenceDiagram
-    participant Uvicorn
-    participant Bootstrap as build_production_app
-    participant Lifespan as build_real_kernel_lifespan
-    participant AS as AgentServer (hi_agent)
-
-    Uvicorn->>+Bootstrap: import agent_server.bootstrap; call build_production_app()
-    Bootstrap->>Bootstrap: load_settings() / Posture.from_env() / state_dir
-    Bootstrap->>Bootstrap: build IdempotencyStore (SQLite)
-    Bootstrap->>Bootstrap: build IdempotencyFacade (is_strict from posture)
-    alt AGENT_SERVER_BACKEND=real
-        Bootstrap->>Lifespan: factory(state_dir, posture)
-        Lifespan-->>Bootstrap: lifespan ctx-mgr (deferred)
-        Bootstrap->>Bootstrap: build RealKernelBackend (deferred init in lifespan)
-    else AGENT_SERVER_BACKEND=stub (default-offline)
-        Bootstrap->>Bootstrap: build _InProcessRunBackend
-    end
-    Bootstrap->>Bootstrap: build {Run,Event,Artifact,Manifest}Facade
-    Bootstrap->>Bootstrap: build_app(facades..., lifespan=...)
-    Bootstrap-->>-Uvicorn: FastAPI app
-
-    Uvicorn->>+Lifespan: ASGI startup
-    Lifespan->>+AS: AgentServer(host, port, config)
-    AS->>AS: build_durable_backends() — RunManager, SQLiteRunStore, ...
-    AS-->>-Lifespan: agent_server instance
-    Lifespan->>AS: _rehydrate_runs(agent_server)
-    Note over AS: requeue lease-expired runs<br/>(posture-aware decision)
-    Lifespan-->>-Uvicorn: ready (yield)
-
-    Note over Uvicorn,AS: app serves traffic via RealKernelBackend
-
-    Uvicorn->>+Lifespan: ASGI shutdown
-    Lifespan->>AS: drain in-flight runs + close stores
-    Lifespan-->>-Uvicorn: clean shutdown
-```
-
-Rule 5 (Async/Sync Resource Lifetime) compliance:
-- Every async resource (`AgentServer.run_manager` event loop bindings, `IdempotencyStore` connection) is constructed in the lifespan startup phase, sharing uvicorn's loop.
+Rule 5 compliance:
+- `AgentServer.run_manager` event-loop bindings and `IdempotencyStore` connection are
+  constructed in lifespan startup, sharing uvicorn's loop.
 - No `asyncio.run` per request. The middleware chain is `BaseHTTPMiddleware` (async-native).
-- Synchronous facades dispatch to the kernel's existing threadsafe entry points without a per-call sync bridge.
-
-Middleware order at request time (outer → inner, see `api/__init__.py` for the registration trick — last `add_middleware` call is OUTERMOST):
-1. `JWTAuthMiddleware` (W33-C.4) — validates `Authorization: Bearer <jwt>` via the runtime auth seam; passthrough under dev posture, fail-closed (401) under research/prod.
-2. `TenantContextMiddleware` — validates `X-Tenant-Id`, builds `TenantContext`, emits `tenant_context` spine event.
-3. `IdempotencyMiddleware` — reserves or replays mutating-route requests by `(tenant_id, key, body_hash)`.
-4. Route handler.
-
-Health and metrics paths (`/v1/health`, `/health`, `/metrics`) bypass `JWTAuthMiddleware`
-so operators can probe the surface without secrets.
+- `_idempotency_purge_loop` (W35-T4), `_lease_expiry_loop`, `_current_stage_watchdog`
+  are all `asyncio.create_task` background tasks owned by the lifespan; cancelled
+  cleanly on shutdown.
 
 ---
 
-## 7. Error Handling & Observability
+## 9. Lineage / Spine Compliance (Rule 12)
 
-Error envelope (HD-5 unified shape):
+Every wire-crossing dataclass in `agent_server/contracts/` carries `tenant_id` as the
+first required field; W35-T1 added `__post_init__` validation across 53 dataclasses
+(13 named in the RIA directive + 40 sibling/hidden). The shared
+`SpineCompletenessError` lives in `agent_server/contracts/errors.py` and reads
+`HI_AGENT_POSTURE` directly via `os.environ` (R-AS-1 layered).
 
-```json
-{
-  "error": "<exception class>",
-  "error_category": "auth_required",
-  "message": "<human readable>",
-  "retryable": false,
-  "next_action": "<remediation hint>",
-  "tenant_id": "<from context>",
-  "detail": "<context-specific>"
-}
-```
+Lineage propagation:
+- `tenant_id` flows: client header → `TenantContextMiddleware` → `request.state` → route
+  → facade → `RealKernelBackend` → `RunManager.create_run` (W35-T3 anti-forgery) →
+  `RunStore`.
+- `run_id`, `attempt_id`, `parent_run_id`, `phase_id` flow through `RunExecutionContext`
+  inside the kernel. W35-T9 fixed the re-lease lineage chain: `_rehydrate_runs` now
+  bumps `attempt_id`, links `parent_run_id=run_id`, and bumps `attempt_count` before
+  re-enqueue, so postmortem reconstruction has the per-attempt chain across recovery.
+- Idempotency key composite is `(tenant_id, key)` — cross-tenant key collisions are
+  structurally impossible.
 
-Standard mappings:
+W35-T6 metrics use bucketed `tenant_bucket = hash(tenant_id) % 16` so cardinality stays
+bounded regardless of tenant population.
 
-| HTTP status | Source | Class |
+---
+
+## 10. Test Layers (Rule 4)
+
+| Layer | Scope | Path |
 |---|---|---|
-| 400 | facade validation, missing `Idempotency-Key` (strict) | `ContractError` (constructor) |
-| 401 | missing `X-Tenant-Id` | `AuthError` |
-| 404 | run/artifact not visible to tenant | `NotFoundError` |
-| 409 | idempotency key reuse + body mismatch | `ConflictError` |
-| 429 | quota exceeded | `QuotaError` |
-| 500 | unexpected | `RuntimeContractError` or uncaught |
+| L1 unit | facade / contracts / settings | `tests/unit/test_*_facade.py`, `tests/unit/test_w34_plus_spine_validation.py`, `tests/unit/test_agent_server_settings.py` |
+| L2 integration | route + middleware + facade with real kernel or stub | `tests/integration/test_routes_*.py`, `tests/integration/test_v1_runs_real_kernel_binding.py` |
+| L2 integration | W35-T4 purge loop | `tests/integration/test_idempotency_ttl_purge.py` |
+| L2 integration | W35-T6 metrics | `tests/integration/test_idempotency_metrics.py` |
+| L2 integration | W35-T8 boot assertion + MCP tools | `tests/integration/test_mcp_tools_idempotency.py` |
+| L2 integration | W33-C.4 JWT seam | `tests/integration/test_v1_jwt_auth_middleware.py` |
+| L3 e2e | full HTTP-driven runs | `tests/e2e/test_e2e_agent_server_*.py` |
 
-Observability emissions:
-- `tenant_context` spine event — emitted by `TenantContextMiddleware` per request via injected `tenant_event_emitter` (bootstrap binds `hi_agent.observability.spine_events.emit_tenant_context`).
-- `idempotency_header_missing` warning log — `IdempotencyMiddleware` (dev posture) when the header is absent on a mutating route.
-- All run lifecycle events (`run_created`, `stage_started`, etc.) — emitted by the kernel through `RunEventEmitter`; surfaced over SSE via `GET /v1/runs/{id}/events`.
-
-agent_server itself does NOT emit Prometheus metrics; cardinality control lives in `hi_agent.observability.metrics`. The boundary is intentional — adding metrics here would duplicate cardinality and risk drift.
-
----
-
-## 8. Security Boundary
-
-R-AS-1 single-seam discipline:
-
-```
-agent_server/                    <- can NOT import hi_agent.* anywhere except:
-├── bootstrap.py                 [SEAM #1] assembly module
-└── runtime/                     [SEAM #2] kernel binding (W32) + auth (W33)
-    ├── kernel_adapter.py        # r-as-1-seam: real-kernel-binding
-    ├── lifespan.py              # r-as-1-seam: real-kernel-binding
-    └── auth_seam.py             # r-as-1-seam: JWT validation reuses hi_agent primitives (W33-C.4)
-```
-
-All `hi_agent.*` imports outside these two locations cause `scripts/check_layering.py` to fail CI. Annotated seams in `agent_server/facade/idempotency_facade.py` and `agent_server/facade/artifact_facade.py` are tolerated because each carries the explicit `# r-as-1-seam:` comment with rationale, parsed by `scripts/check_facade_seams.py`.
-
-Tenant isolation (R-AS-4):
-- Every route handler reads `TenantContext` from `request.state` exclusively; never from the request body.
-- Idempotency is scoped by `(tenant_id, key)` composite — cross-tenant collisions impossible.
-- The contracts spine (`scripts/check_contract_spine_completeness.py`) enforces that every wire-crossing dataclass carries `tenant_id`.
-
-Posture-aware behaviour (Rule 11):
-
-| `HI_AGENT_POSTURE` | Tenant header | Idempotency-Key | Project ID | JWT (W33-C.4) |
-|---|---|---|---|---|
-| `dev` | required (always) | optional, warning log if absent | optional | passthrough; anonymous claims injected |
-| `research` | required | required on mutating routes | required on `POST /v1/runs` | required (`HI_AGENT_JWT_SECRET` HMAC) |
-| `prod` | required | required on mutating routes | required on `POST /v1/runs` | required (`HI_AGENT_JWT_SECRET` HMAC) |
-
-Contract freeze (R-AS-3): once `V1_RELEASED = True` (already the case as of 2026-04-30), every modification under `agent_server/contracts/` triggers `scripts/check_contract_freeze.py` to invalidate the snapshot. Breaking changes go to `contracts/v2/`.
+CI gates:
+- `scripts/check_layering.py` (R-AS-1) — single seam discipline
+- `scripts/check_contract_freeze.py` (R-AS-3) — digest re-rolled at W35-T1
+- `scripts/check_route_scope.py`, `scripts/check_route_tenant_context.py` (R-AS-4)
+- `scripts/check_tdd_evidence.py` (R-AS-5) — every handler carries `# tdd-red-sha:`
+- `scripts/check_facade_loc.py` (R-AS-8) — facades ≤200 LOC
+- `scripts/check_facade_seams.py` — annotated `# r-as-1-seam:` discipline
+- `scripts/check_contracts_purity.py`
+- `scripts/check_contract_spine_completeness.py` (Rule 12)
+- `scripts/check_dataclass_spine_validation.py` (W35-T1)
+- `scripts/check_no_shell_packages.py` (W31-H7)
+- `scripts/run_arch_7x24.py` — 5-assertion architectural verification
 
 ---
 
-## 9. Extension Points
+## 11. Open Roadmap Items (W36+)
 
-Adding a new route handler — see [api/ARCHITECTURE.md §9](api/ARCHITECTURE.md). TDD-red-first; `# tdd-red-sha:` annotation required.
-
-Adding a new facade — see [facade/ARCHITECTURE.md §9](facade/ARCHITECTURE.md). Construct via injection; ≤200 LOC; seam annotation only when unavoidable.
-
-Adding a new contract type — see [contracts/ARCHITECTURE.md §9](contracts/ARCHITECTURE.md). v1 frozen; new types go in a new module or v2/.
-
-Adding a new backend (e.g., remote-kernel adapter) — see [runtime/ARCHITECTURE.md §9](runtime/ARCHITECTURE.md). Implement the seven canonical callables; gate updates allow-list.
-
-Adding a CLI subcommand — register a parser in `agent_server/cli/main.py::build_parser`; implement under `agent_server/cli/commands/`. Per R-AS-1 the CLI may not import `hi_agent.*` directly; reach the platform through `agent_server.bootstrap`.
-
----
-
-## 10. Constraints & Trade-offs
-
-What this design assumes:
-- **Single-process deployment per region/shard.** Two uvicorn workers each get their own `IdempotencyStore` and (post-W32) their own `AgentServer`. Cross-process consistency requires external durable backends (out of scope at v1).
-- **JSON over HTTP.** No GraphQL, no gRPC, no protobuf at v1. The simplest contract that satisfies RIA wins.
-- **In-process kernel binding.** `RealKernelBackend` runs the kernel in the same process as the FastAPI app. A remote-kernel adapter is feasible but adds latency and complexity (deferred).
-- **Synchronous facades.** Async-native facades would simplify SSE and proxy routes but force every handler to be async, doubling the surface.
-
-What this design does NOT handle well:
-- **Multi-region writes.** The idempotency store is local to each replica; without an external coordinator, the "exactly once per tenant" guarantee is per-replica.
-- **Rolling schema evolution.** Once v1 is RELEASED, additive changes go in v2 (full duplication). There is no field-additive hot-path.
-- **Streaming uploads.** Artifact registration takes JSON bodies; large file uploads via multipart are not yet wired through the facade boundary (tracked in W33).
-- **Deep observability for error categories.** Errors carry `error_category` strings but those don't yet roll up into per-category metrics.
-
-Operational notes (Wave 28+):
-- `architectural_seven_by_twenty_four` cap (`docs/governance/score_caps.yaml`) replaces the 24h wall-clock soak with a 5-assertion architectural verification (`scripts/run_arch_7x24.py`). One of those five assertions is the cancellation round-trip handled by `routes_runs_extended.py` (`POST /cancel` returns 200 on a live run, 404 on unknown).
-- Production startup uses PM2 / systemd / docker — not foreground `agent-server serve`. The CLI defaults to `127.0.0.1`; `--prod` flips to `0.0.0.0` and sets `HI_AGENT_POSTURE=prod`.
+- W36: shared `__post_init__` mixin so each spine-bearing class shrinks from ~10 LOC to a
+  decorator. `docs/governance/boot-time-assertions-roadmap.md`.
+- W36: idempotency record retention policy (currently TTL-only purge; long-term
+  archival vs delete decision pending). `docs/governance/retention-roadmap.md`.
+- W37+: `agent_server/contracts/v2/` sub-package authoring guide once a breaking change
+  is approved.
+- W37+: float-canonicalisation for idempotency body hashing (W35-T5 deferred).
+- W37+: per-error-category metrics roll-up.
+- W37+: streaming uploads via multipart through `ArtifactFacade.register`.
+- W37+: cross-process run sharing via external durable backend.
 
 ---
 
-## 11. References
-
-Per-component architecture documents:
-- [`agent_server/api/ARCHITECTURE.md`](api/ARCHITECTURE.md) — route handlers + middleware (incl. W33-C.4 JWT)
-- [`agent_server/facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md) — contract↔kernel adaptation
-- [`agent_server/contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md) — frozen v1 schemas
-- [`agent_server/runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md) — real-kernel binding (W32) + auth seam (W33)
-- [`agent_server/cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md) — operator-facing CLI (`agent-server`)
-- [`agent_server/config/ARCHITECTURE.md`](config/ARCHITECTURE.md) — settings, version constants, contract freeze
+## 12. References
 
 Implementation entry points:
 - `agent_server/__init__.py` — `AGENT_SERVER_API_VERSION`
-- `agent_server/bootstrap.py:188` — `build_production_app`
-- `agent_server/api/__init__.py:54` — `build_app`
+- `agent_server/bootstrap.py:227` — `build_production_app`
+- `agent_server/bootstrap.py:282-286` — wires `_idempotency_store` onto backend (W35-T4)
+- `agent_server/api/__init__.py:57` — `build_app`
+- `agent_server/api/__init__.py:138-156` — W35-T8 boot assertion
 - `agent_server/cli/main.py` — `agent-server` dispatcher
 - `agent_server/config/version.py` — `V1_RELEASED`, `V1_FROZEN_HEAD`
 
+Sub-package architecture documents:
+- [`api/ARCHITECTURE.md`](api/ARCHITECTURE.md) — route handlers + middleware (W33-C.4 JWT, W35-T6 metrics, W35-T8 assertion)
+- [`facade/ARCHITECTURE.md`](facade/ARCHITECTURE.md) — contract↔kernel adaptation
+- [`contracts/ARCHITECTURE.md`](contracts/ARCHITECTURE.md) — frozen v1 schemas + W35-T1 spine validation
+- [`runtime/ARCHITECTURE.md`](runtime/ARCHITECTURE.md) — real-kernel binding (W32) + auth seam (W33-C.4) + purge loop (W35-T4)
+- [`cli/ARCHITECTURE.md`](cli/ARCHITECTURE.md) — operator-facing CLI (`agent-server`)
+- [`config/ARCHITECTURE.md`](config/ARCHITECTURE.md) — settings, version constants, contract freeze
+
 Kernel boundary:
-- `hi_agent/server/app.py:1645` — `AgentServer`
-- `hi_agent/server/app.py:1196` — `_rehydrate_runs`
-- `hi_agent/server/run_manager.py` — `RunManager`
-- `hi_agent/server/event_store.py` — `SQLiteEventStore`
-- `hi_agent/server/idempotency.py` — `IdempotencyStore`
+- `hi_agent/server/app.py::AgentServer`
+- `hi_agent/server/app.py:1340-1377` — `_rehydrate_runs` attempt_id bump (W35-T9)
+- `hi_agent/server/run_manager.py:443-489` — auth-authoritative tenant_id (W35-T3)
+- `hi_agent/server/idempotency.py:193-235` — `purge_expired` (W35-T4)
+- `hi_agent/observability/idempotency_metrics.py` — W35-T6 metric helpers
 
 Governance:
-- `CLAUDE.md` — Rules 1–17, Ownership Tracks, Narrow-Trigger Rules
+- CLAUDE.md — Rules 1–17, Ownership Tracks, Narrow-Trigger Rules
 - `docs/architecture-reference.md` — codebase reference
 - `docs/platform/agent-server-northbound-contract-v1.md` — v1 surface description
 - `docs/governance/closure-taxonomy.md` — Rule 15 levels
 - `docs/governance/score_caps.yaml` — readiness caps
-
-Gates:
-- `scripts/check_layering.py` (R-AS-1)
-- `scripts/check_contract_freeze.py` (R-AS-3)
-- `scripts/check_route_scope.py`, `scripts/check_route_tenant_context.py` (R-AS-4)
-- `scripts/check_tdd_evidence.py` (R-AS-5)
-- `scripts/check_facade_loc.py` (R-AS-8)
-- `scripts/check_facade_seams.py` (R-AS-1 seam annotations)
-- `scripts/check_contracts_purity.py`
-- `scripts/check_contract_spine_completeness.py` (Rule 12)
-- `scripts/check_no_shell_packages.py` (W31-H7)
-- `scripts/run_arch_7x24.py` (5-assertion architectural verification)
-
-Test inventory:
-- Unit: `tests/unit/test_*_facade.py`
-- Integration: `tests/integration/test_routes_*.py`, `tests/integration/test_idempotency_*.py`
-- E2E: `tests/e2e/test_e2e_agent_server_*.py`
-- W32 real-kernel binding: `tests/integration/test_v1_runs_real_kernel_binding.py` (created in W32 Track A)
+- `docs/governance/contract_v1_freeze.json` — re-snapshotted at W35-T1
+- `docs/governance/systematic-audit-w35-2026-05-05.md` — 91 hidden findings catalog
+- `docs/governance/retention-roadmap.md` — 24 unbounded-growth stores scoped W36/W37+
+- `docs/governance/boot-time-assertions-roadmap.md` — 22 boot-time gaps scoped W36/W37+
+- `docs/observability/idempotency-metrics.md` — W35-T6 metric catalog

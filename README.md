@@ -46,8 +46,8 @@ Or via the canonical wrapper that produces fresh evidence JSON:
 python scripts/verify_clean_env.py --profile default-offline
 ```
 
-Current baseline: 9,256 passed / 8 skipped / 0 failed (Wave 33, default-offline profile,
-2026-05-04).
+Current baseline: 9,288 passed / 8 skipped / 0 failed (Wave 35, default-offline profile,
+2026-05-05; 2:54 wall-clock).
 
 ### Start the northbound API server
 
@@ -157,6 +157,8 @@ Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-refe
 
 ## Project Status
 
+**Production engineering phase.** Latest close: **Wave 35 at 2026-05-05** (HEAD `8bce5bc`). Refer to `CLAUDE.md` § "Project Status" for the binding statement; the wave timeline below tracks delivered scope.
+
 | Wave | Headline | Status |
 |---|---|---|
 | W1–W11 | Foundation: cognitive runtime, TRACE S1–S5, agent_kernel inlined | closed |
@@ -177,8 +179,10 @@ Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-refe
 | W31 | RIA directive 13/14 IDs PASS; verified=55.0 (capped by `soak_evidence_not_real`); 79/91 hidden findings closed | closed |
 | W32 | Real-kernel binding for v1 northbound; ARCHITECTURE refresh; hidden-gap closure; cleanup | closed |
 | W33 | RIA acceptance follow-ups: JWT middleware (C.4); SSE live-stream (C.5); SIGTERM graceful drain (C.2); RunQueue tenant defense-in-depth (D.2); spine lineage (F.1); `HI_AGENT_ENV` unification (E.1); audit-log tenant_id (D.1) | closed |
+| W34 | RIA W34 BLOCKERs B-W34-1..B-W34-7 + 4 governance items: lineage population, ReasoningTrace spine validation, KnowledgeWiki tenant partition, registry audit, manifest posture field, idempotency contract, concurrency baseline | closed |
+| W35 | RIA W35-T1..W35-T8 acceptance: 53-dataclass spine validation, posture parity sweep, INVERTED posture fix, idempotency TTL purge + observability + boot-time MCP assertion + W35-T9 hidden re-lease attempt_id bump; 38 of 91 hidden audit findings closed | closed |
 
-Current verified readiness: **75.0** (Wave 33 manifest `2026-05-03-ce9330fa`; cap held by `soak_evidence_not_real` waiver per RIA acceptance §2). Architectural 7×24: 5/5 PASS at HEAD `ac37383`.
+Current verified readiness: **75.0** (Wave 35; cap held by `soak_evidence_not_real` + `evidence_provenance` waivers per RIA acceptance §3 — explicitly unchanged in W35 per RIA §6). Architectural 7×24: 5/5 PASS at the W34 HEAD; W35 hot-path changes (run_manager, idempotency, lifespan) require a fresh T3 gate run at the W35 HEAD per Rule 8 T3 invariance. `raw_implementation_maturity` rises to ~92–93 reflecting the additional spine + audit work.
 
 | Capability | Level | Notes |
 |---|---|---|
@@ -195,6 +199,94 @@ Current verified readiness: **75.0** (Wave 33 manifest `2026-05-03-ce9330fa`; ca
 | agent_server v1 contract | L3 | Frozen at SHA `8c6e22f1`; production default |
 
 Maturity levels: L0 demo · L1 tested component · L2 public contract · L3 production default · L4 ecosystem ready (Rule 13).
+
+### RIA capability map — 7 dimensions × 8 lenses
+
+Downstream RIA tracks platform readiness along seven capability dimensions and eight architectural lenses (Rule 10). Where each W35-close capability lands:
+
+| RIA dimension | Lens | hi-agent surface | Status at W35 close |
+|---|---|---|---|
+| Execution | L3 high reliability | `agent_server/api/routes_runs*.py` + `hi_agent/server/run_manager.py` (W35-T3 auth-authoritative tenant precedence) | L3 production default |
+| Memory | L1 tenant isolation | `hi_agent/memory/episodic.py` (W35-T1 spine validation) | L2 public contract |
+| Capability | L8 agent service to upper systems | `hi_agent/capability/registry.py` + manifest posture field (W34-MANIFEST) | L2 public contract; `posture` field frozen for RIA R-RIA-6 |
+| Knowledge graph | L1 + L3 | `hi_agent/knowledge/wiki.py` per-tenant partition (W34-F.4) + KG SQLite backend | L2 public contract |
+| Planning | L3 + L6 | `hi_agent/runner_stage.py` StageDirective wiring; W35-T1 spine validation across reasoning + planning contracts | L3 production default |
+| Artifact | L2 functional idempotency | `hi_agent/artifacts/contracts.py` + `agent_server/contracts/idempotency.py` (W34 contract + W35-T4 retention + W35-T6 metrics + W35-T8 boot assertion) | L3 production default; idempotency contract frozen + retained |
+| Evolution | L6 continuous intelligence evolution | `hi_agent/evolve/*` (W35-T1 + W35-T2 spine + posture parity); `RunFeedback`, `EvolveResult`, `EvolveChange` posture-validated | L2 public contract |
+| Cross-Run | L7 7×24 architectural feasibility | Lineage chain (W34-F.2 create-run + W35-T9 re-lease attempt_id bump); retention infra (W35-T4 reference + `docs/governance/retention-roadmap.md`) | L3 production default for happy path; W36 binding to extend Tier-1 retention |
+
+W35 audit reconnaissance at five dimensions (A1 spine, A2 posture, A3 unbounded-growth stores, A4 lineage, A5 boot-time) surfaced 91 hidden findings; 38 closed in W35, 32 scoped for W36 via `docs/governance/retention-roadmap.md` + `docs/governance/boot-time-assertions-roadmap.md`, 17 for W37+. See `docs/governance/systematic-audit-w35-2026-05-05.md` for the audit footprint.
+
+---
+
+## Posture Model
+
+`HI_AGENT_POSTURE` selects the platform's execution posture (Rule 11). Every config knob, fallback path, and persistence backend declares its default behaviour for the three values:
+
+| Subsystem | `dev` (permissive) | `research` | `prod` (fail-closed) |
+|---|---|---|---|
+| Spine validation (Rule 12) | Missing `tenant_id` / `run_id` / `stage_id` logs WARNING; record accepted | Raises `SpineCompletenessError` at construction | Raises `SpineCompletenessError` at construction |
+| Tenant scope on body vs middleware (W35-T3) | Body tenant_id mismatching middleware logs WARNING; auth-authoritative middleware value used | Raises `TenantScopeError` (anti-forgery) | Raises `TenantScopeError` (anti-forgery) |
+| Persistence backends | In-memory backends accepted (`InMemoryDecisionAuditStore`, `InMemoryKnowledgeStore`) | SQLite-backed backends required | SQLite-backed backends required |
+| `AGENT_SERVER_BACKEND=stub` | Accepted (default-offline test profile) | Raises `ValueError` at boot | Raises `ValueError` at boot |
+| Missing JWT secret (`HI_AGENT_JWT_SECRET`) | 401 per request (no boot fail) | Required (per-request 401 today; W36 boot assertion B15) | Required (per-request 401 today; W36 boot assertion B15) |
+| LLM fallback | Heuristic fallback allowed; metric emitted | Heuristic fallback alarm-triggers via `hi_agent_llm_fallback_total` | Heuristic fallback blocks Rule 8 ship gate |
+| Idempotency middleware | Permissive (mock cache OK) | Strict; required on every mutating route | Strict; required on every mutating route |
+
+Set via env: `export HI_AGENT_POSTURE=research` (recommended for downstream integration testing) or `prod` (operator-shape gate).
+
+---
+
+## Operator-Shape (Rule 8) Gate Summary
+
+No artifact ships until it runs in the exact operator shape downstream uses. Six checks plus the architectural 7×24 readiness assertions hold at every release HEAD:
+
+1. **Long-lived process** — PM2 / systemd / docker run; not foreground `python -m`.
+2. **Real LLM** — `HI_AGENT_LLM_MODE=real` against the production provider.
+3. **Sequential real-LLM runs (N≥3)** — three back-to-back `POST /v1/runs`, each reaches `state=done`, `llm_fallback_count=0`, ≥1 LLM request emitted to access log + metric.
+4. **Cross-loop resource stability** — runs 2 and 3 reuse the same gateway/adapter as run 1 (Rule 5 stress).
+5. **Lifecycle observability** — each run reports a non-`None` `current_stage` within 30 s; `finished_at` populated on terminal.
+6. **Cancellation round-trip** — `POST /v1/runs/{id}/cancel` on a live run returns 200 and drives terminal; on unknown id returns 404.
+
+**Architectural 7×24 readiness** (W28 reform, RIA W35 §2.7) — five assertions replace the 24h soak: cross-loop stability (3 sequential real-LLM runs), lifespan observable (current_stage <30s), cancellation round-trip, spine provenance real, chaos runtime-coupled. Evidence file: `docs/verification/<sha>-arch-7x24.json` with all 5 PASS.
+
+T3 evidence at the release HEAD: `docs/delivery/<date>-<sha>-t3-volces.json`. The W35 HEAD (`8bce5bc`) lands hot-path code in `run_manager.py`, `idempotency.py`, `app.py`, and `lifespan.py` — T3 invariance demands a fresh gate run before the verified-readiness score is recomputed.
+
+---
+
+## Idempotency Contract
+
+Every mutating northbound route accepts an `Idempotency-Key`. The contract is documented in `agent_server/contracts/idempotency.py` and frozen at the v1 contract digest. Behaviour (per W34 + W35):
+
+| Property | Value | Source |
+|---|---|---|
+| Cache scope | per-tenant (`SCOPE='tenant'`); two tenants with identical keys never collide | W34-IDEMPOTENCY |
+| Cross-process replay | Same key + same body returns byte-identical response across process restarts (POSIX-tested; Windows skipped with documented reason) | W34-IDEMPOTENCY (`tests/integration/test_idempotency_cross_process_replay.py`) |
+| Body mismatch | Same key + different body returns HTTP 409 conflict (research/prod); WARNING log + 409 (dev) | W34-IDEMPOTENCY |
+| TTL | `DEFAULT_TTL_SECONDS=86400.0` (24h); records past TTL deleted by background purge + lazy purge on next access | W34-IDEMPOTENCY + W35-T4 |
+| Retention | `IdempotencyStore.purge_expired()` drained by `_idempotency_purge_loop` background task in `agent_server/runtime/lifespan.py`; lazy purge in `reserve_or_replay` | W35-T4 (`tests/integration/test_idempotency_ttl_purge.py`) |
+| Observability | 4 Prometheus metrics on `/metrics`: `hi_agent_idempotency_replay_total`, `_conflict_total`, `_purged_total`, `_record_age_seconds` (histogram) | W35-T6 (`docs/observability/idempotency-metrics.md`) |
+| Boot-time check | `include_mcp_tools=True` or `include_skills_memory=True` requires `idempotency_facade is not None`; raises at boot otherwise | W35-T8 (`tests/integration/test_mcp_tools_idempotency.py`) |
+| Spine fields (Rule 12) | Every `IdempotencyRecord` carries `tenant_id` + posture-aware validation in `__post_init__` | W35-T1 |
+| Limitations (W37+) | Float canonicalization (`1` vs `1.0`) deferred per RIA endorsement — see Limitations section in `agent_server/contracts/idempotency.py` | W35-T5 |
+
+Cross-region multi-process idempotency (external coordinator) is out of scope at the v1 surface.
+
+---
+
+## Tests / Dev Workflow
+
+| Profile | Coverage | Tooling |
+|---|---|---|
+| `default-offline` | 9,288 tests; no network, no real LLM, no secrets; ~3 min wall clock | `python scripts/verify_clean_env.py --profile default-offline` |
+| `release` | default-offline + T3 freshness + manifest consistency + route-scope + lint + rule-checks | release-captain workflow |
+| `live_api` | Real LLM path; manual / scheduled | `pytest -m live_api` (requires `OPENAI_API_KEY` or `VOLCES_API_KEY`) |
+| `prod_e2e` (Rule 8 gate) | Operator-shape gate; long-lived process; real LLM; 3 sequential runs | `python scripts/run_t3_volces.py` (Volces) or `scripts/run_t3.py` (provider-agnostic) |
+| `chaos` | Injection matrix; 10 scenarios (8 cross-platform, 2 POSIX-only) | `python scripts/run_arch_7x24.py` |
+
+Test profiles defined in `tests/profiles.toml` (Rule 16). Every PR description carries a "Profile validated:" line.
+
+CI gates: `scripts/check_dataclass_spine_validation.py` (53 targets at W35 close), `scripts/check_lineage_population.py`, `scripts/check_layering.py` (R-AS-1), `scripts/check_facade_seams.py`, `scripts/check_contract_freeze.py`, `scripts/check_manifest_freshness.py`, `scripts/check_doc_consistency.py`, `scripts/check_wave_consistency.py`, `scripts/check_allowlist_discipline.py`, `scripts/check_env_var_routing.py`, `scripts/check_idempotency_contract_documented.py`, `scripts/check_no_unscoped_knowledge_reads.py`, `scripts/check_concurrency_evidence.py`. See `.github/workflows/` for the full matrix.
 
 ---
 
@@ -250,10 +342,11 @@ diagrams in mermaid):
 | Pointer | Purpose |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Seventeen engineering rules + ownership tracks + narrow-trigger rules. CI-enforced. |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans (W12 onward); latest: `2026-05-04-wave-33-ria-acceptance-followups.md` |
-| [`docs/governance/`](docs/governance/) | Closure taxonomy, evidence-provenance schema, allowlists, recurrence ledger |
+| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans (W12 onward); latest: `2026-05-05-wave-35-systematic-audit-followups.md` |
+| [`docs/governance/`](docs/governance/) | Closure taxonomy, evidence-provenance schema, allowlists, recurrence ledger, retention roadmap (W35), boot-time assertions roadmap (W35), systematic-audit-w35 |
 | [`docs/platform/`](docs/platform/) | Public surface descriptions: `agent-server-northbound-contract-v1.md`, runtime profile guide |
-| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices to downstream teams (latest: `2026-05-04-w33-delivery-notice.md`) |
+| [`docs/observability/`](docs/observability/) | Operator-facing metric/spine docs (e.g. `idempotency-metrics.md`, W35-T6) |
+| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices to downstream teams (latest: `2026-05-05-w35-delivery-notice.md`) |
 
 Owner tracks govern review responsibilities (see `CLAUDE.md`):
 

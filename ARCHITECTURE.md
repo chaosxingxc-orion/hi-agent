@@ -1,6 +1,8 @@
 # Architecture: hi-agent Platform (arc42)
 
-> **Last refreshed:** Wave 33 (2026-05-04). Manifest `2026-05-03-ce9330fa`.
+> **Last refreshed:** Wave 35 (2026-05-05). Manifest `2026-05-05-77222f8b` (W34 close — predecessor); W35 close manifest filed at HEAD `36f6c3d` after T1A digest re-snapshot.
+>
+> **Wave 35 deltas to this document:** §6 Posture model now reflects W35-T3 auth-authoritative tenant_id precedence with anti-forgery cross-check; §7 Runtime resilience adds W35-T4 idempotency TTL purge background task; §10 Quality requirements integrates W35-T1 53-target spine validation enforcement and W35-T8 boot-time assertion in `build_app`; W35-T9 documents the recovery-path attempt_id bump that fulfils the W34-F.2 design promise. The reference targets `scripts/check_dataclass_spine_validation.py::REQUIRED_VALIDATION_TARGETS` (53 entries at W35 close).
 >
 > **Document hierarchy**
 > - L0 system boundary: this file
@@ -333,6 +335,56 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 `agent_server` middleware deduplicates requests by `idempotency_key`. The underlying store is
 `agent_server/facade/idempotency_facade.py` backed by `hi_agent/server/idempotency.py`.
 
+**W35 deltas (RIA-binding):**
+- **TTL purge (W35-T4):** `IdempotencyStore.purge_expired(now)` deletes records past
+  `expires_at`; `_idempotency_purge_loop` in `agent_server/runtime/lifespan.py` runs every
+  `HI_AGENT_IDEMPOTENCY_PURGE_INTERVAL_S` seconds (default 600s); `reserve_or_replay`
+  performs lazy purge on found-and-expired before re-insertion. SQLite `VACUUM` runs
+  opportunistically when ≥100 rows were purged.
+- **Observability (W35-T6):** four Prometheus metrics emitted via
+  `hi_agent/observability/idempotency_metrics.py` —
+  `hi_agent_idempotency_replay_total{tenant_id, outcome}`,
+  `_conflict_total{tenant_id}`, `_purged_total{tenant_id}`, and
+  `_record_age_seconds{tenant_id}` (histogram). Operator playbook:
+  `docs/observability/idempotency-metrics.md`.
+- **Boot-time assertion (W35-T8):** `agent_server/api/__init__.py::build_app` rejects
+  `include_mcp_tools=True` or `include_skills_memory=True` without
+  `idempotency_facade is not None`. Closes the silent middleware-coverage gap.
+
+### Tenant precedence and anti-forgery (W35-T3)
+
+`hi_agent/server/run_manager.py::create_run` resolves `tenant_id` via auth-authoritative
+precedence symmetric across postures:
+
+1. Authenticated middleware tenant_id wins when present.
+2. Body tenant_id is permitted only when middleware is absent.
+3. Body that DIFFERS from middleware triggers an anti-forgery cross-check —
+   `TenantScopeError` under research/prod; structured WARNING under dev.
+4. Neither-present → `TenantScopeError` (research/prod) or fallback to `"default"` with
+   WARNING (dev).
+
+Replaces the pre-W35 INVERTED behaviour (strict body-wins / dev middleware-wins) flagged in
+RIA's W35 directive §3.2. The `idempotency_auth_scope` integration tests validate the
+auth-authoritative invariant.
+
+### Spine completeness (W35-T1)
+
+53 dataclasses across `agent_server/contracts/`, `hi_agent/contracts/`,
+`hi_agent/server/`, `hi_agent/{evolve, skill, artifacts, memory, operations}/` and
+`agent_kernel/kernel/contracts.py` carry posture-aware `__post_init__` validation. Reference
+implementation: `hi_agent/contracts/reasoning.py::ReasoningTrace.__post_init__`. Shared
+`SpineCompletenessError` (subclass of `ValueError`) lives in
+`agent_server/contracts/errors.py` and `hi_agent/contracts/reasoning.py`. Enforcement:
+`scripts/check_dataclass_spine_validation.py::REQUIRED_VALIDATION_TARGETS`.
+
+### Recovery lineage (W35-T9)
+
+`hi_agent/server/app.py::_rehydrate_runs` re-lease path mints a fresh `attempt_id`, links
+`parent_run_id = run_id` (so the lineage chain reconstructs across recovery cycles), and
+bumps `attempt_count` before `run_queue.reenqueue`. Fulfils the W34-F.2 design promise
+("recovery / re-lease paths bump attempt_id and set parent_run_id back to this run_id")
+that had been documented but not previously implemented.
+
 ---
 
 ## 9. Architecture Decisions
@@ -352,6 +404,11 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 | Add `JWTAuthMiddleware` outermost; reuse `hi_agent.auth` primitives via `runtime/auth_seam` | W33 | Unauthenticated traffic rejected before tenant/idempotency layers; R-AS-1 preserved |
 | SSE `iter_events` becomes a true live stream | W33 | Streaming contract honoured end-to-end; snapshot-and-close retired |
 | Unify `HI_AGENT_ENV` reads through `Posture.resolve_runtime_mode` | W33 | Rule 11 posture-aware defaults; CI gate `check_no_hi_agent_env_direct_read.py` |
+| Auth-authoritative tenant_id precedence + anti-forgery cross-check (W35-T3) | W35 | Closes the strict-more-permissive-than-dev INVERTED reversal; symmetric across postures |
+| 53-target Rule 12 spine validation (`__post_init__` everywhere a `tenant_id` field lives) | W35 | RIA-binding W35-T1; eliminates silently-empty-spine attribution drift |
+| `IdempotencyStore.purge_expired` + lifespan purge loop (W35-T4) | W35 | Closes 7×24-feasibility unbounded-growth defect on the only fully-mandatory durable store |
+| 4 Prometheus idempotency metrics (W35-T6) + 22 boot-time assertion roadmap (W35-T8) | W35 | Rule 7 fallback bell on the long-running platform; Rule 8 boot-fail-fast for mandatory-resource gaps |
+| Re-lease attempt_id bump (W35-T9) | W35 | Fulfils W34-F.2 closure-claim promise; postmortem reconstruction now has per-attempt lineage across recovery |
 
 ---
 
@@ -359,9 +416,12 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 
 | Quality attribute | Target | Enforcement |
 |---|---|---|
-| Test pass rate | 9,256+ offline tests, 0 failures (W33 manifest) | `default-offline` CI profile; `scripts/verify_clean_env.py` |
-| Verified readiness | 75.0 (Wave 33; cap held by `soak_evidence_not_real` waiver) | Release manifest + `scripts/build_release_manifest.py` |
-| 7x24 operational readiness | 90.0 (W33) — architectural property, 5/5 PASS at HEAD `ac37383` | `scripts/run_arch_7x24.py` (5 assertions, runs in seconds) |
+| Test pass rate | 9,288+ offline tests, 0 failures (W35 close) | `default-offline` CI profile; `scripts/verify_clean_env.py` |
+| Verified readiness | 75.0 (Wave 35; cap held by `soak_evidence_not_real` waiver — RIA W35 directive §6 explicit no-cap-change) | Release manifest + `scripts/build_release_manifest.py` |
+| 7x24 operational readiness | 90.0 (architectural property, 5/5 PASS) | `scripts/run_arch_7x24.py` (5 assertions, runs in seconds) |
+| Spine validation coverage | 53 dataclass targets all carry posture-aware `__post_init__` | `scripts/check_dataclass_spine_validation.py::REQUIRED_VALIDATION_TARGETS` |
+| Idempotency TTL purge | bounded-growth: records past `expires_at` deleted by lifespan purge loop or lazy-purge in `reserve_or_replay` | `tests/integration/test_idempotency_ttl_purge.py` (incl. 10K-record disk-growth regression) |
+| Auth-authoritative tenant_id (anti-forgery) | body that differs from middleware → `TenantScopeError` (strict) / WARNING (dev) | `tests/integration/test_run_manager_tenant_strict.py`, `tests/integration/test_idempotency_auth_scope.py` |
 | T3 invariance | Gate valid only at recorded SHA; hot-path commits invalidate until re-run | `scripts/check_manifest_freshness.py` |
 | LLM fallback count | 0 for all T3 runs | Rule 8 step 3; `llm_fallback_count == 0` asserted |
 | Cancellation round-trip | known-id: 200+terminal; unknown-id: 404 | Rule 8 step 6; `tests/integration/` |
@@ -383,6 +443,9 @@ CLI, test) is a rule violation enforced by `scripts/check_rules.py`.
 | Chaos runtime coupling | 2 of 10 scenarios skip on Windows (architecturally coupled, OS-limited) | Subsumed by arch-7x24 assertion #5 (PASS, provenance=runtime_partial) | Linux runner enables remaining 2 |
 | Score ceiling at 94.55 | Bounded by capability matrix weights, not gate failures | Information only | W29+ with dimension lifts |
 | `HI_AGENT_KERNEL_BASE_URL` required in prod | Missing env var causes silent LocalFSM fallback | Documented; `/doctor` warns | No change planned |
+| Unbounded-growth durable stores (24 stores beyond IdempotencyStore) | 7×24-feasibility defect at scale | `IdempotencyStore` closed (W35-T4); 14 highest-volume scoped W36 | `docs/governance/retention-roadmap.md` |
+| Boot-time implication gaps (22 sites beyond W35-T8 mcp/idempotency) | Silent runtime breakage on resource-missing routes | 1 closed (W35-T8); 14 high-severity scoped W36 | `docs/governance/boot-time-assertions-roadmap.md` |
+| Lineage schema gaps in `RunResponse` / `RunStatus` / `RunStream` | Downstream cannot reconstruct attempt chain from public contract | Schema extension scoped W36 (RIA pre-binding §4.4) | `docs/governance/systematic-audit-w35-2026-05-05.md` §A4 |
 
 ---
 

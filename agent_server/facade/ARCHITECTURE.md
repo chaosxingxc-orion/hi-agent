@@ -1,5 +1,14 @@
 # agent_server/facade/ Architecture
 
+> **Last refreshed:** Wave 35 (2026-05-05). HEAD `36f6c3d`.
+>
+> **Wave 35 deltas:** `IdempotencyFacade` is now wired into the lifespan-driven
+> background purge loop via `agent_server/runtime/lifespan.py::_idempotency_purge_loop`
+> (W35-T4). `build_app` rejects the facade absence when `include_mcp_tools=True` or
+> `include_skills_memory=True` (W35-T8). Posture-aware validation in the contract
+> dataclasses returned by facades now fails-closed under research/prod via the
+> shared `agent_server/contracts/errors.py::SpineCompletenessError` (W35-T1).
+
 ---
 
 ## 1. Purpose & Position in System

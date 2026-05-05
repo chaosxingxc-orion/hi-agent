@@ -1,14 +1,20 @@
-# agent_server/api/ Architecture
+# agent_server/api — Architecture
 
-> Last refreshed: Wave 33 (2026-05-04). Adds W33-C.4 JWT auth middleware.
+> Last refreshed: W35 close (2026-05-05). HEAD `8bce5bc`. W35-T8 added a boot-time assertion in `build_app` requiring `idempotency_facade` whenever mutating L1-stub routes are enabled.
 
 ---
 
-## 1. Purpose & Position in System
+## 1. Purpose / Responsibilities
 
-`agent_server/api/` is the **HTTP transport layer** of the northbound facade. It owns FastAPI route handlers, the middleware pipeline, and the assembly point (`build_app`) that wires routers and middleware into a single ASGI app.
+`agent_server/api/` is the **HTTP transport layer** of the northbound facade. It owns
+FastAPI route handlers, the middleware pipeline, and the assembly point (`build_app`)
+that wires routers and middleware into a single ASGI app.
 
-The handlers themselves are intentionally thin: they read a `TenantContext` from `request.state` (set by middleware), parse the request body into a contract dataclass, dispatch to a facade method, and serialize the contract dataclass back to JSON. They never see kernel types, never call `hi_agent.*` directly, and never read the tenant identity from anywhere except `request.state`.
+Route handlers are intentionally thin: they read a `TenantContext` from `request.state`
+(set by middleware), parse the request body into a contract dataclass, dispatch to a
+facade method, and serialise the result back to JSON. They never see kernel types, never
+call `hi_agent.*` directly, and never read tenant identity from anywhere except
+`request.state`.
 
 What this layer does NOT own:
 - Adaptation between contract types and kernel callables (`agent_server/facade/`).
@@ -16,88 +22,58 @@ What this layer does NOT own:
 - Real-kernel binding (`agent_server/runtime/`).
 - Background work, lifespan setup, durable state.
 
-R-AS-1 enforcement: `scripts/check_layering.py` fails CI on any `hi_agent.*` import in this directory. The single permitted seam is `agent_server/bootstrap.py`; the second is `agent_server/runtime/` (W32 Track A). No other module under `agent_server/api/`, `agent_server/facade/` (except annotated seams), or `agent_server/cli/` may reach into hi_agent.
+---
+
+## 2. Module Boundary (R-AS-1 + Rule 6 layering)
+
+R-AS-1: `scripts/check_layering.py` fails CI on any `hi_agent.*` import in this directory.
+The single permitted seam is `agent_server/bootstrap.py`; the second is
+`agent_server/runtime/`. No other module under `agent_server/api/`,
+`agent_server/facade/` (except annotated seams), or `agent_server/cli/` may reach into
+hi_agent.
+
+Rule 6 single-construction-path: `build_app(...)` is the sole builder of the FastAPI
+application. The bootstrap calls it once with all facade dependencies; tests call it
+with stub facades.
+
+W35-T8 boot-time assertion: `build_app` raises `ValueError` at startup when
+`include_mcp_tools=True` or `include_skills_memory=True` is set without a non-`None`
+`idempotency_facade`. This converts a silent functional defect (mutating routes served
+without dedup coverage) into a fail-fast bootstrap error.
+
+Consumers:
+- `agent_server/bootstrap.py::build_production_app` — production caller.
+- Route-level integration tests in `tests/integration/test_routes_*.py` — pass stub facades.
 
 ---
 
-## 2. External Interfaces
-
-The API layer publishes the v1 northbound HTTP surface. All paths are prefixed `/v1/`:
-
-| Method | Path | Handler module | Description |
-|---|---|---|---|
-| `GET` | `/v1/health` | `__init__.py` (inline) | Health probe — `{"status": "ok", "api_version": "v1"}` |
-| `POST` | `/v1/runs` | `routes_runs.py` | Submit a new run (returns 201 Created) |
-| `GET` | `/v1/runs/{run_id}` | `routes_runs.py` | Query run status |
-| `POST` | `/v1/runs/{run_id}/signal` | `routes_runs.py` | Send control signal to a run |
-| `POST` | `/v1/runs/{run_id}/cancel` | `routes_runs_extended.py` | Cancel a live run |
-| `GET` | `/v1/runs/{run_id}/events` | `routes_runs_extended.py` | SSE event stream for a run |
-| `GET` | `/v1/runs/{run_id}/artifacts` | `routes_artifacts.py` | List artifacts for a run |
-| `GET` | `/v1/artifacts/{artifact_id}` | `routes_artifacts.py` | Get a specific artifact |
-| `POST` | `/v1/artifacts` | `routes_artifacts.py` | Register an artifact (W27-L15) |
-| `POST` | `/v1/gates/{gate_id}/decide` | `routes_gates.py` | Post a gate decision |
-| `GET` | `/v1/manifest` | `routes_manifest.py` | Get capability + posture matrix |
-| `POST` | `/v1/skills` | `routes_skills_memory.py` | Register a skill (L1 stub at v1) |
-| `POST` | `/v1/memory/write` | `routes_skills_memory.py` | Write to agent memory (L1 stub at v1) |
-| `GET` | `/v1/mcp/tools` | `routes_mcp_tools.py` | List available MCP tools (L1 stub) |
-| `POST` | `/v1/mcp/tools/{name}` | `routes_mcp_tools.py` | Invoke an MCP tool (L1 stub) |
-
-Headers required on mutating routes (research/prod posture):
-- `Authorization: Bearer <jwt>` — required on every route except `/v1/health`, `/health`, `/metrics` under research/prod (W33-C.4); passthrough under dev. The token must be HMAC-signed with `HI_AGENT_JWT_SECRET` and carry the expected audience.
-- `X-Tenant-Id` — tenant identity (always required, every posture).
-- `Idempotency-Key` — required on `POST /v1/runs`, `POST /v1/runs/{id}/signal`, `POST /v1/runs/{id}/cancel`, `POST /v1/skills`, `POST /v1/memory/write`, `POST /v1/gates/{id}/decide` under research/prod.
-- Optional context headers: `X-Project-Id`, `X-Profile-Id`, `X-Session-Id`.
-
-Builder entry point:
-
-```python
-# agent_server/api/__init__.py
-def build_app(
-    *,
-    run_facade: RunFacade,
-    event_facade: EventFacade | None = None,
-    artifact_facade: ArtifactFacade | None = None,
-    manifest_facade: ManifestFacade | None = None,
-    idempotency_facade: IdempotencyFacade | None = None,
-    idempotency_strict: bool | None = None,
-    tenant_event_emitter: TenantEventEmitter | None = None,
-    include_mcp_tools: bool = False,
-    include_skills_memory: bool = False,
-    include_gates: bool = True,
-) -> FastAPI: ...
-```
-
-`run_facade` is the only required argument; the rest opt in/out routes per build configuration.
-
----
-
-## 3. Internal Components
+## 3. Component Diagram
 
 ```mermaid
 graph TD
-    subgraph CLIENT["External Caller"]
-        HTTPC["HTTP Client / SDK / agent-server CLI"]
+    subgraph CLIENT[External Caller]
+        HTTPC[HTTP Client / SDK / agent-server CLI]
     end
 
-    subgraph MIDDLEWARE["Middleware Pipeline (outer -> inner)"]
-        JWT["JWTAuthMiddleware (W33-C.4)<br/>middleware/auth.py<br/>Validates Authorization: Bearer"]
-        TC["TenantContextMiddleware<br/>middleware/tenant_context.py<br/>Validates X-Tenant-Id"]
-        IDEM["IdempotencyMiddleware<br/>middleware/idempotency.py<br/>Reserves/replays Idempotency-Key"]
+    subgraph MIDDLEWARE[Middleware Pipeline outer to inner]
+        JWT[JWTAuthMiddleware W33-C.4<br/>middleware/auth.py]
+        TC[TenantContextMiddleware<br/>middleware/tenant_context.py]
+        IDEM[IdempotencyMiddleware<br/>middleware/idempotency.py<br/>W35-T6 emits metrics]
     end
 
-    subgraph ROUTERS["Routers (build_router(...) factories)"]
-        RUNS["routes_runs.py<br/>POST/GET /v1/runs<br/>POST /v1/runs/{id}/signal"]
-        RUNX["routes_runs_extended.py<br/>POST /v1/runs/{id}/cancel<br/>GET /v1/runs/{id}/events (SSE)"]
-        ARTS["routes_artifacts.py<br/>GET /v1/runs/{id}/artifacts<br/>GET/POST /v1/artifacts"]
-        GATES["routes_gates.py<br/>POST /v1/gates/{id}/decide"]
-        MANI["routes_manifest.py<br/>GET /v1/manifest"]
-        SKM["routes_skills_memory.py<br/>POST /v1/skills<br/>POST /v1/memory/write"]
-        MCPT["routes_mcp_tools.py<br/>GET/POST /v1/mcp/tools"]
-        HEALTH["GET /v1/health (inline)"]
+    subgraph ROUTERS[Routers via build_router factories]
+        RUNS[routes_runs.py<br/>POST/GET /v1/runs<br/>POST /v1/runs/id/signal]
+        RUNX[routes_runs_extended.py<br/>POST /v1/runs/id/cancel<br/>GET /v1/runs/id/events SSE]
+        ARTS[routes_artifacts.py<br/>GET /v1/runs/id/artifacts<br/>GET/POST /v1/artifacts]
+        GATES[routes_gates.py<br/>POST /v1/gates/id/decide]
+        MANI[routes_manifest.py<br/>GET /v1/manifest]
+        SKM[routes_skills_memory.py<br/>POST /v1/skills<br/>POST /v1/memory/write]
+        MCPT[routes_mcp_tools.py<br/>GET/POST /v1/mcp/tools]
+        HEALTH[GET /v1/health inline]
     end
 
-    subgraph FACADE["agent_server/facade/ (called by handlers)"]
-        F["RunFacade / EventFacade /<br/>ArtifactFacade / ManifestFacade /<br/>IdempotencyFacade"]
+    subgraph FACADE[agent_server/facade/]
+        F[RunFacade EventFacade<br/>ArtifactFacade ManifestFacade<br/>IdempotencyFacade]
     end
 
     HTTPC --> JWT
@@ -110,7 +86,7 @@ graph TD
     IDEM --> MANI
     IDEM --> SKM
     IDEM --> MCPT
-    HTTPC -. "exempt: /v1/health,<br/>/health, /metrics" .-> HEALTH
+    HTTPC -. exempt /v1/health /health /metrics .-> HEALTH
 
     RUNS --> F
     RUNX --> F
@@ -122,7 +98,7 @@ graph TD
 
 | Module | Responsibility | Annotation |
 |---|---|---|
-| `__init__.py` | `build_app(...)` factory; assembles routers + middleware | – |
+| `__init__.py` | `build_app(...)` factory; W35-T8 asserts idempotency wiring | – |
 | `routes_runs.py` | `POST/GET /v1/runs`, `POST /v1/runs/{id}/signal` | `# tdd-red-sha: ddc0f0d` |
 | `routes_runs_extended.py` | `POST /cancel`, `GET /events` (SSE) | `# tdd-red-sha: 3bc0a83` |
 | `routes_artifacts.py` | `GET /v1/runs/{id}/artifacts`, `GET/POST /v1/artifacts` | `# tdd-red-sha: 3bc0a83` |
@@ -130,55 +106,55 @@ graph TD
 | `routes_manifest.py` | `GET /v1/manifest` | `# tdd-red-sha: 3bc0a83` |
 | `routes_skills_memory.py` | `POST /v1/skills`, `POST /v1/memory/write` | `# tdd-red-sha: e2c8c34a` |
 | `routes_mcp_tools.py` | `GET/POST /v1/mcp/tools` | `# tdd-red-sha: e2c8c34a` |
-| `middleware/auth.py` | `JWTAuthMiddleware` (W33-C.4); validates Bearer JWT via `runtime/auth_seam`; exempts `/v1/health`/`/health`/`/metrics` | – |
-| `middleware/tenant_context.py` | `TenantContextMiddleware`, header parsing, spine emission | – |
-| `middleware/idempotency.py` | `IdempotencyMiddleware`, reserve/replay/conflict | – |
+| `middleware/auth.py` | `JWTAuthMiddleware` (W33-C.4); validates Bearer JWT via `runtime/auth_seam` | – |
+| `middleware/tenant_context.py` | `TenantContextMiddleware`; spine emission | – |
+| `middleware/idempotency.py` | `IdempotencyMiddleware` (W35-T6: metrics on every reserve/replay/conflict) | – |
 
 ---
 
-## 4. Data Flow
+## 4. Data Flow / Sequence Diagram
 
-The two representative request shapes are JSON request/response (RPC-like) and SSE event stream.
-
-### JSON request/response (POST /v1/runs)
+`POST /v1/runs` end-to-end (with W35-T6 metrics):
 
 ```mermaid
 sequenceDiagram
     participant Client
+    participant JWT as JWTAuthMiddleware
     participant Tenant as TenantContextMiddleware
     participant Idem as IdempotencyMiddleware
     participant Route as routes_runs.post_run
     participant Facade as RunFacade.start
 
-    Client->>+Tenant: POST /v1/runs (body, X-Tenant-Id, Idempotency-Key)
+    Client->>+JWT: POST /v1/runs body Authorization Bearer X-Tenant-Id Idempotency-Key
+    Note over JWT: research/prod: validate JWT<br/>dev: passthrough
+    JWT->>+Tenant: forward request.state.auth_claims
     Tenant->>Tenant: validate X-Tenant-Id non-empty
-    alt missing
-        Tenant-->>Client: 401 AuthError envelope
-    else present
-        Tenant->>Tenant: build TenantContext, attach to request.state
-        Tenant->>Tenant: call tenant_event_emitter(tenant_id)
-        Tenant->>+Idem: pass request
-        Idem->>Idem: read Idempotency-Key, hash body
-        Idem->>Idem: facade.reserve_or_replay(tenant_id, key, body)
-        alt replayed
-            Idem-->>Client: cached 2xx response (byte-identical)
-        else conflict
-            Idem-->>Client: 409 ConflictError envelope
-        else created
-            Idem->>+Route: pass request
-            Route->>Route: ctx = request.state.tenant_context
-            Route->>Route: build RunRequest(**body)
-            Route->>+Facade: start(ctx, req)
-            Facade-->>-Route: RunResponse
-            Route-->>-Idem: 201 + JSON(_run_response_to_dict(resp))
-            Idem->>Idem: facade.mark_complete(tenant_id, key, response, 201)
-            Idem-->>-Tenant: response
-        end
-        Tenant-->>-Client: response
+    Tenant->>Tenant: build TenantContext, attach to request.state
+    Tenant->>Tenant: call tenant_event_emitter(tenant_id)
+    Tenant->>+Idem: forward
+    Idem->>Idem: read Idempotency-Key, hash body
+    Idem->>Idem: facade.reserve_or_replay(tenant_id, key, body)
+    alt replayed
+        Idem->>Idem: emit hi_agent_idempotency_replay_total (W35-T6)
+        Idem-->>Client: cached 2xx
+    else conflict
+        Idem->>Idem: emit hi_agent_idempotency_conflict_total (W35-T6)
+        Idem-->>Client: 409 ConflictError envelope
+    else created
+        Idem->>+Route: forward
+        Route->>Route: ctx = request.state.tenant_context
+        Route->>Route: build RunRequest(**body) — W35-T1 spine validation
+        Route->>+Facade: start(ctx, req)
+        Facade-->>-Route: RunResponse
+        Route-->>-Idem: 201 + JSON
+        Idem->>Idem: facade.mark_complete(tenant_id, key, response, 201)
+        Idem-->>-Tenant: 201
+        Tenant-->>-JWT: 201
+        JWT-->>-Client: 201
     end
 ```
 
-### SSE event stream (GET /v1/runs/{id}/events)
+SSE event stream (`GET /v1/runs/{id}/events`):
 
 ```mermaid
 sequenceDiagram
@@ -188,48 +164,108 @@ sequenceDiagram
     participant Facade as EventFacade
     participant Kernel
 
-    Client->>+Tenant: GET /v1/runs/{run_id}/events
-    Tenant->>Tenant: validate X-Tenant-Id, attach TenantContext
-    Note over Tenant,Route: GET is non-mutating;<br/>IdempotencyMiddleware passes through
-    Tenant->>+Route: pass request
+    Client->>+Tenant: GET /v1/runs/id/events
+    Tenant->>Tenant: validate X-Tenant-Id
+    Note over Tenant,Route: GET non-mutating; IdempotencyMiddleware passes
+    Tenant->>+Route: forward
     Route->>+Facade: assert_run_visible(ctx, run_id)
     Facade->>+Kernel: get_run(tenant_id, run_id)
-    Kernel-->>-Facade: dict (or NotFoundError)
+    Kernel-->>-Facade: dict or NotFoundError
     Facade-->>-Route: RunStatus
     alt run not visible
-        Route-->>Client: 404 NotFoundError envelope
+        Route-->>Client: 404 envelope
     else visible
-        Route->>+Route: open StreamingResponse(_generator(), media_type="text/event-stream")
+        Route->>Route: open StreamingResponse text/event-stream
         loop until terminal or client disconnect
-            Route->>+Facade: iter_events(ctx, run_id)
+            Route->>+Facade: iter_events(ctx, run_id) live stream W33-C.5
             Facade->>+Kernel: iter_events(tenant_id, run_id)
-            Kernel-->>-Facade: list[dict]
-            Facade-->>-Route: Iterable[dict]
-            Route->>Route: for event in iter:<br/>  yield render_sse_chunk(event)<br/>  await asyncio.sleep(0)
+            Kernel-->>-Facade: dict iterator
+            Facade-->>-Route: yields events
+            Route->>Route: yield render_sse_chunk; await asyncio.sleep(0)
         end
-        Route-->>-Client: text/event-stream (id, data lines, blank-line terminator)
+        Route-->>-Client: text/event-stream chunks until terminal
         Tenant-->>-Client: stream closes
     end
 ```
 
-The SSE response includes `Cache-Control: no-cache` and `X-Accel-Buffering: no` so reverse proxies (nginx, Cloudflare) do not buffer events.
+---
+
+## 5. Key Contracts / Public API
+
+```python
+def build_app(
+    *,
+    run_facade: RunFacade,
+    event_facade: EventFacade | None = None,
+    artifact_facade: ArtifactFacade | None = None,
+    manifest_facade: ManifestFacade | None = None,
+    idempotency_facade: IdempotencyFacade | None = None,
+    idempotency_strict: bool | None = None,
+    tenant_event_emitter: TenantEventEmitter | None = None,
+    include_mcp_tools: bool = False,
+    include_skills_memory: bool = False,
+    include_gates: bool = True,
+    lifespan: AsyncContextManager[None] | None = None,
+) -> FastAPI: ...
+```
+
+**W35-T8 boot-time invariant** (`agent_server/api/__init__.py:138-156`):
+```python
+if idempotency_facade is None and (include_mcp_tools or include_skills_memory):
+    raise ValueError("build_app: include_* require idempotency_facade is not None ...")
+```
+This makes the dedup-dependent route groups fail-fast at boot rather than at first
+replayed request.
+
+Routes (all under `/v1/`):
+
+| Method | Path | Mutating? | Idempotency required? |
+|---|---|---|---|
+| GET | `/v1/health` | no | no |
+| POST | `/v1/runs` | yes | research/prod |
+| GET | `/v1/runs/{id}` | no | no |
+| POST | `/v1/runs/{id}/signal` | yes | research/prod |
+| POST | `/v1/runs/{id}/cancel` | yes | research/prod |
+| GET | `/v1/runs/{id}/events` (SSE) | no | no |
+| GET | `/v1/runs/{id}/artifacts` | no | no |
+| GET | `/v1/artifacts/{id}` | no | no |
+| POST | `/v1/artifacts` | yes | research/prod |
+| POST | `/v1/gates/{id}/decide` | yes | research/prod |
+| GET | `/v1/manifest` | no | no |
+| POST | `/v1/skills` | yes | always (W35-T8) |
+| POST | `/v1/memory/write` | yes | always (W35-T8) |
+| GET / POST | `/v1/mcp/tools[/{name}]` | mutating on POST | always (W35-T8) |
 
 ---
 
-## 5. State & Persistence
+## 6. Posture Behaviour (Rule 11)
 
-API handlers hold **no per-request state** other than what FastAPI/Starlette provide via `request.state`. The middleware writes:
-- `request.state.tenant_context: TenantContext` — set by `TenantContextMiddleware`.
+| Posture | `Authorization` | `X-Tenant-Id` | `Idempotency-Key` | W35-T1 spine validation | W35-T3 cross-check |
+|---|---|---|---|---|---|
+| `dev` | passthrough; anonymous claims injected | required (always) | optional, warning log if absent | warns on missing fields | warns when body tenant_id ≠ middleware |
+| `research` | required Bearer JWT (`HI_AGENT_JWT_SECRET` HMAC) | required | required on mutating routes | raises `SpineCompletenessError` (400) | raises `TenantScopeError` (400) |
+| `prod` | required | required | required | raises | raises |
 
-Persistent state lives in:
-- `IdempotencyStore` (SQLite) — accessed via `IdempotencyFacade` from the middleware.
-- The kernel's run/event/artifact stores — accessed only through facades.
-
-Routers themselves are constructed once at app build time via `build_router(*, facade=...)` factory functions; each factory closes over the facade instance and exposes an `APIRouter` to FastAPI.
+Health and metrics paths bypass `JWTAuthMiddleware` via `_EXEMPT_PATHS`
+(`/v1/health`, `/health`, `/metrics`).
 
 ---
 
-## 6. Concurrency & Lifecycle
+## 7. Failure Modes (Rule 7 fallback inventory)
+
+| Path | Countable | Attributable | Inspectable | Gate-asserted |
+|---|---|---|---|---|
+| `JWTAuthMiddleware` rejects malformed/expired/missing JWT | 401 rate observable; no per-rejection counter | `WARNING` log line per rejection | client receives 401 envelope | `tests/integration/test_v1_jwt_auth_middleware.py` |
+| `TenantContextMiddleware` missing `X-Tenant-Id` | n/a | log + `tenant_context` spine event | client receives 401 `AuthError` | route integration tests |
+| `IdempotencyMiddleware` body mismatch on same key | `hi_agent_idempotency_conflict_total` (W35-T6) | `WARNING` log | client receives 409 envelope | `tests/integration/test_idempotency_metrics.py` |
+| `IdempotencyMiddleware` replay (same key+body) | `hi_agent_idempotency_replay_total` (W35-T6) | `INFO` log | cached response served | `tests/integration/test_idempotency_metrics.py` |
+| `IdempotencyMiddleware` missing key under dev | n/a (advisory) | `idempotency_header_missing` `WARNING` log | request proceeds, no dedup | dev-posture tests |
+| `RunRequest` missing spine field (W35-T1) | n/a (typed exception) | `SpineCompletenessError` traceback | 400 envelope w/ category | `tests/integration/test_routes_*.py` |
+| Route handler raises uncaught | n/a | FastAPI 500 | client sees 500 | route tests + `scripts/check_route_coverage.py` |
+
+---
+
+## 8. Resource Lifecycle (Rule 5)
 
 The middleware order at request time is critical and counter-intuitive:
 
@@ -243,165 +279,107 @@ if tenant_event_emitter is not None:
     app.add_middleware(TenantContextMiddleware, tenant_event_emitter=...)
 else:
     app.add_middleware(TenantContextMiddleware)
-# W33-C.4: JWT auth is outermost so unauthenticated requests are
-# rejected before the tenant or idempotency layers see them.
+# W33-C.4: JWT auth is outermost
 app.add_middleware(JWTAuthMiddleware)
 ```
 
 Resulting order at request time (outer → inner):
 `JWTAuth → TenantContext → Idempotency → Route handler`.
 
-Health and metrics paths bypass `JWTAuthMiddleware` via the `_EXEMPT_PATHS` allowlist
-(`/v1/health`, `/health`, `/metrics`).
-
 Lifespan integration:
-- The `IdempotencyStore` is built by `bootstrap.py` and lives for the app's lifetime.
-- `agent_server/runtime/lifespan.py` (W32 Track A) registers a FastAPI lifespan handler that builds the kernel `AgentServer` on startup, triggers `_rehydrate_runs`, and drains on shutdown.
-- The `_health` route handler is sync and returns immediately; it carries no kernel dependency.
+- `IdempotencyStore` is built by `bootstrap.py` and lives for the app's lifetime.
+- `agent_server/runtime/lifespan.py` (W32-A + W33-C.1 + W35-T4) registers the FastAPI
+  lifespan that builds the kernel `AgentServer` on startup, runs `_rehydrate_runs`,
+  starts `_lease_expiry_loop`, `_current_stage_watchdog`, and `_idempotency_purge_loop`.
+- Health and metrics handlers are sync and carry no kernel dependency.
 
 Per-route concurrency:
 - Route handlers are `async def`; FastAPI routes them on its event loop.
-- The SSE generator yields cooperatively (`await asyncio.sleep(0)`) so single-threaded uvicorn workers do not block on a long stream.
+- The SSE generator yields cooperatively (`await asyncio.sleep(0)`) so single-threaded
+  uvicorn workers do not block on a long stream.
 
 ---
 
-## 7. Error Handling & Observability
+## 9. Lineage / Spine Compliance (Rule 12)
 
-Error flow:
-
-```mermaid
-flowchart TD
-    A[Client request] --> AJ{JWTAuthMiddleware}
-    AJ -->|exempt path| B
-    AJ -->|missing/invalid JWT, strict posture| AJR[401 unauthorized envelope]
-    AJ -->|dev passthrough OR valid JWT| B{TenantContextMiddleware}
-    B -->|missing X-Tenant-Id| C[401 AuthError envelope]
-    B -->|valid| D{IdempotencyMiddleware}
-    D -->|key reuse + body mismatch| E[409 ConflictError envelope]
-    D -->|missing key + strict posture| F[400 ContractError envelope]
-    D -->|valid or non-mutating| G[Route handler]
-    G -->|raises ContractError| H[envelope with subclass http_status]
-    G -->|raises uncaught| I[FastAPI 500]
-    G -->|success| J[2xx + JSONResponse]
-    J --> K[IdempotencyMiddleware.mark_complete]
-    K --> L[response back to client]
-```
-
-Every error envelope shape is unified (HD-5):
-```json
-{
-  "error": "AuthError",
-  "error_category": "auth_required",
-  "message": "missing or empty X-Tenant-Id header",
-  "retryable": false,
-  "next_action": "supply X-Tenant-Id header",
-  "tenant_id": "",
-  "detail": ""
-}
-```
-
-Observability emissions from this layer:
-| Emission | Source | Event/metric |
-|---|---|---|
-| `tenant_context` spine event | `TenantContextMiddleware` (W31-N N.4) | `hi_agent.observability.spine_events.emit_tenant_context(tenant_id)` |
-| `idempotency_header_missing` warning log | `IdempotencyMiddleware` (dev posture) | logger `agent_server.idempotency`, level `WARNING` |
-| HTTP access log | uvicorn | per-request method/path/status/duration |
-
-The middleware deliberately does NOT emit per-request metrics — that responsibility lives in `hi_agent.observability` so the metric cardinality is bounded by the kernel's existing infrastructure.
-
----
-
-## 8. Security Boundary
-
-Tenant identity is **read exclusively from request headers**, never from the request body (R-AS-4):
-
-```python
-# routes_runs.py
-def _ctx(request: Request) -> TenantContext:
-    ctx = getattr(request.state, "tenant_context", None)
-    if not isinstance(ctx, TenantContext):  # defensive — middleware guards
-        raise ContractError("tenant context missing", detail="middleware")
-    return ctx
-```
-
-`scripts/check_route_tenant_context.py` (and `check_route_scope.py`) parse every route handler and fail CI on:
+Tenant identity is **read exclusively from request headers**, never from the request body
+(R-AS-4). Route handlers call `_ctx(request)` which returns the
+`TenantContext` set by middleware. `scripts/check_route_tenant_context.py` and
+`scripts/check_route_scope.py` parse every route handler and fail CI on:
 - Reading `tenant_id` from `body` / `request.json()`.
 - Calling a facade method without first reading `_ctx(request)`.
 
-Idempotency:
-- Key + tenant_id is the composite store key. Cross-tenant key collisions are structurally impossible.
-- Body mismatch on the same key returns 409, not the cached response — preventing "key recycling" attacks.
+Idempotency is scoped by `(tenant_id, key)` composite — cross-tenant key collisions are
+structurally impossible.
 
-Layering enforcement:
-- `scripts/check_layering.py` — no `hi_agent.*` import under `agent_server/api/`.
-- `scripts/check_no_reverse_imports.py` — `hi_agent/` does not import `agent_server.*`.
-- `scripts/check_documented_routes.py` — every route handler has a docstring.
-- `scripts/check_route_coverage.py` — every public route has at least one integration test.
+W35-T1 spine: `RunRequest`, `GateDecisionRequest`, `MemoryWriteRequest`, etc. validate
+spine completeness at construction. Under research/prod, missing fields raise
+`SpineCompletenessError` which the route handler maps to 400 + envelope.
 
-Path-traversal: workspace-related routes delegate to `hi_agent/server/workspace_path.py`, which enforces canonical paths within tenant root. The contract value object is `agent_server/contracts/workspace.py::WorkspaceContext`.
-
----
-
-## 9. Extension Points
-
-Adding a new route handler (Rule 4 R-AS-5: TDD-red-first):
-
-1. **Write the failing test first.** Add an integration test under `tests/integration/test_routes_<surface>.py` that exercises the new route. Confirm it fails (RED).
-2. **Capture the RED commit SHA.** `git log -1 --format=%H` — this is your `tdd-red-sha`.
-3. **Create or extend the route module.** Add a new `agent_server/api/routes_<surface>.py` (or extend an existing one) with:
-   ```python
-   """<summary>.
-
-   # tdd-red-sha: <the SHA from step 2>
-   """
-   ```
-4. **Build a `build_router(*, ...)` factory** that takes facade dependencies as keyword-only arguments and returns an `APIRouter`.
-5. **Add per-handler annotations.** Above each `@router.<method>(...)` decorator, add `# tdd-red-sha: <sha>`.
-6. **Wire it in `build_app`.** Add a parameter to `agent_server/api/__init__.py::build_app` and pass it via `bootstrap.py`.
-7. **Add a unit test** if the handler does anything non-trivial (most don't).
-8. **Run the gates:**
-   - `python scripts/check_tdd_evidence.py` — confirms the SHA annotation is real.
-   - `python scripts/check_layering.py` — confirms no `hi_agent.*` import.
-   - `python scripts/check_route_tenant_context.py` — confirms tenant context read from `request.state`.
-   - `python scripts/check_documented_routes.py` — docstring present.
-
-Adding new middleware: follow the same TDD-red-first workflow but implement `BaseHTTPMiddleware`. Register it in `build_app` keeping order in mind (last-added = outermost).
+W35-T3 anti-forgery: `RunManager.create_run` cross-checks body `tenant_id` against the
+authenticated middleware `tenant_id`; a mismatch raises `TenantScopeError` under strict.
+The route handler therefore cannot be tricked into accepting a body-supplied tenant.
 
 ---
 
-## 10. Constraints & Trade-offs
+## 10. Test Layers (Rule 4)
 
-What this design assumes:
-- Synchronous route handlers backed by sync-shaped facades. Async handlers are supported by FastAPI but would force the facade to expose async methods, doubling the surface.
-- JSON-only request/response on RPC routes; SSE on event streams. No GraphQL, no protobuf at v1.
-- Tenant identity is in headers, not in JWT claims. JWT validation is a future enhancement (`HI_AGENT_POSTURE=prod` plans to layer it).
+| Layer | Path | What it asserts |
+|---|---|---|
+| L1 unit | `tests/unit/test_*_facade.py` | facade contract behaviour with stubs |
+| L2 integration | `tests/integration/test_routes_*.py` | route-level handlers with stub facades |
+| L2 integration | `tests/integration/test_idempotency_metrics.py` (W35-T6) | metrics emitted on replay/conflict/purge |
+| L2 integration | `tests/integration/test_idempotency_ttl_purge.py` (W35-T4) | purge loop drains expired records |
+| L2 integration | `tests/integration/test_mcp_tools_idempotency.py` (W35-T8) | replay + conflict + boot rejection on missing facade |
+| L2 integration | `tests/integration/test_v1_jwt_auth_middleware.py` (W33-C.4) | JWT validation under all three postures |
+| L3 e2e | `tests/e2e/test_e2e_agent_server_*.py` | end-to-end client flows |
 
-What this design does NOT handle well:
-- **Streaming uploads.** Routes accept JSON bodies up to FastAPI defaults; large artifact uploads currently use a separate write path via `ArtifactFacade.register`, not a multipart stream.
-- **WebSocket transport.** SSE is one-way (server → client). Bidirectional protocols would need a WebSocket router and a different facade contract.
-- **Per-route rate limiting.** Today's rate-limiting middleware (`hi_agent.server`) is global. Per-tenant per-route rate limits are tracked as a future capability.
+Gates:
+- `scripts/check_layering.py` — no `hi_agent.*` import under `agent_server/api/`
+- `scripts/check_route_scope.py`, `scripts/check_route_tenant_context.py` (R-AS-4)
+- `scripts/check_route_coverage.py` — every public route has at least one integration test
+- `scripts/check_tdd_evidence.py` (R-AS-5) — every handler carries `# tdd-red-sha:`
+- `scripts/check_documented_routes.py` — docstring required
 
 ---
 
-## 11. References
+## 11. Open Roadmap Items (W36+)
 
-- Builder: `agent_server/api/__init__.py:54` (`build_app`)
-- Middleware:
-  - `agent_server/api/middleware/auth.py:44` (`JWTAuthMiddleware`, W33-C.4)
-  - `agent_server/api/middleware/tenant_context.py:50` (`TenantContextMiddleware`)
-  - `agent_server/api/middleware/idempotency.py:101` (`IdempotencyMiddleware`)
-  - `agent_server/api/middleware/idempotency.py:232` (`register_idempotency_middleware`)
-- Route handlers: `agent_server/api/routes_*.py` (8 files)
-- Facade dependencies: `agent_server/facade/ARCHITECTURE.md`
-- Contract dependencies: `agent_server/contracts/ARCHITECTURE.md`
-- Real-kernel binding: `agent_server/runtime/ARCHITECTURE.md`
-- Integration tests: `tests/integration/test_routes_*.py`
-- E2E tests: `tests/e2e/test_e2e_agent_server_*.py`
-- Gates:
-  - `scripts/check_layering.py`
-  - `scripts/check_route_scope.py`
-  - `scripts/check_route_tenant_context.py`
-  - `scripts/check_route_coverage.py`
-  - `scripts/check_tdd_evidence.py`
-  - `scripts/check_documented_routes.py`
-- Closure taxonomy + R-AS rules: `CLAUDE.md` (Ownership Tracks → AS-RO row + Narrow-Trigger Rules)
+- W36: per-route rate limiting beyond the global limiter. Tracked in
+  `docs/governance/boot-time-assertions-roadmap.md`.
+- W36: streaming uploads via multipart through `ArtifactFacade.register`. Tracked in
+  `docs/governance/retention-roadmap.md`.
+- W37+: WebSocket transport for bidirectional streams (currently SSE only).
+- W37+: per-error-category metrics roll-up (errors carry `error_category` strings but
+  don't yet feed Prometheus).
+
+---
+
+## 12. References
+
+Builder & middleware:
+- `agent_server/api/__init__.py:57` — `build_app`
+- `agent_server/api/__init__.py:138-156` — W35-T8 boot-time assertion
+- `agent_server/api/middleware/auth.py:44` — `JWTAuthMiddleware` (W33-C.4)
+- `agent_server/api/middleware/tenant_context.py:50` — `TenantContextMiddleware`
+- `agent_server/api/middleware/idempotency.py:101` — `IdempotencyMiddleware`
+- `agent_server/api/middleware/idempotency.py:232` — `register_idempotency_middleware`
+
+Route handlers: `agent_server/api/routes_*.py` (8 files)
+
+Sibling subsystems:
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — top-level facade
+- [`../runtime/ARCHITECTURE.md`](../runtime/ARCHITECTURE.md) — real-kernel binding (auth seam)
+- [`../contracts/ARCHITECTURE.md`](../contracts/ARCHITECTURE.md) — frozen v1 schemas
+- [`../config/ARCHITECTURE.md`](../config/ARCHITECTURE.md) — settings, version constants
+- [`../cli/ARCHITECTURE.md`](../cli/ARCHITECTURE.md) — operator CLI
+
+W35 references:
+- `hi_agent/observability/idempotency_metrics.py` — W35-T6 metric helpers
+- `docs/observability/idempotency-metrics.md` — metric catalog
+- `docs/governance/boot-time-assertions-roadmap.md`
+
+Governance:
+- CLAUDE.md → AS-RO ownership track + Narrow-Trigger Rules
+- CLAUDE.md → Rule 7 (Resilience), Rule 11 (Posture), Rule 12 (Spine)
+- `docs/platform/agent-server-northbound-contract-v1.md`
