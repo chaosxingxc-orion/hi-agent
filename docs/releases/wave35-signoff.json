@@ -5,7 +5,7 @@
   "release_captain": "hi-agent platform team",
   "manifest_id": "2026-05-05-460a64bb",
   "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-460a64bb.json",
-  "release_head": "460a64bb65c80f0a04ccef02bd29ddf3c1c6df42",
+  "release_head": "460a64bb65c8c5a797e086b499749842019fe966",
   "predecessor_manifest_id": "2026-05-05-77222f8b",
   "directive": "docs/upstream-directives/2026-05-05-hi-agent-wave35-acceptance-and-wave36-expectations.md",
   "delivery_notice": "docs/downstream-responses/2026-05-05-w35-delivery-notice.md",

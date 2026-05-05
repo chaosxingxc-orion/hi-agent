@@ -4,7 +4,7 @@
 **Wave:** 35
 **Status:** SHIP
 **Manifest:** `2026-05-05-460a64bb` (built at HEAD `460a64bb`)
-**Functional HEAD:** `8bce5bc` (per Rule 14 §4.4: closure notice cites the manifest's release_head once written)
+Functional HEAD: 460a64bb65c8c5a797e086b499749842019fe966
 **Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
@@ -180,4 +180,4 @@ Both items demonstrate the value of RIA's continuous structural review — the n
 ---
 
 **Signed:** hi-agent platform team
-**Audit head:** docs match hi-agent main at 2026-05-05, manifest release_head `460a64bb65c80f0a04ccef02bd29ddf3c1c6df42`
+**Audit head:** docs match hi-agent main at 2026-05-05, manifest release_head `460a64bb65c8c5a797e086b499749842019fe966`
