@@ -279,6 +279,11 @@ def build_production_app(
         real_backend = RealKernelBackend(
             state_dir=resolved_state_dir, posture=posture
         )
+        # W35-T4: surface the idempotency store on the backend so the
+        # lifespan purge loop can find it without reaching into FastAPI
+        # app.state. The bootstrap is the only seam permitted to wire
+        # these together (R-AS-1).
+        real_backend._idempotency_store = idem_store  # type: ignore[attr-defined]  expiry_wave: permanent
         run_facade = RunFacade(
             start_run=real_backend.start_run,
             get_run=real_backend.get_run,

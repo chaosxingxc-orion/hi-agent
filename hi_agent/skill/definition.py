@@ -194,6 +194,11 @@ class SkillDefinition:
             raise ValueError(
                 "SkillDefinition.tenant_id required under research/prod posture"
             )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.skill.definition").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
+            )
 
         # W32 Track B Gap 5 (W33 T-25'): under research/prod posture, the
         # placeholder ``model="default"`` is rejected — callers MUST supply

@@ -37,6 +37,40 @@ class SessionRecord:
     created_at: float
     archived_at: float | None
 
+    def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture ``session_id`` and ``tenant_id`` MUST
+        be non-empty — a session row that cannot answer "which session
+        belongs to which tenant" is unattributable. ``user_id`` is
+        legitimately optional for some service-account flows so it is
+        not part of the required spine here.
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.session_id:
+            missing.append("session_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "SessionRecord constructed without required spine fields "
+                f"under posture={posture.value}: missing={missing}. "
+                "Populate at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.server.session_store").warning(
+            "session_record_spine_incomplete: missing=%s posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            missing,
+            posture.value,
+        )
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (

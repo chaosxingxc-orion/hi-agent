@@ -14,8 +14,45 @@ removing the prior pattern of ``err.http_status = 400`` after
 construction. Existing post-instantiation mutation continues to work
 — instance assignment still binds on the instance — but new code
 should pass the kwargs to the constructor instead.
+
+W35-T1: ``SpineCompletenessError`` and ``_strict_posture`` live here so
+``agent_server`` contracts can fail-closed under research/prod posture
+without importing :mod:`hi_agent.config.posture` (forbidden under
+R-AS-1, the agent_server-must-not-depend-on-hi_agent-runtime layering
+rule). Mirrors the semantics of
+:class:`hi_agent.contracts.reasoning.SpineCompletenessError` so callers
+that catch one or the other observe equivalent behaviour.
 """
 from __future__ import annotations
+
+import os
+
+_STRICT_POSTURE_VALUES = frozenset({"research", "prod"})
+
+
+def _strict_posture() -> bool:
+    """Return ``True`` when ``HI_AGENT_POSTURE`` selects fail-closed mode.
+
+    Mirrors :class:`hi_agent.config.posture.Posture.is_strict` semantics
+    without importing the hi_agent runtime (R-AS-1). The env var is read
+    on every call so tests that monkeypatch ``HI_AGENT_POSTURE`` see the
+    update immediately.
+    """
+    return (
+        os.environ.get("HI_AGENT_POSTURE", "dev").strip().lower()
+        in _STRICT_POSTURE_VALUES
+    )
+
+
+class SpineCompletenessError(ValueError):
+    """Raised when an agent_server contract is constructed without a spine.
+
+    W35-T1 / Rule 12: every persistent record must carry the spine fields
+    declared in CLAUDE.md (tenant_id plus relevant subset of run_id,
+    stage_id, ...). Under research/prod posture, missing spine fields
+    fail closed via this typed exception so upstream gates can assert the
+    failure mode without string-matching the message.
+    """
 
 
 class ContractError(Exception):

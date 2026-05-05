@@ -13,6 +13,7 @@ venv/
 .env
 .hi_agent/
 .hi_agent_soak_*/
+.agent_server/
 .tmp_smoke/
 .checkpoint/
 .tmp_soak_scratch/

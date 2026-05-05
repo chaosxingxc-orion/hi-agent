@@ -14,10 +14,9 @@ with a recorded reason so CI on default-offline runners passes cleanly.
 from __future__ import annotations
 
 import os
-from typing import Iterable
+from collections.abc import Iterable
 
 import pytest
-
 
 pytestmark = pytest.mark.integration
 
@@ -42,9 +41,8 @@ def _run_workload_against_backend(backend_marker: str, *, n: int, m: int) -> lis
     submitted. Length == n.
     """
     pytest.importorskip("fastapi.testclient")
-    from fastapi.testclient import TestClient
-
     from agent_server.bootstrap import build_production_app
+    from fastapi.testclient import TestClient
 
     # Force the stub backend for both legs of the equivalence test — the
     # equivalence target is the durable-write path, not the kernel-execute

@@ -8,10 +8,7 @@ Layer: unit (Rule 4 Layer 1).
 """
 from __future__ import annotations
 
-import os
-
 import pytest
-
 from hi_agent.contracts.reasoning import ReasoningTrace, SpineCompletenessError
 
 

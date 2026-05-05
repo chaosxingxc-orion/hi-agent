@@ -109,6 +109,24 @@ def build_app(
         only when ``idempotency_facade`` is wired.
     include_gates:
         When True (default), wire POST /v1/gates/{gate_id}/decide.
+        Note (W35-T8): gates routes degrade gracefully when
+        ``idempotency_facade is None`` — the middleware never registers
+        and thus the dedup predicate never fires, so each decision call
+        is forwarded straight to the handler. This is a known limitation
+        (no replay protection) but not a functional defect like
+        ``include_skills_memory`` / ``include_mcp_tools`` whose mutating
+        routes share the same exposure surface and are gated below.
+
+    Boot-time assertion (W35-T8)
+    ----------------------------
+    Mutating route groups whose replay semantics depend on the
+    idempotency middleware MUST NOT be wired without an
+    ``idempotency_facade``. ``build_app`` raises :class:`ValueError` at
+    startup when any of ``include_mcp_tools`` / ``include_skills_memory``
+    is True while ``idempotency_facade is None``. This converts a silent
+    functional defect (mutating routes served without dedup coverage)
+    into a fail-fast bootstrap error.
+
     lifespan:
         Optional FastAPI lifespan context manager (W32-A). When
         provided, attached as the FastAPI app's lifespan so the
@@ -117,6 +135,26 @@ def build_app(
         startup/shutdown protocol. Tests and stub builds pass ``None``
         and get FastAPI's default no-op lifespan.
     """
+    # W35-T8: any mutating route group that depends on idempotency for replay
+    # semantics MUST be wired with an idempotency_facade. Failure to provide
+    # one would silently expose the routes without dedup coverage — a real
+    # functional defect on the public API. Fail-fast at boot rather than
+    # discovering at first replayed request.
+    _routes_requiring_idempotency = {
+        "include_mcp_tools": include_mcp_tools,
+        "include_skills_memory": include_skills_memory,
+    }
+    if idempotency_facade is None:
+        enabled_dependent = [
+            name for name, enabled in _routes_requiring_idempotency.items() if enabled
+        ]
+        if enabled_dependent:
+            raise ValueError(
+                f"build_app: {enabled_dependent} require idempotency_facade is not None "
+                f"to ensure mutating-route replay semantics; supply idempotency_facade "
+                f"in the bootstrap or set the include_* flags to False (W35-T8)."
+            )
+
     app_kwargs: dict[str, Any] = {
         "title": "agent_server northbound facade",
         "version": AGENT_SERVER_API_VERSION,

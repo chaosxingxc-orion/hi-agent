@@ -132,19 +132,21 @@ class TestTeamRunRegisterPostureAware:
     def test_team_run_register_default_empty_spine_under_research_posture_raises(
         self, tmp_path, monkeypatch
     ):
-        """research posture + empty tenant_id must raise ValueError, not silently default."""
+        """research posture + empty tenant_id must raise, not silently default.
+
+        W35-T1: TeamRun construction now raises SpineCompletenessError under
+        research/prod when tenant_id is empty — earlier than the registry
+        layer the original test targeted. Functionally equivalent: rejection
+        happens before the run reaches durable storage.
+        """
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-        db_file = str(tmp_path / "team_registry.sqlite")
-        reg = TeamRunRegistry(db_path=db_file)
-        team = TeamRun(
-            team_id="team-empty",
-            pi_run_id="run-pi-empty",
-            project_id="proj-empty",
-            # tenant_id deliberately omitted — defaults to ""
-        )
-        with pytest.raises(ValueError, match="tenant_id is required"):
-            reg.register(team)
-        reg.close()
+        with pytest.raises(ValueError, match="tenant_id"):
+            TeamRun(
+                team_id="team-empty",
+                pi_run_id="run-pi-empty",
+                project_id="proj-empty",
+                # tenant_id deliberately omitted — defaults to ""
+            )
 
     def test_team_run_register_empty_spine_under_dev_posture_allows(
         self, tmp_path, monkeypatch

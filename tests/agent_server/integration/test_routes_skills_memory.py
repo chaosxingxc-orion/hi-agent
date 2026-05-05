@@ -32,6 +32,7 @@ import jwt as pyjwt
 import pytest
 from agent_server.api import build_app
 from agent_server.contracts.errors import NotFoundError
+from agent_server.facade.idempotency_facade import IdempotencyFacade
 from agent_server.facade.run_facade import RunFacade
 from fastapi.testclient import TestClient
 
@@ -92,20 +93,46 @@ def _stub_signal_run(**_: Any) -> dict[str, Any]:
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture()
-def client() -> TestClient:
+def _make_client(tmp_path, *, is_strict: bool = False) -> TestClient:
+    """Build a TestClient with the skills/memory routes wired.
+
+    W35-T8: build_app now asserts idempotency_facade is wired when
+    include_skills_memory=True, so every variant supplies a facade.
+    """
     run_facade = RunFacade(
         start_run=_stub_start_run,
         get_run=_stub_get_run,
         signal_run=_stub_signal_run,
     )
+    idem_facade = IdempotencyFacade(
+        db_path=tmp_path / "idem.db", is_strict=is_strict
+    )
     app = build_app(
         run_facade=run_facade,
+        idempotency_facade=idem_facade,
+        idempotency_strict=is_strict,
         include_skills_memory=True,
         include_gates=False,
         include_mcp_tools=False,
     )
     return TestClient(app)
+
+
+@pytest.fixture()
+def client(tmp_path) -> TestClient:
+    return _make_client(tmp_path, is_strict=False)
+
+
+@pytest.fixture()
+def strict_client(tmp_path) -> TestClient:
+    """W35-T8: research/prod-posture strict-mode client.
+
+    Built with ``is_strict=True`` so the idempotency facade reports the
+    strict flag and the route handler's ``_is_strict()`` check returns
+    True. Used by the research-posture missing-key tests that must
+    return 400.
+    """
+    return _make_client(tmp_path, is_strict=True)
 
 
 def _headers(tenant: str = "tenant-A", *, role: str = "write") -> dict[str, str]:
@@ -267,16 +294,21 @@ def test_post_skills_tenant_id_in_response_matches_header(
 
 @pytest.mark.integration
 def test_post_skills_research_posture_missing_idempotency_key_returns_400(
-    client: TestClient, monkeypatch
+    strict_client: TestClient, monkeypatch
 ) -> None:
-    """Under research/prod posture, missing Idempotency-Key must be rejected."""
+    """Under research/prod posture, missing Idempotency-Key must be rejected.
+
+    W35-T8: the test now uses ``strict_client`` (built with
+    ``is_strict=True``) so the idempotency middleware enforces the
+    research/prod fail-closed policy at the middleware layer.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     body = {
         "skill_id": "greet",
         "version": "1.0.0",
         "handler_ref": "myapp.skills.greet",
     }
-    resp = client.post("/v1/skills", json=body, headers=_headers())
+    resp = strict_client.post("/v1/skills", json=body, headers=_headers())
     assert resp.status_code == 400, resp.text
     data = resp.json()
     assert data["error"] == "ContractError"
@@ -420,12 +452,16 @@ def test_post_memory_write_tenant_id_in_response_matches_header(
 
 @pytest.mark.integration
 def test_post_memory_write_research_posture_missing_idempotency_key_returns_400(
-    client: TestClient, monkeypatch
+    strict_client: TestClient, monkeypatch
 ) -> None:
-    """Under research/prod posture, missing Idempotency-Key must be rejected."""
+    """Under research/prod posture, missing Idempotency-Key must be rejected.
+
+    W35-T8: see twin test on /v1/skills above for the strict_client
+    rationale.
+    """
     monkeypatch.setenv("HI_AGENT_POSTURE", "research")
     body = {"key": "strict-key", "value": "strict-val"}
-    resp = client.post("/v1/memory/write", json=body, headers=_headers())
+    resp = strict_client.post("/v1/memory/write", json=body, headers=_headers())
     assert resp.status_code == 400, resp.text
     data = resp.json()
     assert data["error"] == "ContractError"

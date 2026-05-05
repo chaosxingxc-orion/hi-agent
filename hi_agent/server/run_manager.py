@@ -13,7 +13,6 @@ import queue
 import threading
 import time
 import uuid
-import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -440,10 +439,28 @@ class RunManager:
         """
         idempotency_key: str | None = task_contract_dict.get("idempotency_key")
 
-        # --- body spine precedence under research/prod ----------------
-        # Under dev: middleware (workspace) wins for backwards compatibility.
-        # Under research/prod: explicit body spine wins; emit DeprecationWarning
-        # when body omits tenant_id and we fall back to auth middleware.
+        # --- tenant_id precedence — auth-authoritative, SYMMETRIC (W35-T3) ----
+        # Both postures honour the same auth-authoritative precedence:
+        #
+        #   1. Authenticated middleware tenant_id (workspace.tenant_id) wins
+        #      when present — the JWT-validated identity is the ONLY source
+        #      of truth for tenant scoping (Rule 12 + RO-1 anti-forgery).
+        #   2. Body tenant_id is permitted only as a fallback for paths
+        #      without a middleware-supplied workspace (test rigs, internal
+        #      callers). When BOTH are present and DIFFER, the cross-check
+        #      raises (research/prod) or logs (dev) a forgery warning.
+        #   3. Neither-present is a hard error under research/prod; under
+        #      dev it falls back to the legacy "default" bucket with a
+        #      structured WARNING so the gap is observable.
+        #
+        # Prior to W35-T3, strict posture used the inverse precedence (body
+        # wins, middleware as fallback with DeprecationWarning) while dev
+        # used auth-first. RIA's W35 directive §3.2 flagged the asymmetry
+        # as a Rule 11 reversal: strict appeared more permissive because a
+        # body-tenant_id forgery would override the authenticated identity.
+        # The fix unifies both postures on auth-authoritative ordering and
+        # removes the DeprecationWarning, which was tracking the wrong
+        # transition direction.
         _posture = Posture.from_env()
         if _posture.is_strict and workspace is None:
             raise ValueError(
@@ -452,41 +469,53 @@ class RunManager:
             )
         _middleware_tenant_id: str = workspace.tenant_id if workspace else ""
         _body_tenant_id: str = task_contract_dict.get("tenant_id", "")
-        if _posture.is_strict:
-            if _body_tenant_id:
-                tenant_id = _body_tenant_id
-            elif _middleware_tenant_id:
-                # Fall back to middleware-provided context (still tenant-scoped).
-                warnings.warn(
-                    "body spine required under posture research; falling back to "
-                    "auth middleware. This fallback is retained pending caller "
-                    "migration to body-spine submission.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                tenant_id = _middleware_tenant_id
-            else:
-                # T-12' (W31): no body tenant_id, no middleware tenant_id —
-                # do NOT silently coerce to "default". Fail-closed per Rule 11.
+
+        # Anti-forgery cross-check: body tenant_id MUST match middleware when
+        # both are present. This is the security-critical invariant covered
+        # by tests/integration/test_idempotency_auth_scope.py (RO-1).
+        if (
+            _middleware_tenant_id
+            and _body_tenant_id
+            and _body_tenant_id != _middleware_tenant_id
+        ):
+            if _posture.is_strict:
                 from hi_agent.contracts.errors import TenantScopeError
 
                 raise TenantScopeError(
-                    "RunManager.create_run: tenant_id is required under "
-                    "research/prod posture but neither task_contract.tenant_id "
-                    "nor workspace.tenant_id is set (T-12')."
+                    "RunManager.create_run: body tenant_id="
+                    f"{_body_tenant_id!r} differs from authenticated "
+                    f"middleware tenant_id={_middleware_tenant_id!r}; "
+                    "refusing under research/prod posture (W35-T3)."
                 )
+            logger.warning(
+                "RunManager.create_run: body tenant_id=%r differs from "
+                "middleware tenant_id=%r; using middleware (auth-"
+                "authoritative). Reconcile body submission to match auth "
+                "context (W35-T3).",
+                _body_tenant_id,
+                _middleware_tenant_id,
+            )
+
+        if _middleware_tenant_id:
+            tenant_id = _middleware_tenant_id
+        elif _body_tenant_id:
+            tenant_id = _body_tenant_id
+        elif _posture.is_strict:
+            from hi_agent.contracts.errors import TenantScopeError
+
+            raise TenantScopeError(
+                "RunManager.create_run: tenant_id is required under "
+                "research/prod posture but neither task_contract.tenant_id "
+                "nor workspace.tenant_id is set (T-12'/W35-T3)."
+            )
         else:
-            # dev: middleware wins (backwards compat — RO-1 original behaviour),
-            # but emit a WARNING when we land on the legacy "default" bucket so
-            # the silent fallback is observable (T-12').
-            tenant_id = _middleware_tenant_id or _body_tenant_id
-            if not tenant_id:
-                logger.warning(
-                    "RunManager.create_run: tenant_id missing under dev "
-                    "posture; falling back to 'default' (T-12'). Configure "
-                    "auth/body spine before promoting to research/prod."
-                )
-                tenant_id = "default"
+            logger.warning(
+                "RunManager.create_run: tenant_id missing under dev "
+                "posture; falling back to 'default' (T-12'/W35-T3). "
+                "Configure auth/body spine before promoting to "
+                "research/prod."
+            )
+            tenant_id = "default"
 
         # --- idempotency check (only when store + key are present) ----------
         outcome: str = ""  # set to "created" | "replayed" | "conflict" when idem is active

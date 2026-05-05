@@ -102,6 +102,64 @@ On replay these are NOT re-emitted from the snapshot — the route handler
 re-decorates the replayed body with fresh values for the replaying
 request. This prevents trace-lineage falsification when a second client
 retries a key that a first client originally used.
+
+## Limitations (W35-T5: Float canonicalization roadmap)
+
+Today the canonical body hash is computed via
+``json.dumps(payload, sort_keys=True, ensure_ascii=True)`` (SHA-256
+digest). This is deterministic for the dictionary shape and key order,
+but is *not* canonical for numeric content — specifically:
+
+- ``{"x": 1}`` and ``{"x": 1.0}`` hash differently because ``json.dumps``
+  preserves the int/float distinction.
+- ``{"x": 1.0}`` and ``{"x": 1.00}`` hash the same (both render as
+  ``"1.0"``), but ``{"x": 0.1 + 0.2}`` and ``{"x": 0.3}`` hash
+  differently because the IEEE-754 representations differ.
+- Trailing zeros in fractional parts (``1.10`` vs ``1.1``) are
+  collapsed by ``json.dumps`` so are NOT a hash divergence.
+
+The practical consequence: a client that re-submits a numerically
+*equivalent* request body whose JSON-serialised numeric form differs
+will receive a fresh "created" outcome rather than a "replayed". This
+is a defensible default (strict content-hash equality) but it loses the
+"semantic equivalence" property that some idempotency consumers expect.
+
+**Why this is not fixed in W35.** Switching to a canonicalised numeric
+form (e.g. always rendering integers as floats, or rounding to a fixed
+precision) is a *breaking change* to the body-hash contract: any tenant
+with retries-in-flight at the moment of the change would observe their
+retries reclassified from "replayed" to "created" (or vice versa) in a
+single deploy. That is a correctness regression for a tenant that the
+platform has no way to detect or compensate.
+
+**Migration plan (target W37+).** When the canonicalisation upgrade is
+scheduled, the migration follows:
+
+  1. Two-month deprecation window announcement to RIA + any other
+     downstream consumers.
+  2. Add a new content-hash column ``canonical_request_hash`` alongside
+     the existing ``request_hash``; the middleware computes both for a
+     deprecation window.
+  3. Replay matches against ``request_hash`` (legacy) for the deprecation
+     window; emits a ``hi_agent_idempotency_canonicalisation_drift_total``
+     counter when ``canonical_request_hash`` differs from ``request_hash``
+     for the same payload.
+  4. After the deprecation window, replay switches to
+     ``canonical_request_hash`` and ``request_hash`` is dropped.
+
+This contract document is the source of truth for the migration plan.
+The implementation lives downstream of this contract and will land in a
+W37+ release. Until then, callers MUST NOT submit numerically-equivalent
+bodies expecting them to dedupe.
+
+## Limitations (Cross-region multi-process)
+
+Idempotency replay is consistent within a single process and across
+process restarts on the same host (per-host SQLite). It is NOT
+consistent across multi-host deployments unless an external
+coordinator is wired (e.g. a shared SQL-backed store). Multi-host
+coordination is explicitly out of scope for v1; cross-region replay
+is a v2 contract concern.
 """
 from __future__ import annotations
 

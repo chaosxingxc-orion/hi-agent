@@ -628,6 +628,44 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Spine layer: total events persisted to SQLiteEventStore (event_store boundary).",
     ),
+    # W35-T6: idempotency observability metrics. Operators need cache-age
+    # distribution, replay rate, conflict rate, and purged-record counts to
+    # tell "client retried correctly" from "client has a body-mismatch bug"
+    # and to size TTL/cleanup budgets. Labels: tenant_bucket (str(hash(tenant_id) % 16))
+    # keeps cardinality bounded.
+    "hi_agent_idempotency_replay_total": _MetricDef(
+        "hi_agent_idempotency_replay_total",
+        "counter",
+        (
+            "Idempotency reserve_or_replay outcomes other than 'created' "
+            "(labels: tenant_bucket, outcome=replayed|conflict)."
+        ),
+    ),
+    "hi_agent_idempotency_conflict_total": _MetricDef(
+        "hi_agent_idempotency_conflict_total",
+        "counter",
+        (
+            "Idempotency-Key reused with a different request body — likely a "
+            "client bug (labels: tenant_bucket)."
+        ),
+    ),
+    "hi_agent_idempotency_purged_total": _MetricDef(
+        "hi_agent_idempotency_purged_total",
+        "counter",
+        (
+            "Records deleted by IdempotencyStore.purge_expired in batched "
+            "VACUUM operations (no labels — VACUUM batches are tenant-mixed)."
+        ),
+    ),
+    "hi_agent_idempotency_record_age_seconds": _MetricDef(
+        "hi_agent_idempotency_record_age_seconds",
+        "histogram",
+        (
+            "Age in seconds of an idempotency record at the moment a replay "
+            "or conflict outcome is decided (labels: tenant_bucket). Recommended "
+            "buckets: 1, 60, 300, 1800, 3600, 21600, 86400, 172800."
+        ),
+    ),
 }
 
 # Maximum samples retained for histogram-like metrics.

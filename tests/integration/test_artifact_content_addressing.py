@@ -69,11 +69,23 @@ def test_register_with_mismatched_content_hash_raises_conflict(monkeypatch, tmp_
     # to be manually pinned without integrity-error firing first.  This is the
     # realistic shape of the conflict path: legacy callers pinning ids while
     # the platform still wants to detect tamper-writes.
-    art_a = Artifact(artifact_id="legacy-fixed-id", content={"k": "A"})
+    art_a = Artifact(
+        artifact_id="legacy-fixed-id",
+        content={"k": "A"},
+        tenant_id="t",
+        run_id="r",
+        project_id="p",
+    )
     ledger.register(art_a)
 
     # Second write: same pinned id, but content_hash differs.
-    art_b = Artifact(artifact_id="legacy-fixed-id", content={"k": "B"})
+    art_b = Artifact(
+        artifact_id="legacy-fixed-id",
+        content={"k": "B"},
+        tenant_id="t",
+        run_id="r",
+        project_id="p",
+    )
     assert art_a.content_hash != art_b.content_hash, "fixture sanity"
 
     with pytest.raises(ArtifactConflictError):
@@ -84,13 +96,18 @@ def test_research_posture_rejects_non_derived_id_on_write(monkeypatch, tmp_path)
     """Under research posture, writing a content-addressable artifact whose
     artifact_id does not derive from content_hash raises ArtifactIntegrityError.
     """
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    # W35-T1: build the artifact under dev posture (where empty-spine warns)
+    # then switch to research before invoking the ledger so the integrity
+    # check fires. Spine validation now rejects empty tenant_id under
+    # research at construction time, ahead of the integrity check we want
+    # to exercise here.
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     monkeypatch.setenv("HI_AGENT_DATA_DIR", str(tmp_path))
-    ledger = ArtifactLedger(tmp_path / "artifacts.jsonl")
-
     art = DocumentArtifact(content={"k": "v"})
     art.artifact_id = "manual-id-123"  # does NOT derive from content_hash
 
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    ledger = ArtifactLedger(tmp_path / "artifacts.jsonl")
     with pytest.raises(ArtifactIntegrityError):
         ledger.register(art)
 
@@ -107,8 +124,14 @@ def test_load_tampered_entry_under_research_raises(monkeypatch, tmp_path):
     ledger_file = tmp_path / "artifacts.jsonl"
 
     # Build a tampered row: derive nothing — store artifact_id="bad" with a
-    # real content_hash for a content-addressable type.
-    art = DocumentArtifact(content={"k": "v"})
+    # real content_hash for a content-addressable type. W35-T1: build the
+    # artifact under dev (empty-spine warns) so we can capture its hash;
+    # add explicit spine fields to the persisted dict so from_dict's
+    # spine validation surfaces the integrity check we want to exercise.
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    art = DocumentArtifact(
+        content={"k": "v"}, tenant_id="t", run_id="r", project_id="p"
+    )
     real_hash = art.content_hash
     tampered = art.to_dict()
     tampered["artifact_id"] = "tampered-bad-id"

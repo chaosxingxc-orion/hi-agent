@@ -84,11 +84,36 @@ class Artifact:
     run_id: str = ""
 
     def __post_init__(self) -> None:
-        """Auto-compute content_hash for all artifact types when content is present."""
+        """Auto-compute content_hash and validate Rule 12 spine completeness."""
         if self.content and not self.content_hash:
             self.content_hash = hashlib.sha256(
                 _json.dumps(self.content, sort_keys=True, default=str).encode()
             ).hexdigest()
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.project_id:
+            missing.append("project_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"Artifact constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        _logger.warning(
+            "Artifact.tenant_id/run_id/project_id empty under dev posture; would "
+            "fail under research/prod (Rule 12). missing=%s",
+            missing,
+        )
 
     def __hash__(self) -> int:  # identity by artifact_id; mutable fields excluded
         """Hash by artifact_id; mutable fields excluded."""

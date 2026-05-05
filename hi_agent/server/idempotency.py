@@ -42,6 +42,42 @@ class IdempotencyRecord:
     # were stored before this column existed (treated as "succeeded").
     status_code: int = 200
 
+    def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture ``tenant_id`` / ``idempotency_key`` /
+        ``run_id`` are all required — an idempotency row that cannot answer
+        "which tenant, which key, which run" is unattributable and cannot
+        be safely replayed. Under dev posture missing fields are logged
+        and construction proceeds (back-compat for legacy SQLite rows).
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.idempotency_key:
+            missing.append("idempotency_key")
+        if not self.run_id:
+            missing.append("run_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "IdempotencyRecord constructed without required spine fields "
+                f"under posture={posture.value}: missing={missing}. "
+                "Populate at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.server.idempotency").warning(
+            "idempotency_record_spine_incomplete: missing=%s posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            missing,
+            posture.value,
+        )
+
 
 def _hash_payload(payload: dict[str, Any]) -> str:
     """Return SHA-256 hex digest of canonicalized JSON payload."""
@@ -154,6 +190,50 @@ ON idempotency_records (tenant_id, idempotency_key)
 
     # -- public API ----------------------------------------------------------
 
+    def purge_expired(self, now: float | None = None) -> int:
+        """W35-T4: delete idempotency records past their expires_at.
+
+        Records with status='pending' that pass their expires_at are also purged
+        (they represent stuck/abandoned reservations that will never complete).
+
+        Returns the count of rows deleted. Performs VACUUM when >=100 rows
+        were purged to reclaim disk space; smaller purges skip VACUUM since
+        SQLite handles small fragmentation cheaply.
+
+        W35-T6: increments ``hi_agent_idempotency_purged_total`` after a
+        non-empty purge so operators can size cleanup budgets.
+
+        Thread-safe: serialized via ``self._lock`` like every other writer.
+        """
+        cutoff = float(now) if now is not None else time.time()
+        with self._lock:
+            cur = self._conn.execute(
+                "DELETE FROM idempotency_records WHERE expires_at < ?",
+                (cutoff,),
+            )
+            deleted = int(cur.rowcount or 0)
+            self._conn.commit()
+            # VACUUM cannot run inside a transaction; run it after commit.
+            # Lazy threshold: small purges leave fragmentation alone because
+            # SQLite reuses freed pages cheaply for new inserts. Only when
+            # a meaningful chunk has been deleted do we reclaim the file
+            # space — VACUUM rewrites the entire database file and is
+            # expensive on a hot store.
+            if deleted >= 100:
+                try:
+                    self._conn.execute("VACUUM")
+                except sqlite3.OperationalError:
+                    # VACUUM fails on :memory: or read-only / locked-file
+                    # backends; the DELETE has already succeeded so we
+                    # treat reclaim as best-effort.
+                    pass
+        # W35-T6: emit purged-count metric outside the SQLite lock so the
+        # observability path never blocks the next reserve_or_replay caller.
+        if deleted > 0:
+            from hi_agent.observability.idempotency_metrics import record_purged
+            record_purged(deleted)
+        return deleted
+
     def reserve_or_replay(
         self,
         tenant_id: str,
@@ -205,6 +285,25 @@ ON idempotency_records (tenant_id, idempotency_key)
         expires_at = now + ttl_seconds
 
         with self._lock:
+            # W35-T4 lazy purge: if a record exists for this key but its
+            # expires_at has already passed, delete it before INSERT so the
+            # caller is treated as fresh ("created") rather than seeing a
+            # stale conflict/replay. The race where two callers both observe
+            # the expired row is handled by the IntegrityError catch below
+            # (whichever DELETE wins commits first; the loser inserts).
+            cur = self._conn.execute(
+                "SELECT expires_at FROM idempotency_records "
+                "WHERE tenant_id = ? AND idempotency_key = ?",
+                (tenant_id, idempotency_key),
+            )
+            existing = cur.fetchone()
+            if existing is not None and float(existing[0]) < now:
+                self._conn.execute(
+                    "DELETE FROM idempotency_records "
+                    "WHERE tenant_id = ? AND idempotency_key = ?",
+                    (tenant_id, idempotency_key),
+                )
+                self._conn.commit()
             # RO-9: attempt atomic INSERT; on UNIQUE violation read the winner back.
             try:
                 self._conn.execute(
@@ -265,6 +364,20 @@ ON idempotency_records (tenant_id, idempotency_key)
             outcome: Literal["created", "replayed", "conflict"] = (
                 "replayed" if record.request_hash == request_hash else "conflict"
             )
+            # W35-T6: emit replay/conflict + age metrics. Done inside the
+            # `with self._lock` block (post-commit reads) so the metric
+            # update is consistent with the outcome value returned to the
+            # caller. Metric helpers swallow their own observability
+            # failures so we do not leak noise back into the SQLite path.
+            from hi_agent.observability.idempotency_metrics import (
+                observe_age,
+                record_conflict,
+                record_replay,
+            )
+            record_replay(tenant_id, outcome)
+            if outcome == "conflict":
+                record_conflict(tenant_id)
+            observe_age(tenant_id, now - record.created_at)
             return outcome, record
 
     # HD-7: identity / observability fields stripped from the snapshot prior

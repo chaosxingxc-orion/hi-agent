@@ -95,6 +95,45 @@ async def _lease_expiry_loop(agent_server, interval_s: float) -> None:
             )
 
 
+async def _idempotency_purge_loop(agent_server, interval_s: float) -> None:
+    """W35-T4: periodically purge expired IdempotencyStore records.
+
+    Without this loop the SQLite ``idempotency.db`` grows unbounded as
+    every reserved key persists forever even though ``expires_at`` was
+    set on insert. The purge interval defaults to 600 s (10 min) and is
+    overridable via ``HI_AGENT_IDEMPOTENCY_PURGE_INTERVAL_S``. Emits a
+    Rule 7 silent-degradation signal on failure so a stuck purge is
+    visible to operators rather than silently leaking disk.
+
+    The store is looked up off ``agent_server._idempotency_store``, which
+    the bootstrap stashes after constructing the production store. When
+    no store is attached (e.g. embedder/test harness without one) the
+    loop becomes a no-op and exits immediately.
+    """
+    store = getattr(agent_server, "_idempotency_store", None)
+    if store is None:
+        return
+    loop = asyncio.get_running_loop()
+    while True:
+        try:
+            await asyncio.sleep(interval_s)
+        except asyncio.CancelledError:
+            raise
+        try:
+            purged = await loop.run_in_executor(None, store.purge_expired)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            record_silent_degradation(
+                component="idempotency_purge_loop",
+                reason="purge_failed",
+                exc=exc,
+            )
+            continue
+        if purged > 0:
+            _log.info("idempotency purge: deleted %d records", purged)
+
+
 async def _current_stage_watchdog(agent_server) -> None:
     """Detect non-terminal runs whose ``current_stage`` is None for >60 s.
 
@@ -231,6 +270,12 @@ def build_real_kernel_lifespan(backend: RealKernelBackend):
     @contextlib.asynccontextmanager
     async def _lifespan(_app) -> AsyncIterator[None]:
         agent_server = backend.agent_server
+        # W35-T4: bootstrap stashes the production IdempotencyStore on the
+        # backend so the purge loop can find it without poking app.state.
+        idempotency_store = getattr(backend, "_idempotency_store", None)
+        if idempotency_store is not None:
+            # Surface on agent_server so the purge loop's getattr finds it.
+            agent_server._idempotency_store = idempotency_store
 
         # Startup: rehydrate runs from previous process (best-effort).
         try:
@@ -250,6 +295,22 @@ def build_real_kernel_lifespan(backend: RealKernelBackend):
         watchdog_task = asyncio.create_task(
             _current_stage_watchdog(agent_server)
         )
+        # W35-T4: idempotency purge loop. Started only when a store was
+        # attached to the backend so test harnesses without one stay quiet.
+        purge_task: asyncio.Task | None = None
+        if idempotency_store is not None:
+            purge_interval_s = float(
+                os.environ.get("HI_AGENT_IDEMPOTENCY_PURGE_INTERVAL_S", "600")
+            )
+            purge_task = asyncio.create_task(
+                _idempotency_purge_loop(agent_server, purge_interval_s)
+            )
+            agent_server._idempotency_purge_task = purge_task
+            backend._idempotency_purge_task = purge_task  # type: ignore[attr-defined]  expiry_wave: permanent
+            _log.info(
+                "lifespan: idempotency purge loop started (interval=%.1fs)",
+                purge_interval_s,
+            )
         # Stash on the backend so test/introspection code can assert
         # they were started without reaching into agent_server private
         # attributes.
@@ -271,7 +332,10 @@ def build_real_kernel_lifespan(backend: RealKernelBackend):
             yield
         finally:
             # Cancel background tasks first so they do not race teardown.
-            for bg_task in (lease_task, watchdog_task):
+            bg_tasks: tuple[asyncio.Task, ...] = (lease_task, watchdog_task)
+            if purge_task is not None:
+                bg_tasks = (*bg_tasks, purge_task)
+            for bg_task in bg_tasks:
                 bg_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await bg_task

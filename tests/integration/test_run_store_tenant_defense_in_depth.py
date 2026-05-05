@@ -16,7 +16,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hi_agent.server.run_store import RunRecord, SQLiteRunStore, TenantScopeError
 
 

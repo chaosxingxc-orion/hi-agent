@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from enum import StrEnum
@@ -10,6 +11,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hi_agent.context.run_execution_context import RunExecutionContext
+
+_logger = logging.getLogger(__name__)
 
 
 class OpStatus(StrEnum):
@@ -38,6 +41,31 @@ class OpHandle:
     def __post_init__(self):
         if isinstance(self.status, str):
             self.status = OpStatus(self.status)
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.project_id:
+            missing.append("project_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"OpHandle constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        logging.getLogger("hi_agent.operations.op_store").warning(
+            "OpHandle.tenant_id/run_id/project_id empty under dev posture; would "
+            "fail under research/prod (Rule 12). missing=%s",
+            missing,
+        )
 
 
 class LongRunningOpStore:
@@ -102,6 +130,11 @@ class LongRunningOpStore:
             raise ValueError(
                 "LongRunningOpStore.create: empty tenant_id under research/prod posture; "
                 "pass tenant_id= or exec_ctx= with a non-empty tenant_id"
+            )
+        elif not tenant_id:
+            _logger.warning(
+                "LongRunningOpStore.create: empty tenant_id under dev posture; "
+                "would fail under research/prod (Rule 12)."
             )
         with self._conn() as conn:
             conn.execute(

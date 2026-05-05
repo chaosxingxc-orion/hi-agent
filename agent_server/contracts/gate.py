@@ -1,9 +1,12 @@
 """Pause/resume gate contract types."""
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from typing import Any
+
+from agent_server.contracts.errors import SpineCompletenessError, _strict_posture
 
 # W31-N (N.5): posture-strict values mirror
 # :class:`hi_agent.config.posture.Posture.is_strict` semantics. Resolved
@@ -13,6 +16,9 @@ _STRICT_POSTURE_VALUES = frozenset({"research", "prod"})
 
 def _posture_is_strict() -> bool:
     return os.environ.get("HI_AGENT_POSTURE", "dev").lower() in _STRICT_POSTURE_VALUES
+
+
+_LOGGER = logging.getLogger("agent_server.contracts.gate")
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,28 @@ class PauseToken:
     reason: str = ""
     emitted_at: str = ""
 
+    def __post_init__(self) -> None:
+        """W35-T1: validate Rule 12 spine completeness."""
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.run_id:
+            missing.append("run_id")
+        if not missing:
+            return
+        if _strict_posture():
+            posture = "research/prod"
+            raise SpineCompletenessError(
+                f"PauseToken constructed without required spine fields under "
+                f"posture={posture}: missing={missing}. Populate at the "
+                "construction site (Rule 12)."
+            )
+        _LOGGER.warning(
+            "pause_token_spine_incomplete: missing=%s posture=dev; "
+            "would fail-closed under research/prod (W35-T1)",
+            missing,
+        )
+
 
 @dataclass(frozen=True)
 class ResumeRequest:
@@ -34,6 +62,28 @@ class ResumeRequest:
     run_id: str
     pause_token: str
     input_data: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """W35-T1: validate Rule 12 spine completeness."""
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.run_id:
+            missing.append("run_id")
+        if not missing:
+            return
+        if _strict_posture():
+            posture = "research/prod"
+            raise SpineCompletenessError(
+                f"ResumeRequest constructed without required spine fields under "
+                f"posture={posture}: missing={missing}. Populate at the "
+                "construction site (Rule 12)."
+            )
+        _LOGGER.warning(
+            "resume_request_spine_incomplete: missing=%s posture=dev; "
+            "would fail-closed under research/prod (W35-T1)",
+            missing,
+        )
 
 
 @dataclass(frozen=True)
@@ -45,6 +95,28 @@ class GateEvent:
     event_type: str  # "paused" | "resumed"
     token: str = ""
     created_at: str = ""
+
+    def __post_init__(self) -> None:
+        """W35-T1: validate Rule 12 spine completeness."""
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.run_id:
+            missing.append("run_id")
+        if not missing:
+            return
+        if _strict_posture():
+            posture = "research/prod"
+            raise SpineCompletenessError(
+                f"GateEvent constructed without required spine fields under "
+                f"posture={posture}: missing={missing}. Populate at the "
+                "construction site (Rule 12)."
+            )
+        _LOGGER.warning(
+            "gate_event_spine_incomplete: missing=%s posture=dev; "
+            "would fail-closed under research/prod (W35-T1)",
+            missing,
+        )
 
 
 @dataclass

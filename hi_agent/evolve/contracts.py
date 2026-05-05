@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -32,9 +33,15 @@ class EvolveChange:
     def __post_init__(self) -> None:
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict and not self.tenant_id:
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "EvolveChange.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.evolve.contracts").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 
@@ -58,6 +65,30 @@ class EvolveMetrics:
     tenant_id: str = ""  # scope: process-internal — metrics; populated from caller context
     project_id: str = ""
 
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.project_id:
+            missing.append("project_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"EvolveMetrics constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        logging.getLogger("hi_agent.evolve.contracts").warning(
+            "EvolveMetrics.tenant_id/project_id empty under dev posture; would fail "
+            "under research/prod (Rule 12). missing=%s",
+            missing,
+        )
+
 
 @dataclass
 class EvolveResult:
@@ -80,6 +111,30 @@ class EvolveResult:
     timestamp: str
     tenant_id: str = ""  # scope: process-internal — result; populated from caller context
     project_id: str = ""
+
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.project_id:
+            missing.append("project_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"EvolveResult constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        logging.getLogger("hi_agent.evolve.contracts").warning(
+            "EvolveResult.tenant_id/project_id empty under dev posture; would fail "
+            "under research/prod (Rule 12). missing=%s",
+            missing,
+        )
 
 
 @dataclass
@@ -134,6 +189,11 @@ class RunRetrospective:
             raise ValueError(
                 "RunRetrospective.tenant_id required under research/prod posture"
             )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.evolve.contracts").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
+            )
 
 
 class PromotionBlockedError(Exception):
@@ -163,6 +223,11 @@ class CalibrationSignal:
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "CalibrationSignal.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.evolve.contracts").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 
@@ -197,6 +262,11 @@ class ProjectRetrospective:
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "ProjectRetrospective.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.evolve.contracts").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 
@@ -235,6 +305,11 @@ class EvolutionTrial:
         if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "EvolutionTrial.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.evolve.contracts").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 

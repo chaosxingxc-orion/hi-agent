@@ -50,9 +50,15 @@ class SkillAnalysis:
     def __post_init__(self) -> None:
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict and not self.tenant_id:
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "SkillAnalysis.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.skill.evolver").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 

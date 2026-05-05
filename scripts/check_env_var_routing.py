@@ -90,9 +90,8 @@ def _is_environ_get_for(node: ast.Call, var_name: str) -> bool:
         and func.attr == "get"
         and isinstance(func.value, ast.Attribute)
         and func.value.attr == "environ"
-    ):
-        if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == var_name:
-            return True
+    ) and node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == var_name:
+        return True
     # os.getenv("VAR", ...)
     if isinstance(func, ast.Attribute) and func.attr == "getenv":
         if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == var_name:
@@ -108,9 +107,7 @@ def _is_environ_index_for(node: ast.Subscript, var_name: str) -> bool:
     ):
         return False
     sl = node.slice
-    if isinstance(sl, ast.Constant) and sl.value == var_name:
-        return True
-    return False
+    return bool(isinstance(sl, ast.Constant) and sl.value == var_name)
 
 
 def _scan_file(path: Path, var_name: str) -> list[int]:
@@ -125,9 +122,7 @@ def _scan_file(path: Path, var_name: str) -> list[int]:
         return []
     hits: list[int] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and _is_environ_get_for(node, var_name):
-            hits.append(node.lineno)
-        elif isinstance(node, ast.Subscript) and _is_environ_index_for(node, var_name):
+        if (isinstance(node, ast.Call) and _is_environ_get_for(node, var_name)) or (isinstance(node, ast.Subscript) and _is_environ_index_for(node, var_name)):
             hits.append(node.lineno)
     return hits
 

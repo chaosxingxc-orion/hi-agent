@@ -70,7 +70,7 @@ class TeamRun:
     team_id: str
     project_id: str
     # (agent_role_id, run_id) pairs for each team member
-    tenant_id: str = ""  # Rule 12 spine — validated in TeamRunRegistry.register()
+    tenant_id: str = ""  # Rule 12 spine — validated in __post_init__
     member_runs: tuple[tuple[str, str], ...] = ()
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     # Contract spine (Rule 12): persistent records must answer "which tenant".
@@ -80,6 +80,39 @@ class TeamRun:
     pi_run_id: str = ""
     # Canonical field (Wave 11+). Prefer lead_run_id for all new callers.
     lead_run_id: str = dataclasses.field(default="")
+
+    def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture both ``tenant_id`` and ``project_id``
+        must be non-empty — a TeamRun row that cannot answer "which tenant
+        / which project" is unattributable. Under dev posture missing
+        fields are logged and construction proceeds.
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.project_id:
+            missing.append("project_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "TeamRun constructed without required spine fields "
+                f"under posture={posture.value}: missing={missing}. "
+                "Populate at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.contracts.team_runtime").warning(
+            "team_run_spine_incomplete: missing=%s posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            missing,
+            posture.value,
+        )
 
 
 @dataclass(frozen=True)

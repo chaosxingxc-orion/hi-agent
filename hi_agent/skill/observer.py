@@ -48,11 +48,34 @@ class SkillObservation:
     max_summary_len: int = 500
 
     def __post_init__(self) -> None:
-        """Truncate summaries to max length."""
+        """Truncate summaries to max length and validate Rule 12 spine."""
         if len(self.input_summary) > self.max_summary_len:
             self.input_summary = self.input_summary[: self.max_summary_len]
         if len(self.output_summary) > self.max_summary_len:
             self.output_summary = self.output_summary[: self.max_summary_len]
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"SkillObservation constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        logging.getLogger("hi_agent.skill.observer").warning(
+            "SkillObservation.run_id/tenant_id empty under dev posture; would fail "
+            "under research/prod (Rule 12). missing=%s",
+            missing,
+        )
 
 
 @dataclass
@@ -79,9 +102,15 @@ class SkillMetrics:
     def __post_init__(self) -> None:
         from hi_agent.config.posture import Posture
 
-        if Posture.from_env().is_strict and not self.tenant_id:
+        posture = Posture.from_env()
+        if posture.is_strict and not self.tenant_id:
             raise ValueError(
                 "SkillMetrics.tenant_id required under research/prod posture"
+            )
+        elif not self.tenant_id:
+            logging.getLogger("hi_agent.skill.observer").warning(
+                "%s.tenant_id empty under dev posture; would fail under research/prod (Rule 12).",
+                type(self).__name__,
             )
 
 

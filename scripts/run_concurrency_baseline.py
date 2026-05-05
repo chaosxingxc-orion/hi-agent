@@ -142,14 +142,13 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
-    if not args.no_wait_health:
-        if not _wait_for_health(args.server, timeout=30.0):
-            print(
-                f"FAIL concurrency-baseline: /v1/health did not return 200 from "
-                f"{args.server} within 30s",
-                file=sys.stderr,
-            )
-            return 1
+    if not args.no_wait_health and not _wait_for_health(args.server, timeout=30.0):
+        print(
+            f"FAIL concurrency-baseline: /v1/health did not return 200 from "
+            f"{args.server} within 30s",
+            file=sys.stderr,
+        )
+        return 1
 
     workers = args.workers or args.concurrency
     requests = [
@@ -187,10 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         }
 
     medians = [v["p50_ms"] for v in per_tenant.values() if v["p50_ms"] > 0]
-    if medians:
-        fairness = max(medians) / min(medians)
-    else:
-        fairness = 0.0
+    fairness = max(medians) / min(medians) if medians else 0.0
 
     artifact = {
         "schema": "hi-agent.concurrency-baseline.v1",

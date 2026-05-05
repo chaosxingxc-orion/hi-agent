@@ -42,9 +42,7 @@ def _is_runexecutioncontext_call(node: ast.Call) -> bool:
     func = node.func
     if isinstance(func, ast.Name) and func.id == "RunExecutionContext":
         return True
-    if isinstance(func, ast.Attribute) and func.attr == "RunExecutionContext":
-        return True
-    return False
+    return bool(isinstance(func, ast.Attribute) and func.attr == "RunExecutionContext")
 
 
 def _scan_file(path: Path) -> list[tuple[str, int, str]]:

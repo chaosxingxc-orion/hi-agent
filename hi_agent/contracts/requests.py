@@ -13,25 +13,50 @@ from hi_agent.contracts.run import RunState
 _logger = logging.getLogger(__name__)
 
 
-def _validate_tenant_id(obj_name: str, tenant_id: str) -> None:
-    """Posture-aware validator for required tenant_id (Rule 11, Rule 12).
+def _validate_spine(obj_name: str, fields: dict[str, str]) -> None:
+    """Posture-aware spine validator (Rule 11, Rule 12).
 
-    Under research/prod: raise ValueError on empty tenant_id.
-    Under dev: emit deprecation warning, allow construction.
+    W35-T1: Asserts every required spine field is non-empty.
+
+    Under research/prod posture: raises ``SpineCompletenessError`` listing
+    every missing field. Under dev posture: logs a warning so local tooling
+    keeps working while making the gap visible.
+
+    Args:
+        obj_name: Class name used in error/log messages.
+        fields: Mapping of field name to its current value. Empty values
+            (empty strings or ``None``) are reported as missing.
     """
-    if tenant_id:
+    from hi_agent.contracts.reasoning import SpineCompletenessError
+
+    missing = [name for name, value in fields.items() if not value]
+    if not missing:
         return
     from hi_agent.config.posture import Posture
 
-    if Posture.from_env().is_strict:
-        raise ValueError(
-            f"{obj_name}.tenant_id required under research/prod posture (got empty string)"
+    posture = Posture.from_env()
+    if posture.is_strict:
+        raise SpineCompletenessError(
+            f"{obj_name} constructed without required spine fields "
+            f"under posture={posture.value}: missing={missing}. "
+            "Populate at the construction site (Rule 12)."
         )
     _logger.warning(
-        "%s constructed with empty tenant_id; will be rejected under research/prod posture "
-        "(Rule 12 contract spine).",
+        "%s constructed with empty spine fields missing=%s posture=%s; "
+        "would fail-closed under research/prod posture (Rule 12).",
         obj_name,
+        missing,
+        posture.value,
     )
+
+
+def _validate_tenant_id(obj_name: str, tenant_id: str) -> None:
+    """Backward-compatible single-field validator.
+
+    Retained for callers that only need to validate ``tenant_id``. Internally
+    delegates to :func:`_validate_spine`.
+    """
+    _validate_spine(obj_name, {"tenant_id": tenant_id})
 
 
 @dataclass(frozen=True)
@@ -45,7 +70,8 @@ class StartRunRequest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("StartRunRequest", self.tenant_id)
+        # Spine: tenant_id required (run_id is not yet known at start time).
+        _validate_spine("StartRunRequest", {"tenant_id": self.tenant_id})
 
 
 @dataclass(frozen=True)
@@ -57,7 +83,10 @@ class StartRunResponse:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("StartRunResponse", self.tenant_id)
+        _validate_spine(
+            "StartRunResponse",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -70,7 +99,10 @@ class SignalRunRequest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("SignalRunRequest", self.tenant_id)
+        _validate_spine(
+            "SignalRunRequest",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -85,7 +117,10 @@ class QueryRunResponse:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("QueryRunResponse", self.tenant_id)
+        _validate_spine(
+            "QueryRunResponse",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -99,7 +134,10 @@ class TraceRuntimeView:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("TraceRuntimeView", self.tenant_id)
+        _validate_spine(
+            "TraceRuntimeView",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -113,7 +151,15 @@ class OpenBranchRequest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("OpenBranchRequest", self.tenant_id)
+        _validate_spine(
+            "OpenBranchRequest",
+            {
+                "tenant_id": self.tenant_id,
+                "run_id": self.run_id,
+                "stage_id": self.stage_id,
+                "branch_id": self.branch_id,
+            },
+        )
 
 
 @dataclass(frozen=True)
@@ -127,7 +173,14 @@ class BranchStateUpdateRequest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("BranchStateUpdateRequest", self.tenant_id)
+        _validate_spine(
+            "BranchStateUpdateRequest",
+            {
+                "tenant_id": self.tenant_id,
+                "run_id": self.run_id,
+                "branch_id": self.branch_id,
+            },
+        )
 
 
 @dataclass(frozen=True)
@@ -140,10 +193,16 @@ class HumanGateRequest:
     context: dict[str, Any] = field(default_factory=dict)
     timeout_s: int = 3600
     # Explicit spine — preferred over context dict.
-    tenant_id: str = ""  # scope: process-internal — gate request; middleware-derived
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
+
+    def __post_init__(self) -> None:
+        _validate_spine(
+            "HumanGateRequest",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
 
 @dataclass(frozen=True)
@@ -158,7 +217,13 @@ class ApprovalRequest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("ApprovalRequest", self.tenant_id)
+        # gate_ref is the primary identifier here — the run_id is optional
+        # because some approval flows reference a gate that fans out to
+        # multiple runs.
+        _validate_spine(
+            "ApprovalRequest",
+            {"tenant_id": self.tenant_id, "gate_ref": self.gate_ref},
+        )
 
 
 @dataclass(frozen=True)
@@ -171,7 +236,12 @@ class KernelManifest:
     tenant_id: str = ""  # scope: spine-required — validated in __post_init__
 
     def __post_init__(self) -> None:
-        _validate_tenant_id("KernelManifest", self.tenant_id)
+        # KernelManifest has no run-scoped identifier; tenant_id + version
+        # are the spine-equivalent identifiers for this manifest record.
+        _validate_spine(
+            "KernelManifest",
+            {"tenant_id": self.tenant_id, "version": self.version},
+        )
 
 
 @dataclass
@@ -208,10 +278,16 @@ class RunResult:
     finished_at: str | None = None
     """ISO-8601 UTC timestamp when the run reached a terminal state."""
     # Optional spine fields for HTTP body enrichment (Rule 12).
-    tenant_id: str = ""  # scope: process-internal — run-result; populated from exec_ctx
+    tenant_id: str = ""  # scope: spine-required — validated in __post_init__
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
+
+    def __post_init__(self) -> None:
+        _validate_spine(
+            "RunResult",
+            {"tenant_id": self.tenant_id, "run_id": self.run_id},
+        )
 
     @property
     def success(self) -> bool:

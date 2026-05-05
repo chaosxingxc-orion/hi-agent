@@ -138,6 +138,13 @@ class TaskContract:
     session_id: str = ""
 
     def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture ``tenant_id`` is required (a TaskContract
+        without a tenant cannot enter the default path). The pre-existing
+        ``project_id`` warning is preserved verbatim under all postures so
+        the scope-warning observability surface stays intact.
+        """
         import logging as _logging
 
         if not self.project_id:
@@ -146,6 +153,24 @@ class TaskContract:
                 "(hi_agent_unscoped_project_total). Pass project_id to scope "
                 "memory/artifacts/gates."
             )
+
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        if self.tenant_id:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "TaskContract constructed without required spine fields "
+                f"under posture={posture.value}: missing=['tenant_id']. "
+                "Populate at the construction site (Rule 12)."
+            )
+        _logging.getLogger(__name__).warning(
+            "task_contract_spine_incomplete: missing=['tenant_id'] posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            posture.value,
+        )
 
     @classmethod
     def from_dict(cls, payload: dict) -> TaskContract:

@@ -24,6 +24,39 @@ class TeamEvent:
     created_at: float
     project_id: str = field(default="")
 
+    def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture ``tenant_id`` and ``team_space_id``
+        MUST be non-empty — a team event that cannot answer "which tenant
+        / which team space" is unattributable. Under dev posture missing
+        fields are logged and construction proceeds.
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not self.team_space_id:
+            missing.append("team_space_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "TeamEvent constructed without required spine fields "
+                f"under posture={posture.value}: missing={missing}. "
+                "Populate at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.server.team_event_store").warning(
+            "team_event_spine_incomplete: missing=%s posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            missing,
+            posture.value,
+        )
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS team_events (

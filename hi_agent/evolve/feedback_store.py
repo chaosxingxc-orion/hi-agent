@@ -29,6 +29,30 @@ class RunFeedback:
     session_id: str = ""
     project_id: str = ""
 
+    def __post_init__(self) -> None:
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        missing: list[str] = []
+        if not self.run_id:
+            missing.append("run_id")
+        if not self.tenant_id:
+            missing.append("tenant_id")
+        if not missing:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                f"RunFeedback constructed without required spine fields under "
+                f"posture={posture.value}: missing={missing}. Populate at the "
+                f"construction site (Rule 12)."
+            )
+        logging.getLogger("hi_agent.evolve.feedback_store").warning(
+            "RunFeedback.run_id/tenant_id empty under dev posture; would fail "
+            "under research/prod (Rule 12). missing=%s",
+            missing,
+        )
+
 
 class FeedbackStore:
     """Persists and retrieves run feedback.

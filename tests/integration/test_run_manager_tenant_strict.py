@@ -1,25 +1,30 @@
-"""Strict-posture tenant_id enforcement in RunManager.create_run (T-12' fix).
+"""Strict-posture tenant_id enforcement in RunManager.create_run.
 
-W31, T-12' BLOCKER: RunManager.create_run had two fallback paths that landed
-on a literal "default" tenant_id when neither middleware nor task_contract
-carried one:
+Originally landed under W31 (T-12' BLOCKER). W35-T3 reformed the
+precedence model from "body wins under strict, middleware wins under
+dev" (an INVERTED Rule 11 reversal where strict was MORE permissive
+than dev) to a unified auth-authoritative model: middleware tenant_id
+always wins; body tenant_id is permitted only when middleware is
+absent. A body tenant_id that differs from middleware is treated as a
+forgery attempt — TenantScopeError under strict, structured warning
+under dev.
 
-    # strict path (line 405)
-    tenant_id = _middleware_tenant_id or task_contract_dict.get("tenant_id", "default")
-    # dev path   (line 408)
-    tenant_id = _middleware_tenant_id or _body_tenant_id or "default"
-
-Both paths silently produced cross-tenant attribution. Under research/prod
-this must raise TenantScopeError so the caller cannot create a run with no
-tenant identity.
+Spine validation at the TenantContext layer (W35-T1) further closes
+the gap: under research/prod it is no longer possible to even CONSTRUCT
+a TenantContext with empty tenant_id, so the "empty workspace" test
+shape now lives at the contract layer rather than the run-manager
+layer.
 
 Behaviour now:
-- research/prod posture + workspace=None and no body tenant_id → ValueError
-  (already enforced by the workspace-required guard at line 388).
-- research/prod posture + workspace with empty tenant_id and no body
-  tenant_id → TenantScopeError (new T-12' enforcement).
+- research/prod posture + workspace=None → ValueError (workspace-required guard).
+- research/prod posture + TenantContext(tenant_id="") → SpineCompletenessError
+  raised at TenantContext construction (W35-T1).
+- research/prod posture + workspace with valid tenant_id and no body
+  tenant_id → tenant_id = workspace.tenant_id.
+- research/prod posture + workspace=A and body=B (mismatch) → TenantScopeError
+  (W35-T3 anti-forgery cross-check).
 - dev posture: keeps the legacy "default" fallback with an explicit WARNING
-  log (back-compat).
+  log (back-compat) when both middleware and body are empty.
 """
 
 from __future__ import annotations
@@ -51,31 +56,25 @@ def manager(run_store):
 
 
 class TestStrictPostureForbidsDefaultFallback:
-    def test_research_posture_with_empty_workspace_raises(
-        self, monkeypatch, manager
+    def test_research_posture_empty_tenant_context_raises_at_construction(
+        self, monkeypatch
     ):
-        """workspace.tenant_id="" under research → TenantScopeError, NOT "default"."""
-        monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-        # Simulate auth middleware that produced a context with empty tenant_id
-        # (i.e. silent downgrade we are forbidding).
-        ctx = TenantContext(tenant_id="", user_id="u1", session_id="s1")
-        with pytest.raises(TenantScopeError):
-            manager.create_run(
-                {"goal": "x", "task_id": "t-strict-default-1"},
-                workspace=ctx,
-            )
+        """W35-T1: TenantContext with empty tenant_id raises under research."""
+        from hi_agent.contracts.reasoning import SpineCompletenessError
 
-    def test_prod_posture_with_empty_workspace_raises(
-        self, monkeypatch, manager
+        monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+        with pytest.raises(SpineCompletenessError):
+            TenantContext(tenant_id="", user_id="u1", session_id="s1")
+
+    def test_prod_posture_empty_tenant_context_raises_at_construction(
+        self, monkeypatch
     ):
-        """workspace.tenant_id="" under prod → TenantScopeError."""
+        """W35-T1: TenantContext with empty tenant_id raises under prod."""
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
         monkeypatch.setenv("HI_AGENT_POSTURE", "prod")
-        ctx = TenantContext(tenant_id="", user_id="u1", session_id="s1")
-        with pytest.raises(TenantScopeError):
-            manager.create_run(
-                {"goal": "x", "task_id": "t-strict-default-2"},
-                workspace=ctx,
-            )
+        with pytest.raises(SpineCompletenessError):
+            TenantContext(tenant_id="", user_id="u1", session_id="s1")
 
     def test_research_posture_with_workspace_uses_workspace_tenant(
         self, monkeypatch, manager, run_store
@@ -91,24 +90,45 @@ class TestStrictPostureForbidsDefaultFallback:
         assert record is not None
         assert record.tenant_id == "tenant-A"
 
-    def test_research_posture_body_tenant_id_used(
+    def test_research_posture_body_tenant_id_mismatch_raises(
+        self, monkeypatch, manager
+    ):
+        """W35-T3: under strict, body tenant_id that differs from middleware
+        is treated as a forgery attempt — TenantScopeError raised.
+
+        Reverses the pre-W35-T3 behaviour where body silently overrode
+        middleware (Rule 11 reversal — strict was more permissive than dev).
+        """
+        monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+        ctx = TenantContext(tenant_id="tenant-A", user_id="u1", session_id="s1")
+        with pytest.raises(TenantScopeError):
+            manager.create_run(
+                {
+                    "goal": "x",
+                    "task_id": "t-strict-default-4",
+                    "tenant_id": "tenant-B",  # differs from middleware
+                },
+                workspace=ctx,
+            )
+
+    def test_research_posture_body_tenant_id_match_succeeds(
         self, monkeypatch, manager, run_store
     ):
-        """Under strict, explicit body tenant_id wins over middleware (existing behaviour)."""
+        """W35-T3: under strict, body tenant_id that MATCHES middleware
+        succeeds and uses the middleware (auth-authoritative)."""
         monkeypatch.setenv("HI_AGENT_POSTURE", "research")
         ctx = TenantContext(tenant_id="tenant-A", user_id="u1", session_id="s1")
         run = manager.create_run(
             {
                 "goal": "x",
-                "task_id": "t-strict-default-4",
-                "tenant_id": "tenant-B",
+                "task_id": "t-strict-default-5",
+                "tenant_id": "tenant-A",  # matches middleware
             },
             workspace=ctx,
         )
         record = run_store.get(run.run_id)
         assert record is not None
-        # body wins under strict
-        assert record.tenant_id == "tenant-B"
+        assert record.tenant_id == "tenant-A"
 
 
 # ---------------------------------------------------------------------------

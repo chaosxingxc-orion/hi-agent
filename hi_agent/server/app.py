@@ -1340,6 +1340,58 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
                     run_id,
                 )
                 continue
+            # W35-T9 (W34-F.2 fulfillment): on re-lease, mint a fresh
+            # attempt_id and link the new attempt back to the original
+            # run_id via parent_run_id so postmortem reconstruction can
+            # walk the per-attempt lineage chain. Without this bump the
+            # W34-F.2 design comment ("recovery / re-lease paths bump
+            # attempt_id and set parent_run_id back to this run_id") was
+            # documented but never implemented — Rule 15 closure-claim gap.
+            _run_store = getattr(agent_server, "_run_store", None)
+            if _run_store is not None:
+                try:
+                    from dataclasses import replace as _replace
+                    existing = _run_store.get(run_id)
+                    if existing is not None:
+                        new_attempt_id = str(uuid.uuid4())
+                        updated = _replace(
+                            existing,
+                            attempt_id=new_attempt_id,
+                            parent_run_id=run_id,
+                            attempt_count=(getattr(existing, "attempt_count", 0) or 0) + 1,
+                        )
+                        _run_store.upsert(updated)
+                        logger.info(
+                            "_rehydrate_runs: bumped attempt_id for run_id=%s "
+                            "old=%r new=%s parent=%s (W35-T9)",
+                            run_id,
+                            existing.attempt_id,
+                            new_attempt_id,
+                            run_id,
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "_rehydrate_runs: attempt_id bump failed for run_id=%s: %s",
+                        run_id,
+                        exc,
+                    )
+            # Mirror the bump into the in-memory ManagedRun (when present)
+            # so any executor that picks the run up via the in-process
+            # registry sees the new attempt without re-reading the store.
+            _run_manager = getattr(agent_server, "_run_manager", None)
+            if _run_manager is not None:
+                try:
+                    _mem_run = _run_manager.get_run(run_id)
+                except Exception:
+                    _mem_run = None
+                if _mem_run is not None and _run_store is not None:
+                    try:
+                        _refreshed = _run_store.get(run_id)
+                        if _refreshed is not None:
+                            _mem_run.attempt_id = _refreshed.attempt_id
+                            _mem_run.parent_run_id = _refreshed.parent_run_id
+                    except Exception:
+                        pass
             try:
                 run_queue.reenqueue(run_id=run_id, tenant_id=tenant_id)
             except Exception as exc:

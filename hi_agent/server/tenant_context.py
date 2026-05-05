@@ -29,6 +29,34 @@ class TenantContext:
     request_id: str = ""
     session_id: str = ""
 
+    def __post_init__(self) -> None:
+        """W35-T1: posture-aware spine validation.
+
+        Under research/prod posture ``tenant_id`` MUST be non-empty —
+        every authenticated HTTP request must carry a tenant identity.
+        ``user_id`` and ``session_id`` are intentionally optional because
+        some flows (anonymous health checks, admin tooling) legitimately
+        run without them. Under dev posture missing tenant_id is logged.
+        """
+        from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
+
+        posture = Posture.from_env()
+        if self.tenant_id:
+            return
+        if posture.is_strict:
+            raise SpineCompletenessError(
+                "TenantContext constructed without required spine fields "
+                f"under posture={posture.value}: missing=['tenant_id']. "
+                "Populate at the construction site (Rule 12)."
+            )
+        import logging
+        logging.getLogger("hi_agent.server.tenant_context").warning(
+            "tenant_context_spine_incomplete: missing=['tenant_id'] posture=%s; "
+            "would fail-closed under research/prod. (W35-T1)",
+            posture.value,
+        )
+
     def workspace_key(self):
         """Return a WorkspaceKey for this context."""
         from hi_agent.server.workspace_path import WorkspaceKey

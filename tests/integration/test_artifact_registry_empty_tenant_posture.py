@@ -40,11 +40,18 @@ def _reset_counters() -> None:
 
 
 def test_research_posture_query_excludes_legacy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``query(tenant_id=...)`` excludes legacy tenantless artifacts under strict posture."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    reg = _new_registry()
+    """``query(tenant_id=...)`` excludes legacy tenantless artifacts under strict posture.
+
+    W35-T1: spine validation now rejects empty-tenant_id Artifact construction
+    under research/prod, so the legacy fixture is created under dev posture
+    (where construction succeeds with WARNING) before the test switches the
+    posture and verifies registry-level exclusion.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     legacy = Artifact(artifact_id="legacy-q", artifact_type="base", tenant_id="")
     owned = Artifact(artifact_id="owned-q", artifact_type="base", tenant_id="tenant-A")
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    reg = _new_registry()
     reg._store[legacy.artifact_id] = legacy
     reg._store[owned.artifact_id] = owned
 
@@ -56,11 +63,16 @@ def test_research_posture_query_excludes_legacy(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_research_posture_all_excludes_legacy(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``all(tenant_id=...)`` excludes legacy tenantless artifacts under strict posture."""
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    reg = _new_registry()
+    """``all(tenant_id=...)`` excludes legacy tenantless artifacts under strict posture.
+
+    W35-T1: legacy fixture constructed under dev (see sibling test for
+    rationale).
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     legacy = Artifact(artifact_id="legacy-a", artifact_type="base", tenant_id="")
     owned = Artifact(artifact_id="owned-a", artifact_type="base", tenant_id="tenant-A")
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    reg = _new_registry()
     reg._store[legacy.artifact_id] = legacy
     reg._store[owned.artifact_id] = owned
 
@@ -73,14 +85,15 @@ def test_research_posture_all_excludes_legacy(monkeypatch: pytest.MonkeyPatch) -
 def test_research_posture_query_by_source_ref_excludes_legacy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    reg = _new_registry()
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     leak = Artifact(
         artifact_id="leak-src",
         artifact_type="base",
         tenant_id="",
         source_refs=["src-1"],
     )
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    reg = _new_registry()
     reg._store[leak.artifact_id] = leak
 
     assert reg.query_by_source_ref("src-1", tenant_id="tenant-A") == []
@@ -89,14 +102,15 @@ def test_research_posture_query_by_source_ref_excludes_legacy(
 def test_research_posture_query_by_upstream_excludes_legacy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
-    reg = _new_registry()
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
     leak = Artifact(
         artifact_id="leak-up",
         artifact_type="base",
         tenant_id="",
         upstream_artifact_ids=["up-1"],
     )
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    reg = _new_registry()
     reg._store[leak.artifact_id] = leak
 
     assert reg.query_by_upstream("up-1", tenant_id="tenant-A") == []

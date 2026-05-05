@@ -48,12 +48,29 @@ class GateDecisionRequest:
     )
 
     def __post_init__(self) -> None:
+        """W35-T2 (HIGH): posture-aware spine validation.
+
+        Strict posture (research/prod) raises on empty ``tenant_id``. Dev
+        posture logs a WARNING so the gap is visible without breaking
+        local tooling — closes the WEAK_PARITY observability gap flagged
+        in the W35 systematic audit.
+        """
         from hi_agent.config.posture import Posture
+        from hi_agent.contracts.reasoning import SpineCompletenessError
 
         posture = Posture.from_env()
-        if posture.is_strict and not self.tenant_id:
-            raise ValueError(
-                "GateDecisionRequest.tenant_id is required under research/prod posture"
+        if not self.tenant_id:
+            if posture.is_strict:
+                raise SpineCompletenessError(
+                    "GateDecisionRequest constructed without required spine fields "
+                    f"under posture={posture.value}: missing=['tenant_id']. "
+                    "Populate at the construction site (Rule 12)."
+                )
+            import logging
+            logging.getLogger("hi_agent.contracts.gate_decision").warning(
+                "gate_decision_spine_incomplete: missing=['tenant_id'] posture=%s; "
+                "would fail-closed under research/prod. (W35-T2)",
+                posture.value,
             )
         if self.decision not in {"approved", "rejected"}:
             raise ValueError(

@@ -12,7 +12,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from hi_agent.server.event_store import StoredEvent
 from hi_agent.server.run_manager import ManagedRun
 from hi_agent.server.run_store import RunRecord
@@ -31,19 +30,19 @@ def _dev_posture(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- RunRecord -------------------------------------------------------------
 
 def _full_run_record(**overrides) -> dict:
-    base = dict(
-        run_id="run-1",
-        tenant_id="tenant-A",
-        task_contract_json="{}",
-        status="queued",
-        priority=5,
-        attempt_count=0,
-        cancellation_flag=False,
-        result_summary="",
-        error_summary="",
-        created_at=time.time(),
-        updated_at=time.time(),
-    )
+    base = {
+        "run_id": "run-1",
+        "tenant_id": "tenant-A",
+        "task_contract_json": "{}",
+        "status": "queued",
+        "priority": 5,
+        "attempt_count": 0,
+        "cancellation_flag": False,
+        "result_summary": "",
+        "error_summary": "",
+        "created_at": time.time(),
+        "updated_at": time.time(),
+    }
     base.update(overrides)
     return base
 
@@ -77,14 +76,14 @@ def test_run_record_dev_warns_not_raises(
 # --- StoredEvent -----------------------------------------------------------
 
 def _full_stored_event(**overrides) -> dict:
-    base = dict(
-        event_id="ev-1",
-        run_id="run-1",
-        sequence=0,
-        event_type="run_started",
-        payload_json="{}",
-        tenant_id="tenant-A",
-    )
+    base = {
+        "event_id": "ev-1",
+        "run_id": "run-1",
+        "sequence": 0,
+        "event_type": "run_started",
+        "payload_json": "{}",
+        "tenant_id": "tenant-A",
+    }
     base.update(overrides)
     return base
 
