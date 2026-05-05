@@ -11,4 +11,4 @@ SCHEMA_VERSION = "1.0"
 V1_RELEASED = True
 V1_RELEASED_AT = "2026-04-30"
 # Filled by: python scripts/check_contract_freeze.py --snapshot
-V1_FROZEN_HEAD = "8c6e22f1a48547e48dae6265456317eef1a49c6f"
+V1_FROZEN_HEAD = "8978f0eb7039cd3ea36668fcd76898a6369855f6"
