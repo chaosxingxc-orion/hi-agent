@@ -1,0 +1,55 @@
+{
+  "schema": "hi-agent.wave-signoff.v1",
+  "wave": 34,
+  "signed_at": "2026-05-05T00:00:00Z",
+  "release_captain": "hi-agent platform team",
+  "manifest_id": "2026-05-05-3de2ba4b",
+  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-3de2ba4b.json",
+  "release_head": "3de2ba4b",
+  "predecessor_manifest_id": "2026-05-03-ce9330fa",
+  "directive": "docs/upstream-directives/hi-agent-wave34-engineering-expectations-2026-05-04.md",
+  "delivery_notice": "docs/downstream-responses/2026-05-05-w34-delivery-notice.md",
+  "plan": "docs/superpowers/plans/2026-05-04-wave-34-ria-engineering-expectations.md",
+  "scores": {
+    "raw_implementation_maturity": 94.5,
+    "current_verified_readiness": 75.0,
+    "seven_by_24_operational_readiness": 90.0,
+    "conditional_readiness_after_blockers": 75.0
+  },
+  "cap_factors_active": [
+    "soak_evidence_not_real",
+    "evidence_provenance"
+  ],
+  "acceptance_ids": {
+    "W34-F.2": "PASS",
+    "W34-F.3": "PASS",
+    "W34-F.4": "PASS",
+    "W34-T-FOLLOWUP": "PASS",
+    "W34-MANIFEST": "PASS",
+    "W34-IDEMPOTENCY": "PASS",
+    "W34-CONCURRENCY-METHOD": "PASS",
+    "W34-CONCURRENCY-BASELINE": "PASS",
+    "W34-CONCURRENCY-EQUIV": "PASS",
+    "W34-NAMING-CLOSE": "PASS",
+    "W34-CONFIG-ENV-AUDIT": "PASS",
+    "W34-LINUX-SOAK-ROADMAP": "NOTED"
+  },
+  "blocker_closure_levels": {
+    "B-W34-1 (W34-F.2)": "verified_at_release_head",
+    "B-W34-2 (W34-F.3)": "verified_at_release_head",
+    "B-W34-3 (W34-F.4)": "verified_at_release_head",
+    "B-W34-4 (W34-T-FOLLOWUP)": "verified_at_release_head",
+    "B-W34-5 (W34-MANIFEST)": "verified_at_release_head",
+    "B-W34-6 (W34-IDEMPOTENCY)": "verified_at_release_head",
+    "B-W34-7 (W34-CONCURRENCY-*)": "verified_at_release_head"
+  },
+  "evidence": {
+    "default_offline_clean_env": "docs/verification/85562438-default-offline-clean-env.json",
+    "arch_7x24": "docs/verification/8556243-arch-7x24.json",
+    "t3_volces_real": "docs/delivery/2026-05-05-8d75aff5-t3-volces.json",
+    "concurrency_baseline_n50m5": "docs/verification/c7d1054e-concurrency-N50M5.json",
+    "concurrency_baseline_n10m1": "docs/verification/c7d1054e-concurrency-N10M1.json",
+    "observability_spine": "docs/verification/85562438-observability-spine.json",
+    "observability_spine_provenance": "docs/verification/85562438-observability-spine-provenance.json"
+  }
+}
