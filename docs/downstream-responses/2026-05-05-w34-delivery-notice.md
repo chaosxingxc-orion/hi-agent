@@ -3,8 +3,8 @@
 **Date:** 2026-05-05
 **Wave:** 34
 **Status:** SHIP
-**Manifest:** `2026-05-05-3de2ba4b` (built at HEAD `3de2ba4b`)
-**Functional HEAD:** `3de2ba4b` (per Rule 14 §4.4: closure notice cites the manifest's release_head)
+**Manifest:** `2026-05-05-77222f8b` (built at HEAD `77222f8b`)
+**Functional HEAD:** `77222f8b` (per Rule 14 §4.4: closure notice cites the manifest's release_head)
 **RIA directive:** `docs/upstream-directives/hi-agent-wave34-engineering-expectations-2026-05-04.md` (M1, 2026-05-04)
 **Predecessor:** Wave 33 delivery notice `docs/downstream-responses/2026-05-04-w33-delivery-notice.md` (manifest `2026-05-03-ce9330fa`, verified=75.0)
 
