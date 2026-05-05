@@ -3,9 +3,9 @@
   "wave": 35,
   "signed_at": "2026-05-05T16:50:00Z",
   "release_captain": "hi-agent platform team",
-  "manifest_id": "2026-05-05-12fd4bea",
-  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-12fd4be.json",
-  "release_head": "12fd4beacf29100393ea2f98424c94a52e4c6ecf",
+  "manifest_id": "2026-05-05-55e51a7f",
+  "manifest_path": "docs/releases/platform-release-manifest-2026-05-05-55e51a7.json",
+  "release_head": "55e51a7f4e3c67ffd0b9cfb53608ac3bdd3c8266",
   "predecessor_manifest_id": "2026-05-05-77222f8b",
   "directive": "docs/upstream-directives/2026-05-05-hi-agent-wave35-acceptance-and-wave36-expectations.md",
   "delivery_notice": "docs/downstream-responses/2026-05-05-w35-delivery-notice.md",
@@ -21,7 +21,7 @@
     "dirty_worktree_at_manifest_build_time"
   ],
   "cap_factors_resolution": {
-    "soak_evidence_not_real": "Held per RIA W35 directive §6 explicit no-cap-change. RIA's Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement.",
+    "soak_evidence_not_real": "Held per RIA W35 directive \u00a76 explicit no-cap-change. RIA's Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement.",
     "dirty_worktree_at_manifest_build_time": "Self-resolves once this signoff commit lands; a manifest-only re-build at the next HEAD is the canonical Rule 14 sequence."
   },
   "acceptance_ids": {
@@ -56,9 +56,9 @@
     "boot_time_assertions_roadmap": "docs/governance/boot-time-assertions-roadmap.md"
   },
   "evidence": {
-    "t3_real_volces": "docs/delivery/2026-05-05-12fd4be-t3-volces.json",
-    "default_offline_clean_env": "docs/verification/12fd4be-default-offline-clean-env.json",
-    "arch_7x24": "docs/verification/12fd4be-arch-7x24.json",
+    "t3_real_volces": "docs/delivery/2026-05-05-55e51a7-t3-volces.json",
+    "default_offline_clean_env": "docs/verification/55e51a7-default-offline-clean-env.json",
+    "arch_7x24": "docs/verification/55e51a7-arch-7x24.json",
     "spine_validation_targets_count": 53,
     "default_offline_pass_count": 9288,
     "default_offline_skip_count": 8,
