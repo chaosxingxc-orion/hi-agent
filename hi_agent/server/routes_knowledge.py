@@ -217,8 +217,8 @@ async def handle_knowledge_sync(request: Request) -> JSONResponse:
             {"error": "knowledge_not_configured"},
             status_code=503,
         )
-    pages_synced = km.renderer.to_wiki_pages(km.wiki)
-    km.wiki.rebuild_index()
+    pages_synced = km.renderer.to_wiki_pages(km.wiki, tenant_id=tenant_id)
+    km.wiki.rebuild_index(tenant_id=tenant_id)
     return JSONResponse(
         {
             "pages_synced": pages_synced,

@@ -173,8 +173,19 @@ class TestKnowledgeQuery:
         live_server: TestClient,
         km: KnowledgeManager,
     ) -> None:
-        """Query returns results after ingesting content."""
-        km.ingest_text("Revenue Report", "Q4 revenue was strong.", ["finance"])
+        """Query returns results after ingesting content.
+
+        W34-F.4: ingest under the dev-anonymous tenant so the same
+        partition is read back through the route (which receives
+        ``ctx.tenant_id="__anonymous__"`` when auth middleware is
+        disabled).
+        """
+        km.ingest_text(
+            "Revenue Report",
+            "Q4 revenue was strong.",
+            ["finance"],
+            tenant_id="__anonymous__",
+        )
         status, body = _request(
             live_server,
             "GET",
@@ -200,8 +211,13 @@ class TestKnowledgeStatus:
         live_server: TestClient,
         km: KnowledgeManager,
     ) -> None:
-        """Status returns wiki_pages, graph_nodes, etc."""
-        km.ingest_text("Test Page", "Some content", ["test"])
+        """Status returns wiki_pages, graph_nodes, etc.
+
+        W34-F.4: ingest under the dev-anonymous tenant so the route's
+        ``get_stats`` call (also scoped to ``__anonymous__``) sees the
+        ingested page.
+        """
+        km.ingest_text("Test Page", "Some content", ["test"], tenant_id="__anonymous__")
         status, body = _request(live_server, "GET", "/knowledge/status")
         assert status == 200
         assert body["wiki_pages"] >= 1
@@ -254,9 +270,10 @@ class TestKnowledgeSync:
         assert status == 200
         assert body["pages_synced"] == 2
         assert body["status"] == "completed"
-        # Wiki should now contain the pages
-        assert wiki.get_page("node-a") is not None
-        assert wiki.get_page("node-b") is not None
+        # Wiki should now contain the pages — sync wrote under the dev-anonymous
+        # tenant (W34-F.4 partition); read back through the same partition.
+        assert wiki.get_page("node-a", tenant_id="__anonymous__") is not None
+        assert wiki.get_page("node-b", tenant_id="__anonymous__") is not None
 
 
 # ---------------------------------------------------------------------------
@@ -404,11 +421,11 @@ class TestKnowledgeFullLifecycle:
         assert status == 200
         assert body["pages_synced"] >= 2
 
-        # Step 6: Verify wiki has graph content
-        # The text page should still exist
-        assert wiki.get_page(text_page_id) is not None
-        # Graph nodes should now be in wiki too
-        all_pages = wiki.list_pages()
+        # Step 6: Verify wiki has graph content (W34-F.4: route writes go
+        # through the dev-anonymous tenant, so we read back through the
+        # same partition).
+        assert wiki.get_page(text_page_id, tenant_id="__anonymous__") is not None
+        all_pages = wiki.list_pages(tenant_id="__anonymous__")
         assert len(all_pages) >= 3  # 1 text + 2 synced from graph
 
         # Step 7: Status reflects everything

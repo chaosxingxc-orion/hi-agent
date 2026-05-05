@@ -137,8 +137,20 @@ class KnowledgeManager:
 
     # ------------------------------------------------------------------ Ingest
 
-    def ingest_from_session(self, session: Any) -> int:
-        """Extract knowledge from a completed session and return ingest count."""
+    def ingest_from_session(self, session: Any, *, tenant_id: str | None = None) -> int:
+        """Extract knowledge from a completed session and return ingest count.
+
+        W34-F.4: ``tenant_id`` is threaded into every ``WikiPage`` created
+        by this method so the wiki layer can partition the writes. The
+        session may also carry a ``tenant_id`` attribute as a fallback.
+        """
+        # Prefer an explicit kwarg; otherwise fall back to a session attribute.
+        effective_tenant = (
+            tenant_id
+            if tenant_id and tenant_id.strip()
+            else str(getattr(session, "tenant_id", "") or "")
+        )
+        self._require_tenant_for_write(effective_tenant, op="ingest_from_session")
         count = 0
         # Session is expected to have: findings, user_feedback, facts
         findings: list[str] = getattr(session, "findings", [])
@@ -150,6 +162,7 @@ class KnowledgeManager:
                 content=finding,
                 page_type="summary",
                 tags=["session-finding"],
+                tenant_id=effective_tenant,
             )
             self._wiki.add_page(page)
             count += 1
@@ -160,7 +173,7 @@ class KnowledgeManager:
             count += 1
 
         facts: list[dict[str, Any]] = getattr(session, "facts", [])
-        count += self.ingest_structured(facts)
+        count += self.ingest_structured(facts, tenant_id=effective_tenant)
 
         return count
 
@@ -192,6 +205,7 @@ class KnowledgeManager:
             content=content,
             page_type="concept",
             tags=tags or [],
+            tenant_id=tenant_id or "",
         )
         self._wiki.add_page(page)
         self._wiki.append_log("ingest_text", f"Created page '{page_id}'")
@@ -249,7 +263,7 @@ class KnowledgeManager:
         partitioning change.
         """
         self._require_tenant_for_read(tenant_id, op="query")
-        wiki_pages = self._wiki.search(query, limit=limit)
+        wiki_pages = self._wiki.search(query, limit=limit, tenant_id=tenant_id)
         graph_nodes = self._graph.search(query, limit=limit)
         user_context = self._user_store.to_context_string()
 
@@ -285,7 +299,7 @@ class KnowledgeManager:
         """
         self._require_tenant_for_read(tenant_id, op="lint")
         issues: list[str] = []
-        issues.extend(self._wiki.lint())
+        issues.extend(self._wiki.lint(tenant_id=tenant_id))
         return issues
 
     def get_stats(self, *, tenant_id: str | None = None) -> dict[str, Any]:
@@ -296,7 +310,7 @@ class KnowledgeManager:
         self._require_tenant_for_read(tenant_id, op="get_stats")
         profile = self._user_store.get_profile()
         return {
-            "wiki_pages": len(self._wiki.list_pages()),
+            "wiki_pages": len(self._wiki.list_pages(tenant_id=tenant_id)),
             "graph_nodes": self._graph.node_count(),
             "graph_edges": self._graph.edge_count(),
             "user_preferences": len(profile.preferences),

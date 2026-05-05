@@ -222,15 +222,23 @@ The KG backend is constructed via `make_knowledge_graph_backend` (`hi_agent/memo
 ## 8. Security Boundary
 
 **Tenant scoping at every read/write boundary**:
-- `KnowledgeManager.ingest_text(title, content, tags)` and `ingest_structured(facts)` — caller passes through profile-scoped manager built per profile.
-- `WikiPage` and `KnowledgeEntry` are **value objects** (no `tenant_id` field — `# scope: process-internal` on `KnowledgeEntry`); the tenant lives on the row in the underlying KG store and on the wiki directory path. Every read/write passes `tenant_id` explicitly to the backend.
+- `KnowledgeManager.ingest_text(title, content, tags, *, tenant_id)` and `ingest_structured(facts, *, tenant_id)` — caller passes through profile-scoped manager built per profile; `tenant_id` is required under research/prod.
+- `WikiPage` carries a `tenant_id` spine field (W34-F.4); `__post_init__` raises `ValueError` under research/prod posture if empty. `KnowledgeEntry` remains a process-internal value object (tenant lives on the KG row).
+- **`KnowledgeWiki` storage layout (W34-F.4):** `<wiki_dir>/<tenant_id>/<page_id>.json`. Every public read/write (`get_page`, `list_pages`, `search`, `update_page`, `remove_page`, `lint`, `rebuild_index`, `to_context_string`) requires `tenant_id=` keyword argument. Cross-tenant `get_page` returns `None` (404 shape, never the foreign page). Under dev posture, omitted `tenant_id` warns + falls back to `"default"` tenant; under research/prod it raises `ValueError`. Legacy `<wiki_dir>/pages/` layout is migrated into the `default` tenant on `load()`.
 - `SqliteKnowledgeGraphBackend` queries always include `WHERE tenant_id = ?` and the PK is `(id, tenant_id)` so two tenants can have the same node_id without collision.
 - `UserKnowledgeStore` is scoped by `user_id` (which is itself scoped by `tenant_id` upstream).
+- **Hard gate**: `scripts/check_no_unscoped_knowledge_reads.py` AST-walks every `*.py` under `hi_agent/` and `agent_server/` and fails CI when a `KnowledgeWiki` read method is invoked without `tenant_id=` (W34-F.4 / B-W34-3).
 
 **Process-internal markers** (Rule 12 marker discipline):
 - `KnowledgeEntry` (`entry.py:9`): `# scope: process-internal` — tenant lives on KG row.
 - `KnowledgeResult` (`knowledge_manager.py:21`): `# scope: process-internal` — query response wrapper.
 - `RetrievalResult` (`retrieval_engine.py:42`): `# scope: process-internal`.
+
+**Tenant isolation (W34-F.4):** The `WikiPage` class is no longer marked
+`# scope: process-internal` — it now carries `tenant_id` as a required
+spine field with `__post_init__` validation. The wiki layer enforces the
+partition both at construction (page-level) and at every public
+read/write call site (manager-level).
 
 **Posture interaction**:
 - Under research/prod, `make_knowledge_graph_backend` returns `SqliteKnowledgeGraphBackend`; under dev it returns the JSON file backend. The two backends both implement the same Protocol so callers do not branch.

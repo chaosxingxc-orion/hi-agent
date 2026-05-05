@@ -271,17 +271,25 @@ class TestAnnotationStrengthening:
     """The `# scope: process-internal` annotation is strengthened (W33 T-9'/T-10')."""
 
     def test_wiki_module_carries_strengthened_annotation(self):
-        """WikiPage's class body carries the explicit "store row carries tenant_id" wording."""
+        """Wiki module documents tenant scoping discipline.
+
+        W34-F.4 supersedes the W33 wording: ``WikiPage`` is no longer a
+        bare value object — it carries a ``tenant_id`` field with
+        ``__post_init__`` validation, and ``KnowledgeWiki`` partitions
+        storage per-tenant. The module-level docstring must still spell
+        out the discipline (tenant scoping is mandatory at construction
+        and at every public read/write).
+        """
         from hi_agent.knowledge import wiki as _wiki_mod
 
         src = _wiki_mod.__file__
         with open(src, encoding="utf-8") as fh:
             content = fh.read()
-        # Required parts of the strengthened annotation.
-        assert "# scope: process-internal" in content
-        assert "value object only" in content
-        assert "SqliteKnowledgeGraphBackend row" in content
-        assert "ingest pipeline rejects an absent tenant_id" in content
+        # Required parts of the W34-F.4 documentation.
+        assert "tenant partition" in content
+        assert "tenant_id" in content
+        assert "research/prod" in content
+        assert "W34-F.4" in content
 
     def test_entry_module_carries_strengthened_annotation(self):
         """KnowledgeEntry's class body carries the strengthened annotation."""

@@ -106,8 +106,18 @@ class GraphRenderer:
         lines.append("```")
         return "\n".join(lines)
 
-    def to_wiki_pages(self, wiki: KnowledgeWiki) -> int:
-        """Convert graph nodes to wiki pages with wikilinks and return count."""
+    def to_wiki_pages(
+        self,
+        wiki: KnowledgeWiki,
+        *,
+        tenant_id: str | None = None,
+    ) -> int:
+        """Convert graph nodes to wiki pages with wikilinks and return count.
+
+        W34-F.4: ``tenant_id`` scopes the wiki write. Under dev posture an
+        omitted value falls back to the wiki's ``"default"`` tenant (with
+        a warning); under research/prod the wiki layer raises.
+        """
         count = 0
         for _nid, node in self._graph.iter_nodes():
             # Build content with wikilinks to neighbors
@@ -117,9 +127,11 @@ class GraphRenderer:
                 links = ", ".join(f"[[{n.node_id}]]" for n in neighbors)
                 content += f"\n\nRelated: {links}"
 
-            existing = wiki.get_page(node.node_id)
+            existing = wiki.get_page(node.node_id, tenant_id=tenant_id)
             if existing is not None:
-                wiki.update_page(node.node_id, content=content, tags=node.tags)
+                wiki.update_page(
+                    node.node_id, content=content, tags=node.tags, tenant_id=tenant_id
+                )
             else:
                 page = WikiPage(
                     page_id=node.node_id,
@@ -128,6 +140,7 @@ class GraphRenderer:
                     page_type=node.node_type,
                     tags=node.tags,
                     confidence=node.confidence,
+                    tenant_id=tenant_id or "",
                 )
                 wiki.add_page(page)
             count += 1

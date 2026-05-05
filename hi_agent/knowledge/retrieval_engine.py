@@ -240,10 +240,19 @@ class RetrievalEngine:
                 return self._tfidf.doc_count
 
             # Index wiki pages
+            #
+            # W34-F.4: KnowledgeWiki partitions by tenant. The retrieval
+            # engine is itself built per-profile (which today is at-most
+            # one tenant), but we walk the union of tenants the wiki
+            # currently knows about to cover the case where an engine is
+            # reused across tenants. The wiki layer still enforces tenant
+            # scope on every public read; the engine is process-internal
+            # so no cross-tenant content leaks out of this indexer.
             if self._wiki is not None:
-                for page in self._wiki.list_pages():
-                    doc_text = f"{page.title} {page.content} {' '.join(page.tags)}"
-                    self._tfidf.add(f"wiki:{page.page_id}", doc_text)
+                for tenant_id in self._wiki._all_tenants():  # process-internal helper (W34-F.4)
+                    for page in self._wiki.list_pages(tenant_id=tenant_id):
+                        doc_text = f"{page.title} {page.content} {' '.join(page.tags)}"
+                        self._tfidf.add(f"wiki:{page.page_id}", doc_text)
 
             # Index graph nodes
             if self._graph is not None:
@@ -352,26 +361,29 @@ class RetrievalEngine:
         candidates: list[KnowledgeItem] = []
         seen_ids: set[str] = set()
 
-        # Search wiki pages
+        # Search wiki pages — walk every tenant the wiki knows about
+        # (W34-F.4). The engine is process-internal; per-tenant scope is
+        # enforced by the wiki's public read methods.
         if self._wiki is not None:
-            for page in self._wiki.list_pages():
-                text = f"{page.title} {page.content} {' '.join(page.tags)}".lower()
-                if any(kw in text for kw in keywords):
-                    item_id = f"wiki:{page.page_id}"
-                    if item_id not in seen_ids:
-                        seen_ids.add(item_id)
-                        candidates.append(
-                            KnowledgeItem(
-                                item_id=item_id,
-                                content=f"## {page.title}\n{page.content}",
-                                level=3,  # page level
-                                source_type="long_term_text",
-                                source_id=page.page_id,
-                                token_estimate=estimate_tokens(page.content),
-                                tags=page.tags,
-                                importance_score=page.confidence,
+            for tenant_id in self._wiki._all_tenants():  # process-internal helper (W34-F.4)
+                for page in self._wiki.list_pages(tenant_id=tenant_id):
+                    text = f"{page.title} {page.content} {' '.join(page.tags)}".lower()
+                    if any(kw in text for kw in keywords):
+                        item_id = f"wiki:{page.page_id}"
+                        if item_id not in seen_ids:
+                            seen_ids.add(item_id)
+                            candidates.append(
+                                KnowledgeItem(
+                                    item_id=item_id,
+                                    content=f"## {page.title}\n{page.content}",
+                                    level=3,  # page level
+                                    source_type="long_term_text",
+                                    source_id=page.page_id,
+                                    token_estimate=estimate_tokens(page.content),
+                                    tags=page.tags,
+                                    importance_score=page.confidence,
+                                )
                             )
-                        )
 
         # Search graph nodes
         if self._graph is not None:
