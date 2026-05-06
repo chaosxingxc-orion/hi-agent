@@ -3,7 +3,7 @@
 **Date:** 2026-04-28 (sibling created retroactively at W35 close)
 **Wave:** 17
 **Status:** acknowledged
-Manifest: 2026-05-05-460a64bb (no follow-up actions required at this point in the timeline)
+Manifest: 2026-05-05-bd4d38d5 (no follow-up actions required at this point in the timeline)
 
 This response file is created retroactively to satisfy the W19-E4
 doc-truth gate (`scripts/check_doc_truth.py`) which requires every
