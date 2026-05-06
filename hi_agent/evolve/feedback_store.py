@@ -22,7 +22,7 @@ class RunFeedback:
 
     run_id: str
     rating: float  # 0.0 (worst) - 1.0 (best)
-    tenant_id: str = ""  # scope: process-internal — Rule 12 spine validated under research/prod posture (W35-T1)
+    tenant_id: str = ""  # scope: process-internal — W35-T1 spine validated
     notes: str = ""
     submitted_at: str = ""  # ISO 8601; set automatically if empty
     user_id: str = ""
