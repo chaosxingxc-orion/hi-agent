@@ -24,7 +24,7 @@ class RunFinalizerContext:
     contract: Any
     lifecycle: Any
     kernel: Any
-    tenant_id: str = ""  # Rule 12 spine — validated under research/prod posture
+    tenant_id: str = ""  # scope: process-internal — Rule 12 spine validated under research/prod posture (W35-T1)
     user_id: str = ""
     session_id: str = ""
     project_id: str = ""
