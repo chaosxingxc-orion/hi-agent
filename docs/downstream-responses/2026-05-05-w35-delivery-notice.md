@@ -12,7 +12,7 @@ notice-pre-final-commit: true
 > `notice-pre-final-commit: true` marker tells `check_doc_consistency.py`
 > that the notice was written before any subsequent CI/governance fix
 > commits. The closure semantics are anchored at the manifest
-> release_head: verified=75.0, raw=94.5.
+> release_head: verified=75.0, raw=94.5
 **Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
