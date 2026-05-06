@@ -4,14 +4,17 @@
 **Wave:** 35
 Status: SHIP
 **Manifest:** `2026-05-05-24cfa0a6` (built at HEAD `24cfa0a6`)
-Functional HEAD: 24cfa0a67249d9824f9ecd39f60764a548fe2699
+Functional HEAD: 276917d89426e3eed92bc23c834a24665f6ffe91
 
 > Per Rule 14 §4.4, this notice cites the manifest's release_head
-> (`24cfa0a6`). All commits since the manifest commit are docs-only
-> (closure-notice + signoff updates + retro response cleanup), so
-> `check_doc_consistency.py` accepts the head divergence under its
-> docs-only-gap exemption. The closure semantics are anchored at the
-> manifest release_head: verified=75.0, raw=94.5
+> (`24cfa0a6`). Subsequent W35-corrective-window commits (Tracks A–G,
+> hidden defect fixes H1/H2/H4, plus W36 architectural plans) advanced
+> Functional HEAD to `276917d8`. The W35 corrective response document
+> (`docs/downstream-responses/2026-05-05-w35-corrective-response.md`)
+> records the disposition of every corrective track. The closure
+> semantics of *this* notice remain anchored at the manifest release_head:
+> verified=75.0, raw=94.5; the corrective work re-rolls evidence on the
+> next manifest cycle.
 **Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
