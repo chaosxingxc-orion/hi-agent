@@ -229,32 +229,13 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "record_fallback raised inside the gateway fallback branch (Rule 7 "
         "alarm; labels: gateway, original_reason).",
     ),
-    # Run lifecycle counters (labels: tenant_id, outcome, reason).
-    "hi_agent_runs_started_total": _MetricDef(
-        "hi_agent_runs_started_total",
-        "counter",
-        "Total run execution starts.",
-    ),
-    "hi_agent_runs_completed_total": _MetricDef(
-        "hi_agent_runs_completed_total",
-        "counter",
-        "Total run completions.",
-    ),
-    "hi_agent_runs_failed_total": _MetricDef(
-        "hi_agent_runs_failed_total",
-        "counter",
-        "Total run failures.",
-    ),
-    "hi_agent_runs_cancelled_total": _MetricDef(
-        "hi_agent_runs_cancelled_total",
-        "counter",
-        "Total run cancellations.",
-    ),
-    "hi_agent_runs_timed_out_total": _MetricDef(
-        "hi_agent_runs_timed_out_total",
-        "counter",
-        "Total run timeouts.",
-    ),
+    # Run lifecycle counters: the run_*_total family is owned by
+    # ``RunEventEmitter`` (singular form: hi_agent_run_started_total etc.,
+    # see hi_agent/observability/event_emitter.py). The legacy plural-form
+    # counters (hi_agent_runs_started_total, ...) were declared in W12-G but
+    # never wired to a producer; deleted under W35 hidden-H4 corrective on
+    # 2026-05-06. The active outcome-labelled counter is ``runs_total`` in
+    # hi_agent/runner_telemetry.py.
     # Queue operation counters (labels: outcome).
     "hi_agent_queue_lease_renew_total": _MetricDef(
         "hi_agent_queue_lease_renew_total",
@@ -397,37 +378,14 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         "Lease renewal exceptions in the run heartbeat loop (Rule 7 alarm).",
     ),
-    # Run and tool histograms (labels: tenant_id, outcome, tool).
-    "hi_agent_run_duration_seconds": _MetricDef(
-        "hi_agent_run_duration_seconds",
-        "histogram",
-        "End-to-end run duration.",
-    ),
-    "hi_agent_run_no_progress_seconds": _MetricDef(
-        "hi_agent_run_no_progress_seconds",
-        "histogram",
-        "Duration of no-progress gaps.",
-    ),
-    "hi_agent_queue_claim_latency_seconds": _MetricDef(
-        "hi_agent_queue_claim_latency_seconds",
-        "histogram",
-        "Queue claim latency.",
-    ),
-    "hi_agent_tool_latency_seconds": _MetricDef(
-        "hi_agent_tool_latency_seconds",
-        "histogram",
-        "Tool call latency.",
-    ),
-    "hi_agent_human_gate_age_seconds": _MetricDef(
-        "hi_agent_human_gate_age_seconds",
-        "histogram",
-        "Human gate pending duration.",
-    ),
-    "hi_agent_drain_duration_seconds": _MetricDef(
-        "hi_agent_drain_duration_seconds",
-        "histogram",
-        "Graceful drain duration.",
-    ),
+    # Run and tool latency histograms (run_duration_seconds,
+    # run_no_progress_seconds, queue_claim_latency_seconds,
+    # tool_latency_seconds, human_gate_age_seconds, drain_duration_seconds)
+    # were declared in W12-G but never wired to a producer; deleted under
+    # W35 hidden-H4 corrective on 2026-05-06. Run duration is currently
+    # carried as a payload field on RunEventEmitter.record_run_completed
+    # (hi_agent/observability/event_emitter.py); tool latency is currently
+    # observable via emit_tool_call counter rather than as a histogram.
     # J1: request body too-large rejections (Rule 7: countable security signal).
     "hi_agent_request_too_large_total": _MetricDef(
         "hi_agent_request_too_large_total",
@@ -631,14 +589,15 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
     # W35-T6: idempotency observability metrics. Operators need cache-age
     # distribution, replay rate, conflict rate, and purged-record counts to
     # tell "client retried correctly" from "client has a body-mismatch bug"
-    # and to size TTL/cleanup budgets. Labels: tenant_bucket (str(hash(tenant_id) % 16))
-    # keeps cardinality bounded.
+    # and to size TTL/cleanup budgets. Labels carry raw tenant_id (W35
+    # corrective C-1); cardinality control belongs to ops-side PromQL
+    # recording rules so dashboards stay portable across tenants.
     "hi_agent_idempotency_replay_total": _MetricDef(
         "hi_agent_idempotency_replay_total",
         "counter",
         (
             "Idempotency reserve_or_replay outcomes other than 'created' "
-            "(labels: tenant_bucket, outcome=replayed|conflict)."
+            "(labels: tenant_id, outcome=replayed|conflict)."
         ),
     ),
     "hi_agent_idempotency_conflict_total": _MetricDef(
@@ -646,7 +605,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         (
             "Idempotency-Key reused with a different request body — likely a "
-            "client bug (labels: tenant_bucket)."
+            "client bug (labels: tenant_id)."
         ),
     ),
     "hi_agent_idempotency_purged_total": _MetricDef(
@@ -654,7 +613,8 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "counter",
         (
             "Records deleted by IdempotencyStore.purge_expired in batched "
-            "VACUUM operations (no labels — VACUUM batches are tenant-mixed)."
+            "VACUUM operations (labels: tenant_id; aggregate tenant-mixed "
+            "batches emit tenant_id=\"\" as a distinct stable series)."
         ),
     ),
     "hi_agent_idempotency_record_age_seconds": _MetricDef(
@@ -662,7 +622,7 @@ _METRIC_DEFS: dict[str, _MetricDef] = {
         "histogram",
         (
             "Age in seconds of an idempotency record at the moment a replay "
-            "or conflict outcome is decided (labels: tenant_bucket). Recommended "
+            "or conflict outcome is decided (labels: tenant_id). Recommended "
             "buckets: 1, 60, 300, 1800, 3600, 21600, 86400, 172800."
         ),
     ),

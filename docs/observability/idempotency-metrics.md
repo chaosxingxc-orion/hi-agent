@@ -23,8 +23,8 @@ rendered as `# TYPE summary` with quantiles). Tests query values via
 | Property | Value |
 |---|---|
 | Type | counter |
-| Labels | `tenant_bucket` (str(hash(tenant_id) % 16)), `outcome` (`replayed` \| `conflict`) |
-| Cardinality | 16 buckets * 2 outcomes = 32 series max |
+| Labels | `tenant_id` (raw), `outcome` (`replayed` \| `conflict`) |
+| Cardinality | 1 series per (tenant_id, outcome). Apply ops-side recording rules to bucket if needed. |
 | Source | `IdempotencyStore.reserve_or_replay` (every outcome != `"created"`) |
 | Use case | Replay rate tells operators how heavily clients lean on the dedup cache. A sudden spike usually means a transient upstream error caused a retry storm. |
 
@@ -34,8 +34,8 @@ PromQL examples:
 # Replay rate per minute, all tenants
 sum(rate(hi_agent_idempotency_replay_total[1m]))
 
-# Replay rate per tenant bucket
-sum by (tenant_bucket) (rate(hi_agent_idempotency_replay_total[1m]))
+# Replay rate per tenant
+sum by (tenant_id) (rate(hi_agent_idempotency_replay_total[1m]))
 
 # Conflict rate vs replay rate (should be ~0)
 sum(rate(hi_agent_idempotency_replay_total{outcome="conflict"}[5m]))
@@ -56,16 +56,16 @@ Alarm guidance:
 | Property | Value |
 |---|---|
 | Type | counter |
-| Labels | `tenant_bucket` (str(hash(tenant_id) % 16)) |
-| Cardinality | 16 buckets max |
+| Labels | `tenant_id` (raw) |
+| Cardinality | 1 series per tenant. Apply ops-side recording rules to bucket if needed. |
 | Source | `IdempotencyStore.reserve_or_replay` (only on `conflict` outcome — same key, different body hash) |
 | Use case | A conflict means the client reused an Idempotency-Key while changing the request body. This is **never** a retry: it is a client defect or a deliberate per-request override misused as a dedup key. |
 
 PromQL examples:
 
 ```promql
-# Top tenant_buckets producing conflicts
-topk(3, sum by (tenant_bucket) (
+# Top tenants producing conflicts
+topk(3, sum by (tenant_id) (
   rate(hi_agent_idempotency_conflict_total[10m])
 ))
 
@@ -76,7 +76,7 @@ sum(increase(hi_agent_idempotency_conflict_total[1h]))
 Alarm guidance:
 - **Any non-zero rate for >5m** — page the on-call. Healthy traffic
   produces conflicts only when a client developer is debugging.
-- **Increase > 100/h on a single `tenant_bucket`** — escalate to the
+- **Increase > 100/h on a single `tenant_id`** — escalate to the
   business owner of that tenant. They have a buggy retry path that is
   changing the request body between attempts (e.g. embedding a fresh
   timestamp inside `prompt_overrides`).
@@ -98,8 +98,8 @@ How to interpret high counts:
 | Property | Value |
 |---|---|
 | Type | counter |
-| Labels | (none — VACUUM batches at the SQLite layer are tenant-mixed) |
-| Cardinality | 1 series |
+| Labels | `tenant_id` (raw); aggregate VACUUM batches emit `tenant_id=""` as a distinct, stable series |
+| Cardinality | 1 series per tenant (plus the aggregate-batch `""` series) |
 | Source | `IdempotencyStore.purge_expired` (every call where `count > 0`) |
 | Use case | Confirms the W35-T4 background purger is alive and sizes cleanup work. A flat-line means the purger has crashed or been mis-wired. |
 
@@ -132,8 +132,8 @@ Alarm guidance:
 | Property | Value |
 |---|---|
 | Type | histogram (in-house `MetricsCollector` deque + percentiles) |
-| Labels | `tenant_bucket` (str(hash(tenant_id) % 16)) |
-| Cardinality | 16 buckets max |
+| Labels | `tenant_id` (raw) |
+| Cardinality | 1 series per tenant. Apply ops-side recording rules to bucket if needed. |
 | Source | `IdempotencyStore.reserve_or_replay` (every replay/conflict — observes `now - record.created_at`) |
 | Use case | Distribution of "how old was the record we just hit?" — tells operators whether retries land within seconds (retry storm) or near the TTL boundary (long-running clients reusing keys). |
 
@@ -175,22 +175,30 @@ Alarm guidance:
 
 | Pattern | Likely cause | Action |
 |---|---|---|
-| Conflicts concentrated on one `tenant_bucket` | Client SDK bug in that tenant | Page tenant owner; share request-hash diff |
+| Conflicts concentrated on one `tenant_id` | Client SDK bug in that tenant | Page tenant owner; share request-hash diff |
 | Conflicts increase with retry rate | Client embeds volatile fields (timestamps, request IDs) in body | Tell client to strip volatile fields before hashing |
 | Conflicts only on a specific endpoint | Endpoint receives multipart bodies the canonicalizer mishandles | Audit `_canonical_body_hash` in `IdempotencyFacade` |
 | Conflicts during deploy | Client retried during a server upgrade that changed schema validation | Benign; conflicts should drop after a few minutes |
 
 ---
 
-## Cardinality discipline
+## Cardinality policy (W35 corrective C-1)
 
-All `tenant_id` labels are bucketed via `hash(tenant_id) % 16` (matches
-the existing `hi_agent_llm_tokens_total` taxonomy). This keeps each
-metric below 32 series regardless of tenant population. Empty
-`tenant_id` (purge batches, mis-attribution) maps to the literal
-`"unknown"` bucket.
+Platform-side Prometheus metrics carry raw `{tenant_id}` (and other
+dimension labels). Cardinality control belongs at PromQL recording-rule
+level on the operator's side, not at the metric source. This keeps
+dashboard queries portable across tenants and consistent with
+`hi_agent_run_*` family conventions. The legacy
+`hi_agent_llm_tokens_total` metric (W31) retains a `{tenant_bucket}`
+(mod-16 hash) label for backwards compatibility with W31-era
+dashboards; treat it as a documented exception. New metrics MUST use
+raw `{tenant_id}`. To derive a bucketed view in dashboards, use a
+recording rule:
 
-To expand cardinality, edit `_TENANT_BUCKET_COUNT` in
-`hi_agent/observability/idempotency_metrics.py` — but be aware that the
-LLM tokens metric uses the same constant and changing one without the
-other will fragment dashboards.
+```promql
+# In ops-side prometheus.yml:
+- record: hi_agent:idempotency_replay_total:by_bucket
+  expr: sum by (tenant_bucket) (
+    label_replace(hi_agent_idempotency_replay_total, "tenant_bucket", "$1", "tenant_id", "(.{1,2}).*")
+  )
+```

@@ -3,25 +3,29 @@
 Four metrics — declared in :mod:`hi_agent.observability.collector`'s
 ``_METRIC_DEFS`` registry — let operators observe the idempotency cache:
 
-* ``hi_agent_idempotency_replay_total`` (counter, labels: tenant_bucket, outcome)
+* ``hi_agent_idempotency_replay_total`` (counter, labels: tenant_id, outcome)
   — every reserve_or_replay call that did NOT create a fresh record.
-* ``hi_agent_idempotency_conflict_total`` (counter, labels: tenant_bucket)
+* ``hi_agent_idempotency_conflict_total`` (counter, labels: tenant_id)
   — same Idempotency-Key, different body. Almost always a client defect
   (the request body changed but the dedup key didn't). High counts on a
-  single tenant_bucket warrant escalation.
-* ``hi_agent_idempotency_purged_total`` (counter, no labels) — rows
-  removed by :meth:`IdempotencyStore.purge_expired`. VACUUM batches are
-  tenant-mixed at the SQLite layer, so a single counter at the batch
-  boundary is the honest representation.
-* ``hi_agent_idempotency_record_age_seconds`` (histogram, label: tenant_bucket)
+  single tenant warrant escalation.
+* ``hi_agent_idempotency_purged_total`` (counter, labels: tenant_id) —
+  rows removed by :meth:`IdempotencyStore.purge_expired`. VACUUM batches
+  are tenant-mixed at the SQLite layer; the aggregate batch path emits
+  ``tenant_id=""`` (empty string is a distinct, intentional series for
+  aggregate purges and remains stable across scrapes).
+* ``hi_agent_idempotency_record_age_seconds`` (histogram, label: tenant_id)
   — distribution of record ages observed at replay/conflict time. Tall
   right-tail = clients retrying near the TTL boundary; tall left-tail =
   clients retrying within seconds (likely retry storms).
 
-Cardinality discipline (Rule 7): ``tenant_id`` is bucketed via
-``hash(tenant_id) % 16`` to match the existing
-``hi_agent_llm_tokens_total`` taxonomy, keeping the label space at most
-16 buckets per metric regardless of tenant population.
+Cardinality policy (W35 corrective C-1): platform-side metric labels
+carry raw ``tenant_id``. Cardinality control is an ops-side concern via
+PromQL recording rules — keeping platform labels raw makes dashboards
+portable across tenants and consistent with the ``hi_agent_run_*``
+family. The legacy ``hi_agent_llm_tokens_total`` (W31) keeps its
+``tenant_bucket`` label as a documented exception for backwards
+compatibility — see ``docs/observability/idempotency-metrics.md``.
 
 Helper-function shape mirrors :mod:`hi_agent.observability.fallback` —
 public functions take primitive arguments and route through the
@@ -64,30 +68,13 @@ RECORD_AGE_BUCKETS_SECONDS: Final[tuple[float, ...]] = (
     172800.0,   # 2 d
 )
 
-# Cardinality bound — matches the tenant_bucket convention used by
-# hi_agent_llm_tokens_total (collector.py B6).
-_TENANT_BUCKET_COUNT: Final[int] = 16
-
-
-def _tenant_bucket(tenant_id: str) -> str:
-    """Return a bounded-cardinality label value for a tenant id.
-
-    Empty strings are mapped to ``"unknown"`` so VACUUM-style batch
-    callsites can pass ``tenant_id=""`` without polluting the bucket
-    space. Non-empty ids are hashed modulo :data:`_TENANT_BUCKET_COUNT`
-    (16) so the metric label space stays bounded regardless of tenant
-    population.
-    """
-    if not tenant_id:
-        return "unknown"
-    return str(hash(tenant_id) % _TENANT_BUCKET_COUNT)
-
 
 def record_replay(tenant_id: str, outcome: str) -> None:
     """Increment the replay counter for an outcome other than ``created``.
 
     Args:
-        tenant_id: Tenant whose record was hit. Bucketed before use.
+        tenant_id: Tenant whose record was hit. Emitted as a raw label
+            value so dashboards can filter/group per tenant.
         outcome: ``"replayed"`` or ``"conflict"``. Other values are
             recorded verbatim but should not occur in a Rule-3 clean call
             site.
@@ -98,7 +85,7 @@ def record_replay(tenant_id: str, outcome: str) -> None:
     try:
         collector.increment(
             REPLAY_METRIC,
-            labels={"tenant_bucket": _tenant_bucket(tenant_id), "outcome": outcome},
+            labels={"tenant_id": tenant_id, "outcome": outcome},
         )
     except Exception as exc:  # rule7-exempt: observability must not propagate
         _logger.warning("idempotency_metrics.record_replay failed: %s", exc)
@@ -118,7 +105,7 @@ def record_conflict(tenant_id: str) -> None:
     try:
         collector.increment(
             CONFLICT_METRIC,
-            labels={"tenant_bucket": _tenant_bucket(tenant_id)},
+            labels={"tenant_id": tenant_id},
         )
     except Exception as exc:  # rule7-exempt: observability must not propagate
         _logger.warning("idempotency_metrics.record_conflict failed: %s", exc)
@@ -129,19 +116,26 @@ def record_purged(count: int, tenant_id: str = "") -> None:
 
     ``count`` is the number of rows the underlying ``DELETE`` removed.
     No-op when ``count <= 0`` so empty purge batches do not spam the
-    metric. ``tenant_id`` is currently ignored — VACUUM-style batches at
-    the SQLite layer are tenant-mixed and a single tenant label would
-    falsely attribute the cleanup to the last-seen tenant — but the
-    parameter is kept for future per-tenant cleanup tasks.
+    metric.
+
+    ``tenant_id`` is emitted as a raw label. The default empty string
+    ``""`` is intentional and represents an aggregate (tenant-mixed)
+    VACUUM batch at the SQLite layer — Prometheus treats the empty
+    string as a distinct, stable label value, so aggregate batches form
+    their own series rather than polluting per-tenant counts. Future
+    per-tenant purge paths should pass the actual ``tenant_id``.
     """
     if count <= 0:
         return
     collector = get_metrics_collector()
     if collector is None:
         return
-    _ = tenant_id  # explicitly retained for future per-tenant batches
     try:
-        collector.increment(PURGED_METRIC, value=float(count))
+        collector.increment(
+            PURGED_METRIC,
+            value=float(count),
+            labels={"tenant_id": tenant_id},
+        )
     except Exception as exc:  # rule7-exempt: observability must not propagate
         _logger.warning("idempotency_metrics.record_purged failed: %s", exc)
 
@@ -161,7 +155,7 @@ def observe_age(tenant_id: str, age_seconds: float) -> None:
         collector.record(
             RECORD_AGE_METRIC,
             value=safe_age,
-            labels={"tenant_bucket": _tenant_bucket(tenant_id)},
+            labels={"tenant_id": tenant_id},
         )
     except Exception as exc:  # rule7-exempt: observability must not propagate
         _logger.warning("idempotency_metrics.observe_age failed: %s", exc)

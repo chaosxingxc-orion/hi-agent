@@ -246,7 +246,10 @@ def main(argv: list[str] | None = None) -> int:
                 _LOG.warning("spine emit taps failed in executor: %s", _exc)
 
             collector.increment("runs_total", labels={"status": "completed"})
-            collector.increment("hi_agent_runs_completed_total")
+            # hi_agent_runs_completed_total was deleted in the W35 hidden-H4
+            # orphan-metric corrective (no producer). The active completion
+            # counter is runs_total{status="completed"} above; the singular
+            # hi_agent_run_completed_total is owned by RunEventEmitter.
             # Counter-based layers observed via metric snapshot.
             collector.increment("hi_agent_http_requests_total")       # http_request
             collector.increment("hi_agent_spine_trace_id_propagated_total")  # middleware

@@ -27,7 +27,6 @@ from hi_agent.observability.idempotency_metrics import (
     PURGED_METRIC,
     RECORD_AGE_METRIC,
     REPLAY_METRIC,
-    _tenant_bucket,
 )
 from hi_agent.server.idempotency import IdempotencyStore, _hash_payload
 
@@ -74,14 +73,13 @@ def test_replay_metric_increments(collector, store):
     assert o1 == "created"
     assert o2 == "replayed"
 
-    # Counter should carry exactly 1 replay event for the tenant_bucket label.
-    bucket = _tenant_bucket(tenant)
+    # Counter should carry exactly 1 replay event for the tenant_id label.
     replayed_count = collector.get_counter(
         REPLAY_METRIC,
-        labels={"tenant_bucket": bucket, "outcome": "replayed"},
+        labels={"tenant_id": tenant, "outcome": "replayed"},
     )
     assert replayed_count == 1, (
-        f"expected 1 replay for bucket={bucket}, got {replayed_count}; "
+        f"expected 1 replay for tenant={tenant}, got {replayed_count}; "
         f"snapshot={collector.snapshot().get(REPLAY_METRIC)}"
     )
 
@@ -89,7 +87,7 @@ def test_replay_metric_increments(collector, store):
     # (W35-T6 contract: only outcomes != 'created' are recorded).
     conflict_count = collector.get_counter(
         REPLAY_METRIC,
-        labels={"tenant_bucket": bucket, "outcome": "conflict"},
+        labels={"tenant_id": tenant, "outcome": "conflict"},
     )
     assert conflict_count == 0
 
@@ -112,14 +110,12 @@ def test_conflict_metric_increments(collector, store):
     assert o1 == "created"
     assert o2 == "conflict"
 
-    bucket = _tenant_bucket(tenant)
-
     # Conflict counter (single label set).
     conflict_total = collector.get_counter(
-        CONFLICT_METRIC, labels={"tenant_bucket": bucket}
+        CONFLICT_METRIC, labels={"tenant_id": tenant}
     )
     assert conflict_total == 1, (
-        f"expected 1 conflict for bucket={bucket}, got {conflict_total}; "
+        f"expected 1 conflict for tenant={tenant}, got {conflict_total}; "
         f"snapshot={collector.snapshot().get(CONFLICT_METRIC)}"
     )
 
@@ -127,7 +123,7 @@ def test_conflict_metric_increments(collector, store):
     # can compute conflict-rate without joining metrics.
     replay_conflict = collector.get_counter(
         REPLAY_METRIC,
-        labels={"tenant_bucket": bucket, "outcome": "conflict"},
+        labels={"tenant_id": tenant, "outcome": "conflict"},
     )
     assert replay_conflict == 1
 
@@ -155,8 +151,7 @@ def test_age_histogram_observes(collector, store):
     assert RECORD_AGE_METRIC in snap, (
         f"expected {RECORD_AGE_METRIC} in snapshot keys, got {list(snap)}"
     )
-    bucket = _tenant_bucket(tenant)
-    label_key = f'outcome="...",tenant_bucket="{bucket}"'  # not used; we scan all
+    label_key = f'outcome="...",tenant_id="{tenant}"'  # not used; we scan all
     hist = snap[RECORD_AGE_METRIC]
     # The collector emits one entry per label key; for our single tenant
     # there should be exactly one observation.
@@ -167,11 +162,11 @@ def test_age_histogram_observes(collector, store):
         f"hist={hist}"
     )
     assert total_sum >= 0.0
-    # And the label key must carry tenant_bucket={bucket} — we look for any
+    # And the label key must carry tenant_id={tenant} — we look for any
     # entry whose label key contains it.
-    found_bucket = any(f'tenant_bucket="{bucket}"' in lk for lk in hist)
-    assert found_bucket, (
-        f"expected an entry labeled tenant_bucket={bucket!r} in {list(hist)}"
+    found_tenant = any(f'tenant_id="{tenant}"' in lk for lk in hist)
+    assert found_tenant, (
+        f"expected an entry labeled tenant_id={tenant!r} in {list(hist)}"
     )
     _ = label_key  # silenced unused; retained for grep-debuggability
 
@@ -214,16 +209,99 @@ def test_purged_metric_increments(collector, store):
     deleted = store.purge_expired()
     assert deleted >= 2
 
-    # Counter is unlabeled — query the unlabelled bucket directly.
-    purged_total = collector.get_counter(PURGED_METRIC, labels=None)
+    # The store currently invokes record_purged(deleted) without a
+    # tenant_id, so the counter is recorded under tenant_id="" — the
+    # documented aggregate-batch series.
+    purged_total = collector.get_counter(
+        PURGED_METRIC, labels={"tenant_id": ""}
+    )
     assert purged_total >= 2, (
         f"expected purged>=2, got {purged_total}; "
         f"snapshot={collector.snapshot().get(PURGED_METRIC)}"
     )
 
     # Empty purge must NOT increment further (Rule 2: no spurious work).
-    before = collector.get_counter(PURGED_METRIC, labels=None)
+    before = collector.get_counter(PURGED_METRIC, labels={"tenant_id": ""})
     deleted_again = store.purge_expired()
-    after = collector.get_counter(PURGED_METRIC, labels=None)
+    after = collector.get_counter(PURGED_METRIC, labels={"tenant_id": ""})
     assert deleted_again == 0
     assert after == before
+
+
+# ---------------------------------------------------------------------------
+# Label-set drift guard (W35 corrective C-1)
+# ---------------------------------------------------------------------------
+
+
+def test_metric_label_set(collector, store):
+    """Fail-fast guard: the four idempotency metrics carry exactly the
+    documented label keys. Future drift (e.g. re-introducing
+    ``tenant_bucket`` or adding/removing a label) will trip this test
+    before it lands in /metrics and fragments the RIA dashboard
+    contract.
+    """
+    tenant = "tenant-label-set-1"
+    key = str(uuid.uuid4())
+
+    # Drive each helper at least once so the collector observes the
+    # real label sets emitted in production code paths.
+    payload_a = _hash_payload({"goal": "label-set-A"})
+    payload_b = _hash_payload({"goal": "label-set-B"})
+    store.reserve_or_replay(tenant, key, payload_a, "run-a")
+    # Replay path → record_replay + observe_age
+    store.reserve_or_replay(tenant, key, payload_a, "run-a")
+    # Conflict path → record_conflict + record_replay(outcome=conflict)
+    store.reserve_or_replay(tenant, key, payload_b, "run-b")
+
+    # purge path emits PURGED_METRIC with tenant_id="" (aggregate batch)
+    if _purge_present:
+        # Insert + immediately purge so PURGED_METRIC has at least one
+        # observed series.
+        expiring_hash = _hash_payload({"goal": "label-set-purge"})
+        store.reserve_or_replay(
+            tenant_id=tenant,
+            idempotency_key=f"label-set-purge-{uuid.uuid4()}",
+            request_hash=expiring_hash,
+            run_id="run-purge",
+            ttl_seconds=0.01,
+        )
+        time.sleep(0.05)
+        store.purge_expired()
+
+    snap = collector.snapshot()
+    # Helper: parse the encoded label key string back into the set of
+    # label-keys observed for a metric. The MetricsCollector encodes
+    # labels as ``k1="v1",k2="v2"``; we just want the keys.
+    def _keys_for(metric_name: str) -> set[frozenset[str]]:
+        seen: set[frozenset[str]] = set()
+        for label_str in snap.get(metric_name, {}):
+            if not label_str:
+                # An empty label_str means the unlabeled bucket. After
+                # W35 corrective C-1 no idempotency metric is emitted
+                # without labels — surfacing it here lets the assertion
+                # fail loudly rather than silently masking the drift.
+                seen.add(frozenset())
+                continue
+            keys = set()
+            for chunk in label_str.split(","):
+                if "=" in chunk:
+                    keys.add(chunk.split("=", 1)[0].strip())
+            seen.add(frozenset(keys))
+        return seen
+
+    expected = {
+        REPLAY_METRIC: {frozenset({"tenant_id", "outcome"})},
+        CONFLICT_METRIC: {frozenset({"tenant_id"})},
+        RECORD_AGE_METRIC: {frozenset({"tenant_id"})},
+    }
+    if _purge_present:
+        expected[PURGED_METRIC] = {frozenset({"tenant_id"})}
+
+    for metric, expected_keysets in expected.items():
+        observed = _keys_for(metric)
+        assert observed, f"{metric}: no observations recorded; snap={snap.get(metric)}"
+        assert observed == expected_keysets, (
+            f"{metric} label-set drift: expected {expected_keysets}, "
+            f"got {observed}. The four idempotency metrics MUST carry "
+            f"only the documented labels (W35 corrective C-1)."
+        )

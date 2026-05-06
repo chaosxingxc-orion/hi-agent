@@ -271,3 +271,42 @@ The package owns no SQLite schema — durable persistence is delegated to `SQLit
 - CLAUDE.md Rule 7 (Resilience Must Not Mask Signals), Rule 8 (Operator-Shape Gate)
 - `scripts/check_rule7_observability.py` — Rule 7 enforcement gate
 - `docs/governance/closure-taxonomy.md` Level `operationally_observable`
+
+---
+
+## Metric label cardinality policy
+
+Platform-side Prometheus metrics carry raw `{tenant_id}` (and other
+dimension labels). Cardinality control belongs at PromQL recording-rule
+level on the operator's side, not at the metric source — this keeps
+dashboard queries portable across tenants and consistent with the
+`hi_agent_run_*` family conventions.
+
+The legacy `hi_agent_llm_tokens_total` metric (W31) retains a
+`{tenant_bucket}` (mod-16 hash) label for backwards compatibility with
+W31-era dashboards; treat it as a documented exception. New metrics
+MUST use raw `{tenant_id}` (W35 corrective C-1). Operators that want a
+bucketed view should derive one via a PromQL recording rule rather than
+asking the platform to bucket at emit time. See
+`docs/observability/idempotency-metrics.md` for the recording-rule
+pattern.
+
+## Orphan-metric audit (W35-corrective hidden H4)
+
+A 2026-05-06 hidden-defect scan found 11 W12-G `_MetricDef` entries with
+no producer call-site anywhere in `hi_agent/`, `agent_server/`, or
+`agent_kernel/`: the plural-form run-lifecycle counters
+(`hi_agent_runs_started_total`, `runs_completed_total`, `runs_failed_total`,
+`runs_cancelled_total`, `runs_timed_out_total`) and six run/tool latency
+histograms (`hi_agent_run_duration_seconds`, `run_no_progress_seconds`,
+`queue_claim_latency_seconds`, `tool_latency_seconds`,
+`human_gate_age_seconds`, `drain_duration_seconds`). All eleven were
+deleted because they made a contract claim that no code made good on
+(Rule 14 silent contract-drift). The active path uses
+`runs_total{status=…}` (`runner_telemetry.py`) and the singular
+`hi_agent_run_*_total` family owned by `RunEventEmitter`. The deletion is
+held in place by `tests/unit/test_metrics_catalogue_complete.py
+::TestW35OrphanMetricsStayDeleted`. **Policy: a metric declaration
+requires at least one emitter at landing time.** Reserved-for-upcoming
+declarations get an inline `# orphan: pending wire-up in W<N>-<TRACK>`
+comment naming the consumer; otherwise do not declare.
