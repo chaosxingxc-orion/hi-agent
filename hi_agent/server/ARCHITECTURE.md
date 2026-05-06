@@ -1,212 +1,384 @@
-# Server Architecture
+# hi_agent/server — Architecture
 
-## 1. Purpose & Position in System
+> **Last refreshed:** 2026-05-06 (W35 corrective close + W36 plans). HEAD `276917d8`.
+> **Audience:** platform engineers + W36-A3 / A4 / A5 implementers.
+> **Status:** authoritative.
 
-`hi_agent/server/` is the canonical hi_agent HTTP layer. It owns the run lifecycle (queueing, execution, cancellation, recovery), the durable persistence boundaries (run state, events, idempotency, sessions, team registry), and the Starlette ASGI application that exposes `/runs`, `/health`, `/metrics`, `/manifest`, `/knowledge/*`, `/memory/*`, `/skills/*`, `/tools`, and `/mcp/*` endpoints. The umbrella class is `AgentServer` (`hi_agent/server/app.py:1645`), instantiated once per process and consumed by `agent_server/runtime/kernel_adapter.py`.
+---
 
-This package is being **superseded as the public surface** by `agent_server/`, the versioned northbound facade. New external integrations should target the contract-frozen `agent_server/api/routes_*` paths; `hi_agent/server/` continues to host the runtime kernel under it. The seam is one-directional: `agent_server` depends on `hi_agent.server.app.AgentServer`, never the other way.
+## 1. Purpose & Responsibilities
 
-It does **not** own: business-agent profiles (those live in `hi_agent/profiles/`), capability execution semantics (delegated to `hi_agent/runtime/harness/` via `CapabilityInvoker`), the kernel facade (delegated to `hi_agent/runtime_adapter/`), or the LLM gateway (delegated to `hi_agent/llm/`).
+`hi_agent/server/` is the **run-lifecycle kernel and durable persistence boundary** for the platform. It owns:
 
-## 2. External Interfaces
+- The `AgentServer` umbrella (`hi_agent/server/app.py:1923`) — single object holding all subsystem references for a process
+- The Starlette ASGI app (`build_app`, `app.py:1467`) and ~60 route handlers, including `/runs`, `/health`, `/ready`, `/metrics`, `/manifest`, `/knowledge/*`, `/memory/*`, `/skills/*`, `/tools`, `/mcp/*`, `/team/events`, `/sessions`, `/ops/dlq`, `/replay/*`
+- The `RunManager` (`run_manager.py:100`) — thread-safe run lifecycle from `created` to terminal, with lease heartbeat, idempotent replay, and tenant-scoped reads
+- Six durable SQLite stores: `SQLiteRunStore` (`run_store.py:133`), `RunQueue` (`run_queue.py:105`), `SQLiteEventStore` (`event_store.py:74`), `IdempotencyStore` (`idempotency.py:89`), `TeamRunRegistry` (`team_run_registry.py:48`), `SessionStore` (`session_store.py`); plus `SQLiteGateStore` and `TeamEventStore`
+- The single construction path for those stores: `_durable_backends.build_durable_backends` (`_durable_backends.py:14`, Rule 6)
+- AuthMiddleware (`auth_middleware.py:96`), SessionMiddleware (`session_middleware.py`), and the `TenantContext` ContextVar (`tenant_context.py:18`) — the trust boundary
+- The `EventBus` (`event_bus.py`) — process-local sync/async observer fan-out
+- Lease recovery: `_rehydrate_runs` (`app.py:1278`) + `decide_recovery_action` (`recovery.py:85`) + `RecoveryAlarm` (`recovery.py:38`, Rule 7 reference)
+- Re-lease attempt_id bump helper: `_bump_attempt_id_on_release` (`app.py:1218`, W35-T9 / W35-C-3)
+- Idempotency TTL purge: `IdempotencyStore.purge_expired` (`idempotency.py:193`, W35-T4 — the W36-A3 reference shape)
 
-**HTTP endpoints** (declared in `hi_agent/server/app.py:1344` `build_app`):
+It does **not** own: business-agent profiles (delegated to `hi_agent/profiles/` and the injected `profile_registry`), capability execution semantics (delegated to `hi_agent/runtime/harness/` via `CapabilityInvoker`), the kernel facade transport (delegated to `hi_agent/runtime_adapter/`), or the LLM gateway (delegated to `hi_agent/llm/`).
 
-- `POST /runs`, `GET /runs/{run_id}`, `GET /runs`, `POST /runs/{run_id}/cancel`, `POST /runs/{run_id}/signal`, `POST /runs/{run_id}/resume`, `POST /runs/{run_id}/feedback`, `GET /runs/{run_id}/events` (SSE)
-- `GET /health` (`app.py:127`), `GET /ready` (`app.py:304`)
-- `GET /metrics` (Prometheus), `GET /metrics/json`, `GET /cost`
-- `POST /knowledge/ingest`, `GET /knowledge/query`, `POST /memory/dream`, `GET /memory/status`
-- `GET /skills/list`, `POST /skills/evolve`, `GET /skills/{id}/metrics`
-- `POST /tools/call`, `POST /mcp/tools/call`, `POST /mcp/tools/list`
-- `GET /manifest`, `GET /context/health`, `GET /management/capacity`
+This package is being **soft-deprecated as the public surface** by `agent_server/`, the versioned northbound facade. New external integrations target the contract-frozen `agent_server/api/v1/*` paths; `hi_agent/server/` continues to host the runtime kernel under it. The seam is one-directional: `agent_server/` depends on `hi_agent.server.app.AgentServer`, never the other way (R-AS-1).
 
-**Programmatic surface** (`hi_agent/server/__init__.py`):
+---
 
-- `AgentServer(host, port, config, rate_limit_rps, profile_registry)`
-- `RunManager(max_concurrent, queue_size, idempotency_store, run_store, run_queue, event_store, postmortem_engine)`
-- `ManagedRun` dataclass — fields include `run_id`, `tenant_id`, `state`, `result`, `current_stage`, `started_at`, `finished_at`, `idempotency_key`, `outcome`, `trace_id` (`run_manager.py:68`)
-- `build_app(agent_server)` — returns the configured Starlette app
-
-**Persistence contracts**: `RunRecord` (`run_store.py:21`), `StoredEvent` (`event_store.py:20`), `IdempotencyRecord` (`idempotency.py:23`), `TeamRun` (from `hi_agent.contracts.team_runtime`), session records.
-
-## 3. Internal Components
+## 2. Context & Scope
 
 ```mermaid
-graph TD
-    Starlette[Starlette ASGI App] --> AuthMW[AuthMiddleware]
-    AuthMW --> SessionMW[SessionMiddleware]
-    SessionMW --> Routes[Route Handlers]
-    Routes --> AgentServer[AgentServer umbrella]
+flowchart LR
+    AS[agent_server<br/>v1 RELEASED facade] -->|kernel_adapter.py<br/>R-AS-1 single seam| APP[AgentServer<br/>app.py:1923]
 
-    AgentServer --> RunManager[RunManager]
-    AgentServer --> Backends[build_durable_backends]
-    AgentServer --> Builder[SystemBuilder]
-    AgentServer --> EventBus[EventBus singleton]
+    subgraph SERVER[hi_agent/server/]
+        APP --> AUTH[AuthMiddleware<br/>auth_middleware.py:96]
+        AUTH --> SES[SessionMiddleware<br/>session_middleware.py]
+        SES --> ROUTES[Route handlers<br/>routes_*.py + app.py]
+        ROUTES --> RM[RunManager<br/>run_manager.py:100]
+        RM --> BACKENDS[(durable backends)]
+    end
 
-    RunManager --> RunStore[(SQLiteRunStore)]
-    RunManager --> RunQueue[(RunQueue lease-based)]
-    RunManager --> EventStore[(SQLiteEventStore)]
-    RunManager --> IdempStore[(IdempotencyStore)]
+    APP --> RUNTIME[hi_agent/runtime/<br/>SyncBridge + harness]
+    APP --> ADAPTER[hi_agent/runtime_adapter/<br/>kernel facade transport]
+    APP --> LLM_PKG[hi_agent/llm/<br/>gateway + tier router]
+    APP --> OBS[hi_agent/observability/<br/>spine + metrics]
+    APP --> CAP[hi_agent/capability/<br/>registry + invoker]
 
-    Builder --> CapInvoker[CapabilityInvoker]
-    Builder --> LLMGateway[LLM Gateway]
-    Builder --> KGManager[KnowledgeManager]
-    Builder --> MemMgr[MemoryLifecycleManager]
+    BACKENDS --> SQLITE[(SQLite WAL files<br/>HI_AGENT_DATA_DIR)]
 
-    RunManager --> Executor[executor_factory<br/>RunExecutor]
-    Executor --> CapInvoker
-    Executor --> LLMGateway
+    classDef frozen fill:#fef3c7,stroke:#d97706
+    classDef kernel fill:#dbeafe,stroke:#2563eb
+    classDef store fill:#fee2e2,stroke:#dc2626
+    class AS frozen
+    class APP,RM,RUNTIME,ADAPTER,LLM_PKG,OBS,CAP kernel
+    class BACKENDS,SQLITE store
 ```
 
-| Component | File | Responsibility |
-|---|---|---|
-| `AgentServer` | `app.py:1645` | Umbrella holder for all subsystems; owns `_builder`, `_config_stack`, durable backends, RunManager. |
-| `RunManager` | `run_manager.py:100` | Thread-safe run lifecycle: create_run → enqueue → dispatch → terminal. Lease heartbeat on durable path. |
-| `SQLiteRunStore` | `run_store.py:41` | Durable run records (status, priority, attempts, results). WAL mode + threading.Lock. |
-| `RunQueue` | `run_queue.py:53` | Lease-based durable queue with claim_next / heartbeat / complete / fail / dead_letter. |
-| `SQLiteEventStore` | `event_store.py:58` | Per-run event ledger; backs SSE replay via `Last-Event-ID`. |
-| `IdempotencyStore` | `idempotency.py:48` | Deduplicates submissions by idempotency_key; reserve_or_replay returns "created"/"replayed"/"conflict". |
-| `TeamRunRegistry` | `team_run_registry.py:48` | SQLite registry of active team runs (durable under research/prod). |
-| `AuthMiddleware` | `auth_middleware.py:96` | API-key + JWT validation; RBAC; populates `TenantContext` ContextVar. |
-| `EventBus` | `event_bus.py` | Sync/async observer fan-out; persists via injected event_store. |
-| `_rehydrate_runs` | `app.py:1196` | On lifespan startup: re-enqueues lease-expired runs per posture. |
+The middleware chain is fixed: `AuthMiddleware → SessionMiddleware → route handler`. AuthMiddleware sets `TenantContext` per-request; every downstream `RunManager` call reads it via ContextVar.
 
-## 4. Data Flow
+---
+
+## 3. Module Boundary & Dependencies
+
+| Module | Owns | Outbound deps |
+|---|---|---|
+| `app.py` | `AgentServer` umbrella, `build_app`, lifespan, route registration, `_rehydrate_runs`, `_bump_attempt_id_on_release` | `_durable_backends`, `run_manager`, every routes_*.py, `runtime/sync_bridge`, `config/builder` |
+| `run_manager.py` | `RunManager`, `ManagedRun`, run lifecycle threads, lease heartbeat, idempotent replay | `run_store`, `run_queue`, `event_store`, `idempotency`, `tenant_context`, `runtime/cancellation`, `run_state_transitions` |
+| `run_store.py` | `RunRecord` dataclass + `SQLiteRunStore` (durable WAL) | `contracts/run`, `config/posture` |
+| `run_queue.py` | `RunQueue` lease-based durable queue (claim_next / heartbeat / complete / fail / dead_letter) | `config/posture`, `contracts/errors` |
+| `event_store.py` | `StoredEvent` + `SQLiteEventStore` (per-run ledger; SSE replay backing) | `config/posture`, `contracts/_spine_validation` |
+| `idempotency.py` | `IdempotencyRecord` + `IdempotencyStore` + `purge_expired` (W35-T4) | `config/posture`, `observability/idempotency_metrics` |
+| `team_run_registry.py` | `TeamRunRegistry` (durable team-run membership) | `contracts/team_runtime`, `config/posture` |
+| `_durable_backends.py` | `build_durable_backends` (Rule 6 single construction) | every store + `evolve/experiment_store`, `evolve/feedback_store`, `management/gate_store`, `route_engine/decision_audit_store` |
+| `auth_middleware.py` | API-key + JWT validation, RBAC, ContextVar population | `auth/jwt_middleware`, `auth/rbac_enforcer`, `tenant_context` |
+| `tenant_context.py` | `TenantContext` ContextVar; per-asyncio-task isolation | (none) |
+| `event_bus.py` | Sync/async observer fan-out; persists via injected `event_store` | `event_store` |
+| `recovery.py` | `RecoveryState`, `decide_recovery_action`, `RecoveryAlarm` (Rule 7) | `config/posture`, `observability/collector` |
+| `run_state_transitions.py` | Legal state graph + `transition()` (single write path for `ManagedRun.state`) | (none) |
+| `routes_*.py` | Per-feature route handlers (runs, knowledge, memory, skills, sessions, team, ops) | `run_manager`, `auth_middleware`, request-validation |
+
+Inbound: only `agent_server/runtime/kernel_adapter.py`, `agent_server/bootstrap.py`, and tests.
+
+---
+
+## 4. Building Blocks
+
+```mermaid
+flowchart TB
+    subgraph APP_LAYER["app.py — Starlette + lifespan"]
+        STAR[Starlette ASGI App]
+        LIFE[lifespan handler<br/>app.py:1450]
+        REHY[_rehydrate_runs<br/>app.py:1278]
+        BUMP[_bump_attempt_id_on_release<br/>app.py:1218]
+        AGENT[AgentServer<br/>app.py:1923]
+    end
+
+    subgraph MIDDLEWARE
+        AUTH[AuthMiddleware<br/>auth_middleware.py:96]
+        SES[SessionMiddleware<br/>session_middleware.py]
+        TC[TenantContext<br/>ContextVar]
+    end
+
+    subgraph LIFECYCLE["run lifecycle"]
+        RM[RunManager<br/>run_manager.py:100]
+        MR[ManagedRun<br/>run_manager.py:79]
+        RST[run_state_transitions.transition<br/>run_state_transitions.py:77]
+    end
+
+    subgraph DURABLE["durable backends — Rule 6"]
+        BUILD[build_durable_backends<br/>_durable_backends.py:14]
+        RS[(SQLiteRunStore<br/>runs.db)]
+        RQ[(RunQueue<br/>run_queue.sqlite)]
+        ES[(SQLiteEventStore<br/>events.db)]
+        IS[(IdempotencyStore<br/>idempotency.db)]
+        TRR[(TeamRunRegistry<br/>team_runs.sqlite)]
+        SS[(SessionStore<br/>sessions.db)]
+        TES[(TeamEventStore<br/>team_events.db)]
+        GS[(SQLiteGateStore<br/>gates.sqlite)]
+    end
+
+    subgraph RECOVERY
+        REC[decide_recovery_action<br/>recovery.py:85]
+        ALARM[RecoveryAlarm<br/>recovery.py:38]
+    end
+
+    subgraph IDEM["W35-T4 reference shape"]
+        PURGE[IdempotencyStore.purge_expired<br/>idempotency.py:193]
+        METRIC[hi_agent_idempotency_purged_total]
+    end
+
+    subgraph EVENTS
+        EB[EventBus<br/>event_bus.py]
+        EE[RunEventEmitter<br/>12 typed lifecycle events]
+    end
+
+    STAR --> AUTH
+    AUTH --> TC
+    AUTH --> SES
+    SES --> AGENT
+    LIFE --> AGENT
+    LIFE --> REHY
+    REHY --> BUMP
+    REHY --> REC
+    REC --> ALARM
+
+    AGENT --> BUILD
+    BUILD --> RS
+    BUILD --> RQ
+    BUILD --> ES
+    BUILD --> IS
+    BUILD --> TRR
+    BUILD --> SS
+    BUILD --> TES
+    BUILD --> GS
+
+    AGENT --> RM
+    RM --> MR
+    RM --> RST
+    RM --> RS
+    RM --> RQ
+    RM --> ES
+    RM --> IS
+    RM --> EB
+
+    EB --> ES
+    EE --> METRIC
+    PURGE --> METRIC
+
+    classDef store fill:#fee2e2,stroke:#dc2626
+    classDef alarm fill:#fef3c7,stroke:#d97706
+    class RS,RQ,ES,IS,TRR,SS,TES,GS store
+    class ALARM,METRIC alarm
+```
+
+**Single Construction Path** (Rule 6): every durable store is constructed inside `build_durable_backends` (`_durable_backends.py:14`) and injected by name. Inline `x or DefaultX()` patterns are forbidden and CI-rejected.
+
+---
+
+## 5. Runtime View — Key Scenarios
+
+### 5.1 Run lifecycle state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> created : create_run<br/>(reserve_or_replay, RunRecord upsert)
+    created --> running : _execute_run / _execute_run_durable<br/>(claim_next, lease_acquired, run_started)
+    created --> failed : queue_full / submission rejected
+    created --> cancelled : pre-dispatch cancel
+
+    running --> completed : RunResult terminal
+    running --> failed : exception / governance violation
+    running --> cancelled : POST /runs/{id}/cancel
+    running --> aborted : kernel reports aborted
+    running --> queue_timeout : claim deadline exceeded
+    running --> queue_full : durable queue saturated
+
+    completed --> [*]
+    failed --> [*]
+    cancelled --> [*]
+    aborted --> [*]
+    queue_timeout --> [*]
+    queue_full --> [*]
+
+    note right of running
+        Legal targets enforced by
+        run_state_transitions.transition
+        (run_state_transitions.py:77).
+        Direct attribute write to
+        ManagedRun.state is forbidden.
+    end note
+
+    note right of completed
+        finished_at populated unconditionally
+        by RunManager finally block (RO-8).
+        Idempotency store snapshot mark_complete
+        captures status_code so replays can
+        return original 5xx (Track D C-7).
+    end note
+```
+
+### 5.2 Submit a run with idempotency
 
 ```mermaid
 sequenceDiagram
-    Client->>+AuthMW: POST /runs (Bearer + body)
-    AuthMW->>AuthMW: validate token, set TenantContext
-    AuthMW->>+RouteHandler: handle_create_run
-    RouteHandler->>+RunManager: create_run(task_contract, workspace)
-    RunManager->>IdempStore: reserve_or_replay
-    alt new (created)
-        IdempStore-->>RunManager: ("created", record)
-        RunManager->>RunStore: upsert(RunRecord)
-        RunManager->>RunQueue: enqueue
-        RunManager->>EventStore: append(run_queued)
-        RunManager-->>RouteHandler: ManagedRun(outcome=created)
-        RouteHandler->>RunManager: start_run(executor_fn)
-        RunManager-->>-RouteHandler: 202 Accepted
-        RouteHandler-->>-Client: {run_id, state=created}
-        Note over RunManager: background _queue_worker
-        RunManager->>RunQueue: claim_next
-        RunManager->>EventStore: run_started + lease_acquired
-        RunManager->>+Executor: executor_fn(run)
-        Executor->>EventStore: stage_started/completed (×N)
-        Executor-->>-RunManager: RunResult
-        RunManager->>EventStore: run_completed/failed/cancelled
-        RunManager->>RunQueue: complete/fail
-        RunManager->>RunStore: mark_complete
-        RunManager->>IdempStore: mark_complete(snapshot)
-    else replayed
-        IdempStore-->>RunManager: ("replayed", record)
-        RunManager-->>RouteHandler: ManagedRun(outcome=replayed)
-        RouteHandler-->>Client: 200 OK (cached snapshot)
+    autonumber
+    participant Client
+    participant AS as agent_server<br/>(facade)
+    participant Auth as AuthMiddleware
+    participant Handler as handle_create_run
+    participant RM as RunManager
+    participant Idem as IdempotencyStore
+    participant RS as SQLiteRunStore
+    participant RQ as RunQueue
+    participant ES as SQLiteEventStore
+
+    Client->>AS: POST /v1/runs (Bearer + body + Idempotency-Key)
+    AS->>Auth: validate JWT, set TenantContext
+    Auth->>Handler: scope, contract, idem_key
+    Handler->>RM: create_run(contract, ctx)
+    RM->>Idem: reserve_or_replay(tenant_id, idem_key, hash, run_id)
+    Note over Idem: W35-T4 lazy purge:<br/>if existing row past expires_at,<br/>DELETE first then INSERT fresh
+    alt outcome=created
+        Idem-->>RM: ("created", IdempotencyRecord)
+        RM->>RS: upsert(RunRecord, tenant_id+lineage)
+        RM->>RQ: enqueue(run_id, tenant_id)
+        RM->>ES: append(StoredEvent run_queued)
+        RM-->>Handler: ManagedRun(outcome=created, status=created)
+        Handler-->>AS: 202 Accepted {run_id}
+    else outcome=replayed
+        Idem-->>RM: ("replayed", existing)
+        RM-->>Handler: ManagedRun(outcome=replayed,<br/>response_snapshot, response_status_code)
+        Handler-->>AS: cached snapshot + status_code
+    else outcome=conflict
+        Idem-->>RM: ("conflict", existing)
+        RM-->>Handler: raise IdempotencyConflictError
+        Handler-->>AS: 409 Conflict
     end
 ```
 
-`create_run` (`run_manager.py:344`) enforces tenant_id under research/prod posture; falls back to `default` only under dev with a WARNING (T-12'). The durable execution path (`_execute_run_durable`, `run_manager.py:792`) starts a daemon heartbeat thread that renews the queue lease at `lease_heartbeat_interval_seconds` and transitions to `lease_lost` + DLQ if renewal is denied.
+### 5.3 W35-T9 re-lease attempt_id bump
 
-## 5. State & Persistence
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Lifespan as Starlette lifespan
+    participant Rehy as _rehydrate_runs<br/>(app.py:1278)
+    participant Rec as decide_recovery_action<br/>(recovery.py:85)
+    participant Bump as _bump_attempt_id_on_release<br/>(app.py:1218)
+    participant RS as SQLiteRunStore
+    participant RQ as RunQueue
+    participant ES as SQLiteEventStore
 
-| Store | Backend | Lifetime | Schema |
-|---|---|---|---|
-| `SQLiteRunStore` | SQLite WAL @ `HI_AGENT_DATA_DIR/runs.db` | Process-durable | `run_records(run_id PK, tenant_id, user_id, session_id, task_contract_json, status, priority, attempt_count, ...)` (`run_store.py:48`) |
-| `RunQueue` | SQLite WAL @ `run_queue.sqlite` | Process-durable, posture-aware (`:memory:` under dev) | run_queue rows with lease columns; `_resolve_db_path` (`run_queue.py:30`) |
-| `SQLiteEventStore` | SQLite WAL @ `event_store.sqlite` | Process-durable | `run_events(event_id UNIQUE, run_id, sequence, event_type, payload_json, tenant_id, ...)` (`event_store.py:35`) |
-| `IdempotencyStore` | SQLite WAL @ `idempotency.sqlite` | TTL-bounded | per-tenant idempotency_records keyed by (tenant_id, idempotency_key) |
-| `TeamRunRegistry` | SQLite WAL or `:memory:` | Posture-aware | `team_runs(team_id PK, ...)` (`team_run_registry.py:48`) |
-| `_runs` dict | In-memory `dict[str, ManagedRun]` | Process | Live snapshot rebuilt from `_rehydrate_runs` |
-| `_queue` PriorityQueue | In-memory `queue.PriorityQueue` | Process; tie-break only | Used only when `run_queue is None` |
-| `_event_seqs` | In-memory `dict[str, int]` | Process; seeded from `event_store.max_sequence` | Per-run sequence counter |
+    Lifespan->>Rehy: startup hook
+    Rehy->>RQ: scan rows with lease past expiry
+    loop for each lease-expired run
+        Rehy->>Rec: decide_recovery_action(state, posture)
+        alt research / prod (fail-safe default)
+            Rec-->>Rehy: should_requeue=True
+            Rehy->>Bump: _bump_attempt_id_on_release(run_store, run_id)
+            Bump->>RS: get(run_id)
+            RS-->>Bump: existing RunRecord
+            Bump->>Bump: new_attempt_id = uuid4()<br/>parent_run_id ← run_id<br/>attempt_count += 1
+            Bump->>RS: upsert(updated record)
+            Bump-->>Rehy: new_attempt_id
+            Rehy->>RQ: reenqueue(run_id, tenant_id) with adoption_token CAS
+            Rehy->>ES: append(recovery_decision)
+        else dev (warn-only)
+            Rec-->>Rehy: should_requeue=False
+            Rehy->>Rehy: RecoveryAlarm.fire_if_needed (Rule 7)
+        end
+    end
+```
 
-All durable backends are constructed via `build_durable_backends` (`hi_agent/server/_durable_backends.py`) — Rule 6 single construction path. `HI_AGENT_DATA_DIR` overrides `server_db_dir` from config.
+The bump matters because under W34-F.2, two attempts of the same run carrying the same `attempt_id` collide on every cross-attempt metric and trace. The helper was **extracted** (W35-C-3) from inline code so the W34-F.2 lineage invariants are unit-testable without the full FastAPI startup harness.
 
-## 6. Concurrency & Lifecycle
+---
 
-`AgentServer.__init__` (`app.py:1648-1975`) is synchronous and idempotent; it builds durable backends, RunManager, SystemBuilder, MCPServer, ArtifactRegistry, MemoryLifecycleManager, KnowledgeManager, RetrievalEngine, SkillEvolver/Loader, MetricsCollector, RunContextManager, ContextManager, SLOMonitor — each guarded by try/except so a single subsystem failure does not abort startup.
+## 6. Cross-cutting Concerns
 
-**Starlette lifespan** (`app.py:1450`):
+| Concern | Site | Rule |
+|---|---|---|
+| **AuthMiddleware** sets TenantContext ContextVar per request | `auth_middleware.py:96` | W35-T3 (auth-authoritative tenant_id) |
+| **Posture validation** at construction sites for `RunRecord`, `StoredEvent`, `IdempotencyRecord`, `TeamRun` | `run_store.py:91`, `event_store.py:38`, `idempotency.py:45` | Rule 11 (posture) + Rule 12 (spine) — W35-T1 |
+| **`_owns(run, ctx)`** gates every read | `run_manager.py:320` | tenant_id + user_id (+ session_id when scoped) |
+| **State transition** centralized | `run_state_transitions.transition` (`run_state_transitions.py:77`) | sole writer for `ManagedRun.state`; rejects illegal edges |
+| **Lease heartbeat** under research/prod | `_execute_run_durable` daemon thread (`run_manager.py:792`) | renews at `lease_heartbeat_interval_seconds`; `lease_lost` → DLQ |
+| **Idempotency TTL purge** | `IdempotencyStore.purge_expired` (`idempotency.py:193`) + lifespan loop | W35-T4; W36-A3 reference shape |
+| **Recovery alarm** | `RecoveryAlarm.fire_if_needed` (`recovery.py:38`) | Rule 7 reference: counter + WARNING + caller-side fallback_event |
+| **Rate limiting** per client IP | `rate_limiter.py` | rolling 60 s window; max `rate_limit_rps` |
+| **SSE replay via `Last-Event-ID`** | `routes_events.py` reads `SQLiteEventStore.list_after_sequence` | events ordered by per-run sequence counter |
+| **EventBus persistence** | `event_bus.py` writes through to `SQLiteEventStore` before fan-out | failure path emits `hi_agent_event_publish_errors_total` |
+| **Spine emitters** wrapped in `try/except` | `run_manager.py` + `recovery.py` | annotated `# rule7-exempt: expiry_wave="permanent"` per Rule 7 |
 
-1. Start `MemoryLifecycleManager` (background dream/consolidate scheduler)
-2. Warm `RetrievalEngine` index (`warm_index_async`)
-3. Start `SLOMonitor`
-4. Start `ConfigFileWatcher` if `HI_AGENT_CONFIG_FILE` set
-5. Start `LongRunningOpCoordinator` + `OpPoller` (G-8)
-6. Call `_rehydrate_runs` (`app.py:1196`) — scans queue for lease-expired runs; re-enqueues per posture; emits `dlq_checked` + `recovery_decision` events
-7. Install SIGTERM handler → `run_manager.shutdown()`
-8. yield (server live)
-9. Teardown: `run_manager.shutdown()` → `mm.stop()` → `slo.stop()` → watcher cancel → MCP transport close → evidence_store close
+---
 
-**RunManager threading**: one `_queue_worker` daemon (`run_manager.py:589`) drains the queue. Each claimed run is dispatched on its own daemon thread via `_execute_run` (in-memory queue) or `_execute_run_durable` (durable queue + heartbeat thread). `_semaphore` (Semaphore(max_concurrent)) bounds active runs. `shutdown(timeout)` (`run_manager.py:1405`) sets `_shutdown=True`, joins worker + active threads to deadline, marks stragglers `failed`, releases their leases.
+## 7. Architecture Decisions
 
-**Rule 5 considerations**: synchronous run dispatch uses `threading.Thread`; the LLM gateway (constructed in async route handlers) uses `httpx.AsyncClient` whose lifetime is bound to `runtime/sync_bridge.py`'s persistent loop (see `runtime/ARCHITECTURE.md`). No async resource is constructed inside `RunManager`.
+| ADR | Decision | Why |
+|---|---|---|
+| **Rule 6: `build_durable_backends`** | Single construction path for every SQLite store; backends injected by name into `AgentServer` | Inline `x or DefaultX()` produced two unshared in-memory stores (DF-11) — durable production rows never matched in-memory cache |
+| **Rule 5: SyncBridge from RunManager dispatch** | RunManager dispatches on threading.Thread; LLM gateway constructed from those threads uses `httpx.AsyncClient` whose lifetime is bound to `runtime.sync_bridge`'s persistent loop | No async resource is constructed inside RunManager; cross-thread reuse is bridge-mediated |
+| **W35-T1: Posture-aware spine validation** | `__post_init__` raises `SpineCompletenessError` / `ValueError` under research/prod when required fields empty; warns under dev | Storage-layer reconstructions trivially satisfy NOT NULL columns; the check matters at **fresh-construction sites** to prevent orphaned records |
+| **W35-T3: Auth-authoritative tenant_id** | `RunManager.create_run` rejects request-body tenant_id under research/prod; only TenantContext (JWT-derived) is trusted | Single trust origin; bypass via request body is closed |
+| **W35-T4: Idempotency TTL purge as W36-A3 reference** | `purge_expired` + lazy purge inside `reserve_or_replay` + lifespan loop + Prometheus counter | Smallest, hottest store proved the pattern; W36-A3 clones it across 8 Tier-1 stores |
+| **W35-T9: Re-lease attempt_id bump** | On `_rehydrate_runs` lease re-enqueue, mint fresh UUID4 attempt_id and link parent_run_id to original run_id | Two attempts sharing one attempt_id collided on every cross-attempt metric |
+| **W35-C-3: Helper extraction** | `_bump_attempt_id_on_release` extracted from inline `_rehydrate_runs` block | Inline logic was untestable without the full FastAPI startup harness; the helper is a pure function over `run_store + run_id + logger` |
+| **`run_state_transitions.transition` is the single writer** | All state changes go through `transition(run, target_state, reason=…)`; direct `run.state = …` is rejected by review | Terminal-to-terminal races (executor success vs. external cancel) are now WARNING + no-op instead of corruption |
+| **Soft-replacement by `agent_server/`** | Routes pre-versioning may be soft-deprecated; `agent_server/api/v1/*` is the contract surface | Lets `hi_agent/server/` evolve internal shapes; the kernel role is intact |
 
-## 7. Error Handling & Observability
+---
 
-**Counters** (Prometheus, registered via `Counter`):
-- `hi_agent_event_publish_errors_total`, `hi_agent_lease_renew_errors_total`, `hi_agent_run_execution_errors_total` (`run_manager.py:37-39`)
-- `hi_agent_health_check_errors_total{check_name=…}` (`app.py:124`)
-- `hi_agent_runtime_lease_lost_total` (incremented on heartbeat denial)
-- `hi_agent_events_published_total` (per successful event append)
-- 12 typed run lifecycle counters from `RunEventEmitter` (see `observability/ARCHITECTURE.md`)
+## 8. Quality Attributes
 
-**Logs**: every fallback path emits `WARNING+` with `extra={error: str(exc), run_id: …}` and `exc_info=True`. Examples: `_publish_run_event` failure (`run_manager.py:303`), `_on_stage_event` parse failure (`run_manager.py:215`), heartbeat renewal denied (`run_manager.py:848`).
+| Attribute | Target | How verified |
+|---|---|---|
+| **Run dispatch p95** | ≤ `2 × observed_p95` per Rule 8 step 3 | `docs/delivery/<sha>.md` gate run |
+| **Cancellation round-trip** | live-run cancel = 200 + drives terminal; unknown id = 404 | Rule 8 step 6 |
+| **Lifecycle observability** | `current_stage` non-`None` within 30 s; `finished_at` populated on every terminal | Rule 8 step 5 + RO-8 |
+| **Idempotent replay correctness** | replay returns original status_code (200/5xx/499/504) | Track D C-7 |
+| **Tenant isolation** | cross-tenant `get_run` returns 404 (not 403, not the row) | `RunManager._owns` (`run_manager.py:320`) |
+| **Lease recovery** | research/prod default re-enqueue; `HI_AGENT_RECOVERY_REENQUEUE=0` triggers RecoveryAlarm | `_rehydrate_runs` + `RecoveryAlarm` |
+| **Durable spine completeness** | every persistent row carries `tenant_id` (research/prod) | `__post_init__` posture validation; `scripts/check_contract_spine_completeness.py` |
+| **State graph correctness** | every transition documented in `_LEGAL_TRANSITIONS`; CI-tested | `run_state_transitions.py:32` |
 
-**Spine events** (Rule 7): emitted by `emit_run_manager`, `emit_heartbeat_renewed`, `emit_event_store` (see `observability/spine_events.py`). Wrapped in `try/except` with `# rule7-exempt: expiry_wave="permanent"` annotation — spine emitters never block execution path.
+---
 
-**Lifecycle events** (12 named): `run_queued`, `run_started`, `run_completed`, `run_failed`, `run_cancelled`, `run_finalized`, `lease_acquired`, `heartbeat_renewed`, `lease_lost`, `dlq_checked`, `recovery_decision`, plus stage/artifact/feedback events from RunExecutor.
+## 9. Risks & Technical Debt
 
-**Health envelope**: `/health` aggregates run_manager, memory, metrics, context, event_bus, kernel_adapter; 200 always (`app.py:127`). `/ready` returns 200 only when subsystem ready + not draining + queue not saturated; 503 otherwise (`app.py:304`).
+| Risk | Where | W36 plan |
+|---|---|---|
+| **5 of 8 W36-A3 stores lack `tenant_id` columns** | event_store, run_store, audit_store, gate_store, feedback_store, team_event_store, decision_audit, session_store — only 3 carry `tenant_id` today | W36-A4 schema-lineage extension before A3 chunk-DELETE per tenant |
+| **`SQLiteEventStore` is the highest-volume table** | `event_store.py:74`; per-run unbounded growth | W36-A3 Store 1 binding: chunked `DELETE … LIMIT 5000` + retention env vars (`HI_AGENT_EVENT_STORE_RETENTION_DAYS=30`, `…_PURGE_INTERVAL_S=3600`) |
+| **Cross-store FK ordering** | run deleted before its events → orphaned events | W36-A3 plan §risk: events purged first within retention window; runs purged last |
+| **In-memory `_runs` dict is authoritative for live state** | `run_manager.py` | W14 systemic class closure tested partial-restart reconciliation; remaining gap = fully-atomic enqueue (no W36 binding yet) |
+| **PriorityQueue tie-break in-memory only** | `run_manager.py:_queue` | `_queue_seq` resets on restart; durable RunQueue is source of truth in research/prod |
+| **EventBus is process-local singleton** | `event_bus.py` | multi-process deployment requires every process to wire the same SQLite event store; bus does not federate |
+| **AuthMiddleware no-op without `HI_AGENT_API_KEY`** | `auth_middleware.py:96` | dev-friendly default; `HI_AGENT_AUTH_REQUIRED=1` forces fail-closed; posture-aware research/prod fail-closed when both absent |
+| **Lifespan startup is best-effort** | `app.py:1450` | every subsystem wrapped in try/except; `/health` may report `degraded` instead of failing the process |
+| **Boot-time assertions B1–B14 missing** | various subsystems | W36-A5 binding: `assert_research_posture_required` helper; `agent_server/api/__init__.py:138-156` is the W35-T8 reference |
+| **W36-A3 cumulative tenant_id label cardinality** | retention purge metrics | accept tenant-mixed series for W36; tenant-labelled chunked purges follow W36-A4 |
 
-## 8. Security Boundary
+---
 
-**Authentication** (`auth_middleware.py:96`):
-- `HI_AGENT_API_KEY` env var (comma-separated valid keys); `Authorization: Bearer <token>`
-- Three-part Bearer values are decoded as JWT and validated via `validate_jwt_claims` (sub, aud, exp)
-- Empty `HI_AGENT_API_KEY` → middleware no-op (dev backwards compat); `HI_AGENT_AUTH_REQUIRED=1` forces fail-closed
-- Exempt paths: `/health`, `/metrics`, `/metrics/json` (`auth_middleware.py:47`)
+## 10. References
 
-**RBAC** via `RBACEnforcer` (`auth_middleware.py:37`): write methods (POST/PUT/DELETE/PATCH) require `write` role; reads require `read`. Operation policy decorators (`@require_operation`) gate sensitive endpoints.
-
-**Tenant scoping**:
-- `TenantContext` (`tenant_context.py:18`) is set per-request by AuthMiddleware via ContextVar; isolated per asyncio task.
-- `RunManager._owns(run, ctx)` (`run_manager.py:320`) gates every `get_run` / `list_runs` / `cancel_run` against tenant_id + user_id (+ session_id when provided).
-- Every persistence row carries `tenant_id`: `RunRecord` (`run_store.py:25`), `StoredEvent` (`event_store.py:28`), `IdempotencyRecord` (`idempotency.py:26`).
-- Under research/prod posture, `RunManager.create_run` rejects missing tenant_id with `TenantScopeError` (`run_manager.py:413`); under dev it falls back to `"default"` with a WARNING.
-
-**Trust boundary**: middleware → handler → RunManager → executor. Below RunManager, code receives `RunExecutionContext` (`hi_agent/context/run_execution_context.py`) carrying tenant_id; downstream stores re-enforce posture validation in `__post_init__`.
-
-## 9. Extension Points
-
-- **Add a route**: drop a `routes_<name>.py` exporting `handle_<op>` async functions; register in `build_app` (`app.py:1344`). Annotate with `# tdd-red-sha: <sha>` per Rule 4 / R-AS-5.
-- **Add a durable backend**: extend `_durable_backends.build_durable_backends` to construct + return; expose on `AgentServer.__init__`.
-- **Custom executor**: assign `agent_server.executor_factory = lambda run_data: my_executor`; default is `_default_executor_factory` (`app.py:1982`). Per-run override via `task_contract.run_executor`.
-- **Custom stage graph**: set `agent_server.stage_graph` after construction; `/manifest` will reflect it.
-- **Profile injection**: pass `profile_registry` to `AgentServer(...)` constructor; flows to `SystemBuilder`.
-- **Plugins / MCP**: `_builder._wire_plugin_contributions` discovers skill_dirs and mcp_servers from `plugins/` directory.
-
-## 10. Constraints & Trade-offs
-
-- **In-memory `_runs` dict is authoritative for live state** — durable stores back it, but a partial restart between an enqueue and a `_publish_run_event` will reconcile only via lease expiry + `_rehydrate_runs`. Tested under W14 systemic class closure; remaining gap is fully-atomic enqueue.
-- **PriorityQueue tie-break is in-memory only** — `_queue_seq` resets on restart. Acceptable because the durable RunQueue is the source of truth in research/prod.
-- **EventBus is a process-local singleton** (`event_bus`) — multi-process deployment requires every process to wire the same SQLite event store; the bus does not federate across processes.
-- **AuthMiddleware no-op without `HI_AGENT_API_KEY`** — dev-friendly default but every deployment must set the env var (or `HI_AGENT_AUTH_REQUIRED=1`) to be production-safe. Posture-aware: research/prod fail-closed when both absent.
-- **Lifespan startup is best-effort** — every subsystem is wrapped in try/except so one failure does not abort. The trade-off is that `/health` may return `degraded` instead of failing the process; operators must monitor `/health.subsystems.*.status`.
-- **Soft replacement by `agent_server/`** — public surface is migrating; `hi_agent/server/` stays the kernel but its routes are pre-versioning and may be soft-deprecated.
-
-## 11. References
-
-- `hi_agent/server/app.py` — Starlette app, lifespan, `_rehydrate_runs`, AgentServer
-- `hi_agent/server/run_manager.py` — RunManager, ManagedRun
-- `hi_agent/server/run_store.py`, `run_queue.py`, `event_store.py`, `idempotency.py`, `team_run_registry.py` — durable backends
+- `hi_agent/server/app.py` — Starlette app, lifespan, `_rehydrate_runs`, `_bump_attempt_id_on_release`, `AgentServer`
+- `hi_agent/server/run_manager.py` — `RunManager`, `ManagedRun`, lease heartbeat, idempotent dispatch
+- `hi_agent/server/run_store.py`, `run_queue.py`, `event_store.py`, `idempotency.py`, `team_run_registry.py`, `session_store.py`, `team_event_store.py` — durable backends
 - `hi_agent/server/_durable_backends.py` — single construction path (Rule 6)
 - `hi_agent/server/auth_middleware.py`, `tenant_context.py` — security boundary
 - `hi_agent/server/event_bus.py` — sync/async observer fan-out
-- `hi_agent/server/recovery.py` — `decide_recovery_action`, RecoveryAlarm (Rule 7)
-- `hi_agent/runtime_adapter/ARCHITECTURE.md` — kernel facade adapter spine
-- `hi_agent/observability/ARCHITECTURE.md` — 12 typed events, 14 spine layers
+- `hi_agent/server/recovery.py` — `decide_recovery_action`, `RecoveryAlarm` (Rule 7 reference)
+- `hi_agent/server/run_state_transitions.py` — single state-write path
+- `hi_agent/runtime/ARCHITECTURE.md` — sync_bridge + harness + cancellation
+- `hi_agent/runtime_adapter/ARCHITECTURE.md` — kernel facade transport
+- `hi_agent/observability/ARCHITECTURE.md` — 12 typed lifecycle events + 14 spine layers
 - `agent_server/api/routes_*.py` — versioned northbound facade (W24+)
-- CLAUDE.md Rules 5, 6, 7, 8, 11, 12, 14
-- `scripts/check_rule7_observability.py`, `scripts/run_t3_gate.py` — gate scripts
+- `docs/governance/retention-roadmap.md` — 24 unbounded-growth stores; W36-A3 Tier 1
+- `docs/governance/boot-time-assertions-roadmap.md` — B1–B14
+- `docs/superpowers/plans/2026-05-06-wave-36-a3-tier1-retention-adoption.md` — W36-A3 binding
+- CLAUDE.md Rules 5, 6, 7, 8, 11, 12, 14, 15
+- `scripts/check_rule7_observability.py`, `scripts/run_t3_gate.py`, `scripts/check_durable_wiring.py`, `scripts/check_contract_spine_completeness.py`

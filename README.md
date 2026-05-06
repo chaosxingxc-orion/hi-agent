@@ -46,8 +46,8 @@ Or via the canonical wrapper that produces fresh evidence JSON:
 python scripts/verify_clean_env.py --profile default-offline
 ```
 
-Current baseline: 9,288 passed / 8 skipped / 0 failed (Wave 35, default-offline profile,
-2026-05-05; 2:54 wall-clock).
+Current baseline (HEAD `276917d8`, W35 corrective close): 9,288 passed / 8 skipped /
+0 failed (default-offline profile, ~3 min wall clock).
 
 ### Start the northbound API server
 
@@ -110,7 +110,7 @@ graph TB
         subgraph NB["Northbound facade — agent_server/"]
             NB_API["api/ — FastAPI routes + middleware<br/>(JWTAuth → TenantContext → Idempotency)"]
             NB_FAC["facade/ — Contract↔kernel adapters<br/>(≤200 LOC each)"]
-            NB_CON["contracts/ — Frozen v1 schemas<br/>(SHA 8c6e22f1)"]
+            NB_CON["contracts/ — Frozen v1 schemas<br/>(SHA 55e51a7f)"]
             NB_RT["runtime/ — Real-kernel binding<br/>(RealKernelBackend, lifespan,<br/>auth_seam)"]
             NB_CLI["cli/ — Operator commands<br/>(serve · run · cancel · tail-events)"]
             NB_CFG["config/ — settings, version"]
@@ -144,7 +144,7 @@ Two repository packages cooperate:
 
 | Package | Role |
 |---|---|
-| `agent_server/` | Versioned northbound HTTP facade (v1 contract frozen at SHA `8c6e22f1`); the **only contract surface** RIA depends on |
+| `agent_server/` | Versioned northbound HTTP facade (v1 contract frozen at SHA `55e51a7f`); the **only contract surface** RIA depends on |
 | `hi_agent/` | Cognitive runtime + inlined execution kernel: LLM gateway, runner, memory, knowledge, skills, config, observability, durable run stores |
 
 > The historical `agent_kernel/` package was inlined into `hi_agent/server/` at Wave 11. References to `agent_kernel.*` in older docs map to `hi_agent.server.*` today.
@@ -157,7 +157,7 @@ Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-refe
 
 ## Project Status
 
-**Production engineering phase.** Latest close: **Wave 35 at 2026-05-05** (HEAD `8bce5bc`). Refer to `CLAUDE.md` § "Project Status" for the binding statement; the wave timeline below tracks delivered scope.
+**Production engineering phase.** Latest close: **Wave 35 at 2026-05-05**. The W35-corrective window mirrored the RIA corrective directive and W36 plans; current HEAD is `276917d8` (2026-05-06). Refer to `CLAUDE.md` § "Project Status" for the binding statement; the wave timeline below tracks delivered scope.
 
 | Wave | Headline | Status |
 |---|---|---|
@@ -181,8 +181,10 @@ Detailed architecture: [`docs/architecture-reference.md`](docs/architecture-refe
 | W33 | RIA acceptance follow-ups: JWT middleware (C.4); SSE live-stream (C.5); SIGTERM graceful drain (C.2); RunQueue tenant defense-in-depth (D.2); spine lineage (F.1); `HI_AGENT_ENV` unification (E.1); audit-log tenant_id (D.1) | closed |
 | W34 | RIA W34 BLOCKERs B-W34-1..B-W34-7 + 4 governance items: lineage population, ReasoningTrace spine validation, KnowledgeWiki tenant partition, registry audit, manifest posture field, idempotency contract, concurrency baseline | closed |
 | W35 | RIA W35-T1..W35-T8 acceptance: 53-dataclass spine validation, posture parity sweep, INVERTED posture fix, idempotency TTL purge + observability + boot-time MCP assertion + W35-T9 hidden re-lease attempt_id bump; 38 of 91 hidden audit findings closed | closed |
+| W35-corrective | C-1 metric labels reverted (`{tenant_bucket}` → `{tenant_id}`); C-2 `provenance_unknown_or_synthetic` lifecycle note; C-3 W35-T9 closure level; C-4 dev-side body-mismatch regression test; H1 extension manifest + spine asymmetric test fill-in; H2 orphan gate wiring; §5.1 wave-ledger drift fix; §5.2 signoff evidence-exemption | closed (HEAD `276917d8`) |
+| W36 | A3 Tier-1 retention adoption (8 stores) · A4 schema lineage extensions · A5 boot-time assertions · 6h Linux soak (cap-resolution path) | binding (plans staged) |
 
-Current verified readiness: **75.0** (Wave 35; cap held by `soak_evidence_not_real` + `evidence_provenance` waivers per RIA acceptance §3 — explicitly unchanged in W35 per RIA §6). Architectural 7×24: 5/5 PASS at the W34 HEAD; W35 hot-path changes (run_manager, idempotency, lifespan) require a fresh T3 gate run at the W35 HEAD per Rule 8 T3 invariance. `raw_implementation_maturity` rises to ~92–93 reflecting the additional spine + audit work.
+Current verified readiness: **75.0** at the W35 close manifest (`docs/releases/platform-release-manifest-2026-05-05-24cfa0a6.json`). The cap is held by `soak_evidence_not_real` per RIA W35 directive §6 (retained explicitly; W36 6h Linux soak addresses measurement). `raw_implementation_maturity = 94.5` reflects the additional spine + audit work. Architectural 7×24: 5/5 PASS at the W34 HEAD; the W35 corrective commits include hot-path code (`hi_agent/observability/idempotency_metrics.py`, `hi_agent/server/run_manager.py`), so a fresh T3 gate run is required at HEAD `276917d8` per Rule 8 T3 invariance before any score recompute.
 
 | Capability | Level | Notes |
 |---|---|---|
@@ -196,7 +198,7 @@ Current verified readiness: **75.0** (Wave 35; cap held by `soak_evidence_not_re
 | Evolution closed-loop | L2 | `ExperimentStore` rollback; recurrence-ledger observable |
 | MCP tools | L2 | `StdioMCPTransport`; plugin-registered (v1 route is L1 stub) |
 | Observability spine | L3 | `RunEventEmitter` (12 event types); real provenance enforced |
-| agent_server v1 contract | L3 | Frozen at SHA `8c6e22f1`; production default |
+| agent_server v1 contract | L3 | Frozen at SHA `55e51a7f`; production default |
 
 Maturity levels: L0 demo · L1 tested component · L2 public contract · L3 production default · L4 ecosystem ready (Rule 13).
 
@@ -250,7 +252,7 @@ No artifact ships until it runs in the exact operator shape downstream uses. Six
 
 **Architectural 7×24 readiness** (W28 reform, RIA W35 §2.7) — five assertions replace the 24h soak: cross-loop stability (3 sequential real-LLM runs), lifespan observable (current_stage <30s), cancellation round-trip, spine provenance real, chaos runtime-coupled. Evidence file: `docs/verification/<sha>-arch-7x24.json` with all 5 PASS.
 
-T3 evidence at the release HEAD: `docs/delivery/<date>-<sha>-t3-volces.json`. The W35 HEAD (`8bce5bc`) lands hot-path code in `run_manager.py`, `idempotency.py`, `app.py`, and `lifespan.py` — T3 invariance demands a fresh gate run before the verified-readiness score is recomputed.
+T3 evidence at the release HEAD: `docs/delivery/<date>-<sha>-t3-volces.json`. The W35 close lands hot-path code in `run_manager.py`, `idempotency.py`, `app.py`, and `lifespan.py`; the W35-corrective commits (HEAD `276917d8`) further touch `hi_agent/observability/idempotency_metrics.py` and `hi_agent/server/run_manager.py` — T3 invariance demands a fresh gate run at the current HEAD before the verified-readiness score is recomputed.
 
 ---
 
@@ -337,16 +339,45 @@ diagrams in mermaid):
 
 ---
 
+## Engineering Rules (one-line summary)
+
+The seventeen rules in [`CLAUDE.md`](CLAUDE.md) are CI-enforced. Brief intent of each:
+
+| # | Rule | One-line intent |
+|---|---|---|
+| 1 | Root-cause + strongest-interpretation | Surface the four-line root cause + pick the strongest reading before any plan |
+| 2 | Simplicity & surgical changes | Minimum code that solves the stated problem; touch only what the task requires |
+| 3 | Pre-commit checklist | Audit contract truth, orphan config, error visibility, lint, test honesty before every commit |
+| 4 | Three-layer testing | Unit + integration (zero mocks on subject) + E2E; honest assertions only |
+| 5 | Async/sync resource lifetime | Async resource bound to one loop; sync callers route through `sync_bridge` |
+| 6 | Single construction path | One builder per shared resource; DI everywhere; `x or DefaultX()` banned |
+| 7 | Resilience must not mask signals | Every fallback: countable + attributable + inspectable + gate-asserted |
+| 8 | Operator-shape readiness gate | PM2 / real LLM / N≥3 sequential runs at the release HEAD; T3 invariance |
+| 9 | Self-audit is a ship gate | Open ship-blocking findings block delivery; Known-Defect Notice or fix |
+| 10 | Downstream contract alignment | Use RIA's vocabulary; their severity wins; respond to roadmaps in writing |
+| 11 | Posture-aware defaults | Every knob declares dev/research/prod behaviour; tests cover at least dev + research |
+| 12 | Contract spine completeness | Every persistent record carries `tenant_id` + relevant scope dimensions |
+| 13 | Capability maturity model | Status reporting uses L0–L4 with evidence; "implemented" is not a status |
+| 14 | Manifest is the single release fact source | Closure notices derive claims from the manifest; no manual score increases |
+| 15 | Closure-claim taxonomy + 3-part defect closure | `verified_at_release_head` minimum + (code fix, gate, process change) |
+| 16 | Test profile taxonomy | Profiles in `tests/profiles.toml`; PR descriptions declare profile validated |
+| 17 | Allowlist discipline | Allowlist entries are tracked debt with owner / risk / expiry / replacement |
+
+CI workflows under `.github/workflows/` enforce the rules; `scripts/check_*.py` are the primitives.
+
+---
+
 ## Contributing
 
 | Pointer | Purpose |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) | Seventeen engineering rules + ownership tracks + narrow-trigger rules. CI-enforced. |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans (W12 onward); latest: `2026-05-05-wave-35-systematic-audit-followups.md` |
+| [`docs/superpowers/plans/`](docs/superpowers/plans/) | Wave-by-wave implementation plans. Latest closed: `2026-05-05-wave-35-systematic-audit-followups.md`. Binding W36 plans: `2026-05-06-wave-36-a3-tier1-retention-adoption.md`, `2026-05-06-wave-36-a4-schema-lineage-extensions.md`, `2026-05-06-wave-36-a5-boot-time-assertions.md` |
 | [`docs/governance/`](docs/governance/) | Closure taxonomy, evidence-provenance schema, allowlists, recurrence ledger, retention roadmap (W35), boot-time assertions roadmap (W35), systematic-audit-w35 |
 | [`docs/platform/`](docs/platform/) | Public surface descriptions: `agent-server-northbound-contract-v1.md`, runtime profile guide |
-| [`docs/observability/`](docs/observability/) | Operator-facing metric/spine docs (e.g. `idempotency-metrics.md`, W35-T6) |
-| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices to downstream teams (latest: `2026-05-05-w35-delivery-notice.md`) |
+| [`docs/observability/`](docs/observability/) | Operator-facing metric/spine docs (e.g. `idempotency-metrics.md`, W35-T6 + W35-corrective C-1 label policy) |
+| [`docs/upstream-directives/`](docs/upstream-directives/) | Mirrored RIA directives (latest: `2026-05-05-hi-agent-w35-corrective-directive.md`) |
+| [`docs/downstream-responses/`](docs/downstream-responses/) | Wave delivery notices + corrective responses to downstream (latest: `2026-05-05-w35-corrective-response.md`) |
 
 Owner tracks govern review responsibilities (see `CLAUDE.md`):
 

@@ -1,1160 +1,394 @@
-# ARCHITECTURE: hi-agent (L1 Detail)
+# hi_agent — Architecture
 
-> **Architecture hierarchy**
-> - L0 system boundary: [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
-> - L1 hi-agent detail: this file
-> - L1 agent-kernel detail: [`../agent_kernel/ARCHITECTURE.md`](../agent_kernel/ARCHITECTURE.md)
-
-> Last updated: 2026-05-02 (Wave 28 — 7×24 architectural reform; verified=94.55, 7×24=94.55). Full sprint history in git log.
-
-本文档描述 `hi-agent` 当前代码实现（as-is），涵盖分层架构视图、接口关系、使用关系、时序图与数据流图。  
-所有图表均基于代码实际实现，与工程实现严格对齐。
+> **Last refreshed:** 2026-05-06 (W35 corrective close + W36 plans). HEAD `276917d8`.
+> **Audience:** platform engineers + W36 implementers.
+> **Status:** authoritative.
 
 ---
 
-## 1. 系统边界
+## 1. Purpose & Responsibilities
 
-```text
-hi-agent (agent brain / orchestration)
-  ├─ agent-kernel (durable runtime substrate)
-  └─ agent-core   (capability ecosystem)
-```
+`hi_agent/` is the **platform execution kernel** of the hi-agent stack. It owns the substrate that runs an agent task end-to-end: run lifecycle, durable persistence, async/sync resource lifetimes, capability dispatch, observability spine, memory tiers, knowledge stores, skill ecosystem, and LLM transport.
 
-| 仓库 | 职责 |
-|------|------|
-| `hi-agent` | 智能体大脑：任务理解、路由决策、执行编排、记忆/知识/技能、持续进化 |
-| `agent-kernel` | 持久化运行时：run 生命周期、事件事实、幂等与恢复治理 |
-| `agent-core` | 通用能力模块：工具、检索、MCP 等（agent-core 集成到 hi-agent） |
+It is **not** the public surface. The frozen northbound HTTP contract lives in `agent_server/` (v1 RELEASED at SHA `55e51a7f`). `agent_server/` calls into `hi_agent/` through exactly **one** seam: `agent_server/runtime/kernel_adapter.py` mounts `hi_agent.server.app.AgentServer`. No other module under `agent_server/` is permitted to import `hi_agent.*` (R-AS-1, enforced by `scripts/check_seam_isolation.py`).
+
+This split makes `hi_agent/` free to evolve internal shapes wave over wave while `agent_server/` remains contract-stable. The seam is one-directional: `hi_agent/` never imports `agent_server/`.
+
+**Owns:**
+
+- Run lifecycle state machine (`hi_agent/server/run_manager.py:79`)
+- Durable persistence boundaries — runs, events, idempotency, queue, sessions, team registry, gate store (`hi_agent/server/_durable_backends.py:14`)
+- Async/sync resource bridge (`hi_agent/runtime/sync_bridge.py:62`, Rule 5)
+- Capability registry + invoker + circuit breaker (`hi_agent/capability/`)
+- Unified action harness (governance, permission, evidence) (`hi_agent/runtime/harness/`)
+- LLM gateway with tier routing, failover, prompt cache, streaming (`hi_agent/llm/`)
+- Observability spine — 12 typed lifecycle events + 14 spine layers + Prometheus metrics (`hi_agent/observability/`)
+- Memory tiers L0–L3 + compression (`hi_agent/memory/`)
+- Knowledge wiki + graph + retrieval (`hi_agent/knowledge/`)
+- Skill registry + evolver + champion/challenger (`hi_agent/skill/`)
+- Kernel facade adapter spine (`hi_agent/runtime_adapter/`)
+
+**Does not own:**
+
+- HTTP route shape, request/response schemas — `agent_server/api/`
+- v1 contract version + freeze — `agent_server/config/version.py`
+- JWT validation, tenant_id authoring — `agent_server/auth/` (authoritative since W35-T3)
+- Business-agent profiles (research-team owned) — wired through `profile_registry`
 
 ---
 
-## 1.1 平台姿态（Posture）
-
-`HI_AGENT_POSTURE={dev,research,prod}` (default `dev`) — see `hi_agent/config/posture.py`. Research/prod: project_id required, durable queue/registry/ledger, fail-closed schema validation, auth-scoped idempotency. Owner tracks: CO/RO/DX/TE/GOV (see CLAUDE.md).
-
----
-
-## 2. 分层架构视图（含全组件标注）
+## 2. Context & Scope
 
 ```mermaid
-graph TB
-  subgraph API["API & CLI Layer"]
-    CLI["CLI<br/>hi_agent/__main__.py"]
-    SRV["HTTP Server<br/>server/app.py"]
-    RLM["RunManager<br/>server/run_manager.py"]
-    EBUS["EventBus<br/>server/event_bus.py"]
-    DSCH["DreamScheduler<br/>server/dream_scheduler.py"]
-    RLIM["RateLimiter<br/>server/rate_limiter.py"]
-  end
+flowchart LR
+    RIA[Research Intelligence App] -->|HTTP /v1/*| AS[agent_server<br/>v1 RELEASED facade]
+    SDK[Third-party SDK] -->|HTTP /v1/*| AS
+    OP[Operator CLI] -->|agent-server serve| AS
 
-  subgraph EXEC["Execution Layer"]
-    REXEC["RunExecutor<br/>runner.py"]
-    STORCH["StageOrchestrator<br/>execution/stage_orchestrator.py"]
-    STAGE["StageExecutor<br/>runner_stage.py"]
-    LIFE["RunLifecycle<br/>runner_lifecycle.py"]
-    TELE["RunTelemetry<br/>runner_telemetry.py"]
-    PROV["ExecutionProvenance<br/>contracts/execution_provenance.py"]
-    RMRES["RuntimeModeResolver<br/>server/runtime_mode_resolver.py"]
-  end
+    AS -->|R-AS-1 single seam:<br/>kernel_adapter.py| HI[hi_agent<br/>execution kernel]
 
-  subgraph MW["Middleware Pipeline"]
-    MWORCH["MiddlewareOrchestrator<br/>middleware/orchestrator.py"]
-    PERC["PerceptionMiddleware<br/>middleware/perception.py"]
-    CTRL["ControlMiddleware<br/>middleware/control.py"]
-    EXMW["ExecutionMiddleware<br/>middleware/execution.py"]
-    EVAL["EvaluationMiddleware<br/>middleware/evaluation.py"]
-    HOOKS["HookSystem<br/>middleware/hooks.py"]
-  end
+    HI -->|httpx.AsyncClient<br/>via sync_bridge| LLM[(LLM Provider<br/>Anthropic / DashScope / OpenAI-compatible)]
+    HI -->|file I/O| SQLITE[(SQLite WAL<br/>HI_AGENT_DATA_DIR)]
+    HI -->|SIGTERM / atexit| OS[OS signals]
+    HI -.MCP transport.-> MCP[MCP servers<br/>capability_mode = infrastructure_only]
 
-  subgraph ROUTE["Route Engine"]
-    HROUT["HybridRouteEngine<br/>route_engine/hybrid_engine.py"]
-    RROUT["RuleRouteEngine<br/>route_engine/rule_engine.py"]
-    LROUT["LLMRouteEngine<br/>route_engine/llm_engine.py"]
-    SROUT["SkillAwareRouteEngine<br/>route_engine/skill_aware_engine.py"]
-    DACIT["DecisionAuditStore<br/>route_engine/decision_audit.py"]
-    ACCP["AcceptancePolicy<br/>route_engine/acceptance.py"]
-  end
-
-  subgraph HARN["Harness & Governance"]
-    HEXEC["HarnessExecutor<br/>harness/executor.py"]
-    GOV["GovernanceEngine<br/>harness/governance.py"]
-    PERM["PermissionGate<br/>harness/permission_rules.py"]
-    EVID["EvidenceStore<br/>harness/evidence_store.py"]
-  end
-
-  subgraph TASKMGMT["Task Management"]
-    TSCH["TaskScheduler<br/>task_mgmt/scheduler.py"]
-    ATSCH["AsyncTaskScheduler<br/>task_mgmt/async_scheduler.py"]
-    THND["TaskHandle<br/>task_mgmt/handle.py"]
-    BGRD["BudgetGuard<br/>task_mgmt/budget_guard.py"]
-    RPOL["RestartPolicyEngine<br/>task_mgmt/restart_policy.py"]
-    REFL["ReflectionOrchestrator<br/>task_mgmt/reflection.py"]
-    TMON["TaskMonitor<br/>task_mgmt/monitor.py"]
-    GFACT["GraphFactory<br/>task_mgmt/graph_factory.py"]
-  end
-
-  subgraph LLM["LLM Subsystem"]
-    TIER["TierAwareLLMGateway<br/>llm/tier_router.py"]
-    FAIL["FailoverChain<br/>llm/failover.py"]
-    CACHE["PromptCacheInjector<br/>llm/cache.py"]
-    STREAM["StreamingGateway<br/>llm/streaming.py"]
-    HTTPLM["HttpLLMGateway<br/>llm/http_gateway.py"]
-    ANTHLM["AnthropicGateway<br/>llm/anthropic_gateway.py"]
-    MREG["ModelRegistry<br/>llm/registry.py"]
-    BUDG["LLMBudgetTracker<br/>llm/budget_tracker.py"]
-  end
-
-  subgraph MEM["Memory Subsystem (3-Tier)"]
-    L0["RawMemoryStore (L0)<br/>memory/l0_raw.py"]
-    STM["ShortTermMemoryStore (L1)<br/>memory/short_term.py"]
-    MTM["MidTermMemoryStore (L2)<br/>memory/mid_term.py"]
-    LTM["LongTermMemoryGraph (L3)<br/>memory/long_term.py"]
-    COMP["AsyncMemoryCompressor<br/>memory/async_compressor.py"]
-    STRCOMP["StructuredCompressor<br/>memory/structured_compression.py"]
-    MRET["UnifiedMemoryRetriever<br/>memory/unified_retriever.py"]
-  end
-
-  subgraph KNOW["Knowledge Subsystem"]
-    KMGR["KnowledgeManager<br/>knowledge/knowledge_manager.py"]
-    WIKI["KnowledgeWiki<br/>knowledge/wiki.py"]
-    KGRAPH["KnowledgeGraph<br/>knowledge/store.py"]
-    RETR["RetrievalEngine<br/>knowledge/retrieval_engine.py"]
-    TFIDF["TF-IDF/BM25<br/>knowledge/tfidf.py"]
-    EMBD["EmbeddingIndex<br/>knowledge/embedding.py"]
-    GREND["GraphRenderer<br/>knowledge/graph_renderer.py"]
-  end
-
-  subgraph SKILL["Skill Subsystem"]
-    SREG["SkillRegistry<br/>skill/registry.py"]
-    SLDR["SkillLoader<br/>skill/loader.py"]
-    SMATCH["SkillMatcher<br/>skill/matcher.py"]
-    SEVO["SkillEvolver<br/>skill/evolver.py"]
-    SVER["SkillVersionManager<br/>skill/version.py"]
-    SOBS["SkillObserver<br/>skill/observer.py"]
-    SREC["SkillUsageRecorder<br/>skill/recorder.py"]
-  end
-
-  subgraph EVO["Evolve Engine"]
-    ENG["EvolveEngine<br/>evolve/engine.py"]
-    POST["PostmortemAnalyzer<br/>evolve/postmortem.py"]
-    SEXT["SkillExtractor<br/>evolve/skill_extractor.py"]
-    REG["RegressionDetector<br/>evolve/regression_detector.py"]
-    CC["ChampionChallenger<br/>evolve/champion_challenger.py"]
-    DSET["DatasetEvaluator<br/>evolve/dataset_evaluator.py"]
-  end
-
-  subgraph CTX["Context OS"]
-    CTXMGR["ContextManager<br/>context/manager.py"]
-    RCTX["RunContext<br/>context/run_context.py"]
-    RCTXMGR["RunContextManager<br/>context/run_context.py"]
-    NUDGE["NudgeStrategy<br/>context/nudge.py"]
-  end
-
-  subgraph CAP["Capability System"]
-    CREG["CapabilityRegistry<br/>capability/registry.py"]
-    CINV["CapabilityInvoker<br/>capability/invoker.py"]
-    ACINV["AsyncCapabilityInvoker<br/>capability/async_invoker.py"]
-    CB["CircuitBreaker<br/>capability/circuit_breaker.py"]
-    GTEXEC["GovernedToolExecutor<br/>capability/governance.py"]
-    PPOL["PathPolicy<br/>security/path_policy.py"]
-    UPOL["URLPolicy<br/>security/url_policy.py"]
-    ABRG["AsyncBridgeService<br/>runtime/async_bridge.py"]
-  end
-
-  subgraph TRAJ["Trajectory"]
-    TRGPH["TrajectoryGraph<br/>trajectory/graph.py"]
-    STGPH["StageGraph<br/>trajectory/stage_graph.py"]
-    OPT["GreedyOptimizer<br/>trajectory/optimizers.py"]
-    DEAD["DeadEndDetector<br/>trajectory/dead_end.py"]
-  end
-
-  subgraph OBS["Observability"]
-    MET["MetricsCollector<br/>observability/collector.py"]
-    NOTIF["NotificationService<br/>observability/notification.py"]
-    TRAJEXP["TrajectoryExporter<br/>observability/trajectory_exporter.py"]
-    EVEM["EventEmitter<br/>events/emitter.py"]
-    EVST["EventStore<br/>events/store.py"]
-  end
-
-  subgraph SESS["Session"]
-    RSESS["RunSession<br/>session/run_session.py"]
-    COST["CostCalculator<br/>session/cost_tracker.py"]
-  end
-
-  subgraph ADP["Runtime Adapter"]
-    KADP["KernelFacadeAdapter<br/>runtime_adapter/kernel_facade_adapter.py"]
-    AKADP["AsyncKernelFacadeAdapter<br/>runtime_adapter/async_kernel_facade_adapter.py"]
-    KCLI["KernelFacadeClient<br/>runtime_adapter/kernel_facade_client.py"]
-    RESADP["ResilientAdapter<br/>runtime_adapter/resilient_adapter.py"]
-    MOCK["MockKernel<br/>runtime_adapter/mock_kernel.py"]
-  end
-
-  subgraph KERNEL["agent-kernel"]
-    KR["KernelRuntime<br/>TurnEngine / EventLog / IdempotencyStore"]
-  end
-
-  subgraph SEC["Security & Auth"]
-    AUTH["AuthMiddleware<br/>auth/"]
-    RBAC["RBAC<br/>auth/rbac_enforcer.py"]
-    JWT["JWTService<br/>auth/jwt_middleware.py"]
-    OPOL["OperationPolicy<br/>auth/operation_policy.py"]
-    ACTX["AuthorizationContext<br/>auth/authorization_context.py"]
-    SOC["SOCGuard<br/>auth/soc_guard.py"]
-  end
-
-  subgraph OPS["Ops & Observability"]
-    AUDIT["AuditLog<br/>observability/audit.py"]
-    RGATE["ReleaseGateReport<br/>ops/release_gate.py"]
-    PROFMGR["ProfileDirectoryManager<br/>profile/manager.py"]
-    CFGSTACK["ProfileAwareConfigStack<br/>config/stack.py"]
-    TRACER["Tracer<br/>observability/tracing.py"]
-    SCHMREG["MCPSchemaRegistry<br/>mcp/schema_registry.py"]
-  end
-
-  %% Top-down connections
-  CLI --> RLM
-  SRV --> RLM
-  SRV --> EBUS
-  SRV --> DSCH
-  SRV --> AUTH
-  RLM --> REXEC
-
-  REXEC --> STORCH
-  STORCH --> STAGE
-  REXEC --> LIFE
-  REXEC --> TELE
-  REXEC --> RCTX
-  REXEC --> RSESS
-  REXEC --> MWORCH
-  REXEC --> TSCH
-  REXEC --> KADP
-  REXEC --> PROV
-  RMRES --> PROV
-  REXEC --> AUDIT
-
-  OPOL --> ACTX
-  OPOL --> SOC
-  OPOL --> AUDIT
-  SRV --> OPOL
-
-  PROFMGR --> CFGSTACK
-  CFGSTACK --> RGATE
-
-  STAGE --> HROUT
-  STAGE --> HEXEC
-  STAGE --> RETR
-  STAGE --> SLDR
-
-  MWORCH --> PERC
-  MWORCH --> CTRL
-  MWORCH --> EXMW
-  MWORCH --> EVAL
-  MWORCH --> HOOKS
-
-  HROUT --> RROUT
-  HROUT --> LROUT
-  HROUT --> SROUT
-  HROUT --> DACIT
-
-  HEXEC --> GOV
-  HEXEC --> PERM
-  HEXEC --> CINV
-  HEXEC --> EVID
-
-  TSCH --> ATSCH
-  TSCH --> BGRD
-  TSCH --> RPOL
-  TSCH --> REFL
-  TSCH --> TMON
-  TSCH --> GFACT
-
-  TIER --> FAIL
-  TIER --> CACHE
-  TIER --> STREAM
-  FAIL --> HTTPLM
-  FAIL --> ANTHLM
-  TIER --> MREG
-  TIER --> BUDG
-
-  L0 --> STM
-  STM --> MTM
-  MTM --> LTM
-  COMP --> STM
-  STRCOMP --> COMP
-  MRET --> STM
-  MRET --> MTM
-  MRET --> LTM
-
-  KMGR --> WIKI
-  KMGR --> KGRAPH
-  KMGR --> RETR
-  RETR --> TFIDF
-  RETR --> EMBD
-  KMGR --> GREND
-
-  SREG --> SLDR
-  SREG --> SMATCH
-  SREG --> SVER
-  SLDR --> SOBS
-  SEVO --> SREG
-  SREC --> SOBS
-
-  ENG --> POST
-  ENG --> SEXT
-  ENG --> REG
-  ENG --> CC
-  ENG --> DSET
-  SEXT --> SREG
-
-  RCTXMGR --> RCTX
-  CTXMGR --> RCTX
-  CTXMGR --> NUDGE
-
-  CREG --> CINV
-  CINV --> CB
-  CINV --> ACINV
-
-  TRGPH --> STGPH
-  TRGPH --> OPT
-  TRGPH --> DEAD
-
-  EVEM --> EVST
-  EVEM --> MET
-  EVEM --> EBUS
-  NOTIF --> EBUS
-  TRAJEXP --> EVST
-
-  LIFE --> ENG
-  LIFE --> STM
-  LIFE --> KMGR
-  LIFE --> RSESS
-
-  TELE --> EVEM
-  TELE --> MET
-  TELE --> SOBS
-
-  KADP --> KR
-  AKADP --> KADP
-  RESADP --> KADP
-  KCLI --> KR
-
-  RSESS --> COST
+    classDef external fill:#fef3c7,stroke:#d97706
+    classDef kernel fill:#dbeafe,stroke:#2563eb
+    class RIA,SDK,OP,LLM,SQLITE,OS,MCP external
+    class HI,AS kernel
 ```
+
+`hi_agent/` runs entirely in-process. It has no inbound network surface of its own; every request reaches it through `agent_server/`. Outbound dependencies are LLM providers (HTTPS), local SQLite WAL files under `HI_AGENT_DATA_DIR`, and process signals.
 
 ---
 
-## 3. 接口关系图（Protocol 与实现）
+## 3. Module Boundary & Dependencies
+
+| Sub-package | Owns | Lives at | Detail doc |
+|---|---|---|---|
+| `server/` | Run lifecycle, durable backends, ASGI app, AuthMiddleware | `hi_agent/server/` | `hi_agent/server/ARCHITECTURE.md` |
+| `runtime/` | sync_bridge (Rule 5), async_bridge, cancellation, harness | `hi_agent/runtime/` | `hi_agent/runtime/ARCHITECTURE.md` |
+| `runtime_adapter/` | Kernel facade adapter spine (direct + http modes) | `hi_agent/runtime_adapter/` | `hi_agent/runtime_adapter/ARCHITECTURE.md` |
+| `llm/` | Tier router, failover, anthropic/openai gateways, streaming | `hi_agent/llm/` | `hi_agent/llm/ARCHITECTURE.md` |
+| `observability/` | Metrics, audit, spine emitters, alerts, SLO | `hi_agent/observability/` | `hi_agent/observability/ARCHITECTURE.md` |
+| `knowledge/` | Wiki, graph, retrieval, TF-IDF + embedding | `hi_agent/knowledge/` | `hi_agent/knowledge/ARCHITECTURE.md` |
+| `skill/` | Registry, loader, matcher, evolver, version mgr | `hi_agent/skill/` | `hi_agent/skill/ARCHITECTURE.md` |
+| `capability/` | Registry, invoker, circuit breaker, governance | `hi_agent/capability/` | `hi_agent/capability/ARCHITECTURE.md` |
+| `contracts/` | Public dataclasses, errors, spine validation, posture | `hi_agent/contracts/` | `hi_agent/contracts/CONTRACTS.md` |
+| `memory/` | L0 raw → L1 compressed → L2 mid-term → L3 KG | `hi_agent/memory/` | `hi_agent/memory/ARCHITECTURE.md` |
+| `config/` | Posture, TraceConfig, ConfigStack, CognitionBuilder, RuntimeBuilder | `hi_agent/config/` | — |
+| `route_engine/` | Hybrid (rule + LLM + skill-aware) routing + decision audit | `hi_agent/route_engine/` | — |
+| `evolve/` | Postmortem, skill extractor, regression detector, champion/challenger | `hi_agent/evolve/` | — |
+
+**Public API surface** (`hi_agent/__init__.py:19-37`):
+
+| Symbol | Purpose |
+|---|---|
+| `RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
+| `check_readiness()` | Returns `ReadinessReport` — per-subsystem health |
+| `GateEvent`, `GatePendingError` | Human-gate lifecycle |
+| `SubRunHandle`, `SubRunResult` | Nested sub-run dispatch |
+
+**Forbidden directionality:**
+
+- `agent_server/` → `hi_agent/` only via `agent_server/runtime/kernel_adapter.py` and `agent_server/bootstrap.py` (R-AS-1).
+- `hi_agent/` → `agent_server/` is a hard ban; CI fails on any such import.
+- Sub-packages of `hi_agent/` may depend across each other but the dependency graph must remain acyclic. The detail docs name allowed inbound edges per package.
+
+---
+
+## 4. Building Blocks
 
 ```mermaid
-classDiagram
-  class LLMGateway {
-    <<Protocol>>
-    +complete(request: LLMRequest) LLMResponse
-    +supports_model(model: str) bool
-  }
-  class TierAwareLLMGateway {
-    +complete(request) LLMResponse
-    +acomplete(request) Coroutine[LLMResponse]
-    +supports_model(model) bool
-    -tier_router: TierRouter
-    -budget_tracker: LLMBudgetTracker
-  }
-  class FailoverChain {
-    +complete(request) LLMResponse
-    -gateways: list[LLMGateway]
-    -credential_pool: list[str]
-  }
-  class HttpLLMGateway {
-    +complete(request) LLMResponse
-    -base_url: str
-    -api_key: str
-  }
-  class AnthropicGateway {
-    +complete(request) LLMResponse
-  }
-  LLMGateway <|.. TierAwareLLMGateway
-  LLMGateway <|.. FailoverChain
-  LLMGateway <|.. HttpLLMGateway
-  LLMGateway <|.. AnthropicGateway
-  TierAwareLLMGateway --> FailoverChain : delegates
-  FailoverChain --> HttpLLMGateway : rotates
+flowchart TB
+    subgraph SERVER["server/ — run lifecycle + durable persistence"]
+        APP["AgentServer<br/>app.py:1923"]
+        RM["RunManager<br/>run_manager.py:100"]
+        BACK["build_durable_backends<br/>_durable_backends.py:14"]
+        RS[(SQLiteRunStore)]
+        RQ[(RunQueue)]
+        ES[(SQLiteEventStore)]
+        IS[(IdempotencyStore)]
+        TRR[(TeamRunRegistry)]
+        GS[(SQLiteGateStore)]
+        SS[(SessionStore)]
+        AUTH[AuthMiddleware]
+        SES[SessionMiddleware]
+        EBUS[EventBus]
+    end
 
-  class RuntimeAdapter {
-    <<Protocol>>
-    +start_run(task_id) str
-    +query_run(run_id) dict
-    +cancel_run(run_id, reason) void
-    +resume_run(run_id) void
-    +signal_run(run_id, signal, payload) void
-    +open_stage(stage_id) void
-    +mark_stage_state(stage_id, state) void
-    +open_branch(run_id, stage_id, branch_id) void
-    +mark_branch_state(run_id, stage_id, branch_id, state) void
-    +record_task_view(task_view_id, content) str
-    +bind_task_view_to_decision(task_view_id, decision_ref) void
-    +open_human_gate(request) void
-    +submit_approval(request) void
-    +resolve_escalation(run_id, resolution_notes, caused_by) void
-    +stream_run_events(run_id) AsyncIterator
-    +query_trace_runtime(run_id) dict
-    +query_run_postmortem(run_id) Any
-    +get_manifest() dict
-    +spawn_child_run(parent_run_id, task_id, config) str
-    +query_child_runs(parent_run_id) list
-    +spawn_child_run_async(parent_run_id, task_id, config) str
-    +query_child_runs_async(parent_run_id) list
-  }
-  class KernelFacadeAdapter {
-    +start_run(task_id) str
-    +open_stage(stage_id) void
-    -kernel_facade: KernelFacade
-  }
-  class AsyncKernelFacadeAdapter {
-    +start_run(task_id) str
-    -sync_adapter: KernelFacadeAdapter
-  }
-  class ResilientAdapter {
-    +start_run(task_id) str
-    -retry_policy: RetryPolicy
-    -circuit_breaker: CircuitBreaker
-  }
-  RuntimeAdapter <|.. KernelFacadeAdapter
-  RuntimeAdapter <|.. AsyncKernelFacadeAdapter
-  RuntimeAdapter <|.. ResilientAdapter
-  AsyncKernelFacadeAdapter --> KernelFacadeAdapter : wraps
-  ResilientAdapter --> KernelFacadeAdapter : wraps
+    subgraph RUNTIME["runtime/ — async/sync bridge + harness"]
+        SB[SyncBridge<br/>sync_bridge.py:62]
+        AB[AsyncBridgeService<br/>async_bridge.py:16]
+        CT[CancellationToken<br/>cancellation.py:21]
+        PR[ProfileRuntimeResolver]
+        HE[HarnessExecutor<br/>harness/executor.py:26]
+        GOV[GovernanceEngine]
+        PG[PermissionGate]
+        EVS[EvidenceStore]
+    end
 
-  class Middleware {
-    <<Protocol>>
-    +process(message: MiddlewareMessage) MiddlewareMessage
-    +on_create(config) void
-    +on_destroy() void
-  }
-  class PerceptionMiddleware {
-    +process(message) MiddlewareMessage
-    -entity_extractor: EntityExtractor
-  }
-  class ControlMiddleware {
-    +process(message) MiddlewareMessage
-    -skill_matcher: SkillMatcher
-    -route_engine: RouteEngine
-  }
-  class ExecutionMiddleware {
-    +process(message) MiddlewareMessage
-    -harness_executor: HarnessExecutor
-  }
-  class EvaluationMiddleware {
-    +process(message) MiddlewareMessage
-    -quality_threshold: float
-  }
-  Middleware <|.. PerceptionMiddleware
-  Middleware <|.. ControlMiddleware
-  Middleware <|.. ExecutionMiddleware
-  Middleware <|.. EvaluationMiddleware
+    subgraph LLM["llm/ — gateway + tier routing"]
+        TR[TierAwareLLMGateway]
+        FC[FailoverChain]
+        AG[AnthropicLLMGateway]
+        HG[HttpLLMGateway]
+        BG[LLMBudgetTracker]
+        PCI[PromptCacheInjector]
+    end
 
-  class RouteEngine {
-    <<Protocol>>
-    +propose(stage_id, run_id, seq) list~BranchProposal~
-  }
-  class HybridRouteEngine {
-    +propose(stage_id, run_id, seq) list~BranchProposal~
-    -rule_engine: RuleRouteEngine
-    -llm_engine: LLMRouteEngine
-  }
-  class RuleRouteEngine {
-    +propose(stage_id, run_id, seq) list~BranchProposal~
-  }
-  class LLMRouteEngine {
-    +propose(stage_id, run_id, seq) list~BranchProposal~
-    -llm_gateway: LLMGateway
-  }
-  RouteEngine <|.. HybridRouteEngine
-  RouteEngine <|.. RuleRouteEngine
-  RouteEngine <|.. LLMRouteEngine
-  HybridRouteEngine --> RuleRouteEngine : delegates
-  HybridRouteEngine --> LLMRouteEngine : delegates
+    subgraph ADAPTER["runtime_adapter/ — kernel facade spine"]
+        KFC[KernelFacadeClient<br/>direct + http modes]
+        KFA[KernelFacadeAdapter]
+        AKFA[AsyncKernelFacadeAdapter]
+        RKA[ResilientKernelAdapter]
+    end
 
-  class CapabilityInvoker {
-    +invoke(name, payload) dict
-    -registry: CapabilityRegistry
-    -circuit_breaker: CircuitBreaker
-  }
-  class AsyncCapabilityInvoker {
-    +async_invoke(name, payload) dict
-    -invoker: CapabilityInvoker
-    -timeout: float
-  }
-  CapabilityInvoker --> AsyncCapabilityInvoker : async variant
+    subgraph OBS["observability/ — spine + metrics"]
+        SPINE[spine_events<br/>14 layers]
+        EE[EventEmitter<br/>12 typed lifecycle]
+        MET[MetricsCollector<br/>Prometheus]
+    end
+
+    subgraph CTX["contracts/ + capability/ + memory/ + knowledge/ + skill/"]
+        CONTRACTS[contracts/<br/>RunRecord, StoredEvent, IdempotencyRecord,<br/>ReasoningTrace, TeamRun]
+        CAP[capability/<br/>registry + invoker + circuit_breaker]
+        MEM[memory/<br/>L0 → L1 → L2 → L3]
+        KNOW[knowledge/<br/>wiki + graph + retrieval]
+        SKL[skill/<br/>registry + evolver + version_mgr]
+    end
+
+    APP --> BACK
+    BACK --> RS
+    BACK --> RQ
+    BACK --> ES
+    BACK --> IS
+    BACK --> TRR
+    BACK --> GS
+    BACK --> SS
+
+    APP --> RM
+    APP --> EBUS
+    APP --> AUTH
+    APP --> SES
+
+    RM --> RS
+    RM --> RQ
+    RM --> ES
+    RM --> IS
+    RM -. cancellation .-> CT
+
+    APP --> SB
+    SB -.persistent loop.-> AB
+    HE --> GOV
+    HE --> PG
+    HE --> EVS
+
+    RM --> KFC
+    KFC --> KFA
+    KFC --> AKFA
+    KFC --> RKA
+
+    HE -. emit .-> SPINE
+    RM -. emit .-> EE
+    EE --> MET
+    SPINE --> MET
+
+    APP --> CONTRACTS
+    HE --> CAP
+    RM -. injected via SystemBuilder .-> MEM
+    RM -. injected via SystemBuilder .-> KNOW
+    RM -. injected via SystemBuilder .-> SKL
+
+    classDef store fill:#fee2e2,stroke:#dc2626
+    classDef bridge fill:#dbeafe,stroke:#2563eb
+    classDef obs fill:#dcfce7,stroke:#16a34a
+    class RS,RQ,ES,IS,TRR,GS,SS store
+    class SB,AB,CT bridge
+    class SPINE,EE,MET obs
 ```
+
+The **Single Construction Path** (Rule 6) for durable resources is `_durable_backends.build_durable_backends` (`hi_agent/server/_durable_backends.py:14`). Every consumer of a durable store receives it by injection; inline `x or DefaultX()` fallbacks are forbidden.
 
 ---
 
-## 4. 使用关系图（模块依赖）
+## 5. Runtime View — Key Scenarios
 
-```mermaid
-graph LR
-  REXEC["RunExecutor"]
-  STAGE["StageExecutor"]
-  LIFE["RunLifecycle"]
-  TELE["RunTelemetry"]
-  MWORCH["MiddlewareOrchestrator"]
-  HROUT["HybridRouteEngine"]
-  HEXEC["HarnessExecutor"]
-  TIER["TierAwareLLMGateway"]
-  RETR["RetrievalEngine"]
-  KMGR["KnowledgeManager"]
-  SREG["SkillRegistry"]
-  SLDR["SkillLoader"]
-  STM["ShortTermMemory"]
-  COMP["AsyncMemoryCompressor"]
-  ENG["EvolveEngine"]
-  KADP["KernelFacadeAdapter"]
-  CINV["CapabilityInvoker"]
-  MET["MetricsCollector"]
-  EVEM["EventEmitter"]
-  RSESS["RunSession"]
-  RCTX["RunContext"]
-  TSCH["TaskScheduler"]
-  TRGPH["TrajectoryGraph"]
-
-  REXEC -->|delegates stage| STAGE
-  REXEC -->|delegates lifecycle| LIFE
-  REXEC -->|delegates telemetry| TELE
-  REXEC -->|uses| MWORCH
-  REXEC -->|uses| TSCH
-  REXEC -->|uses| KADP
-  REXEC -->|uses| RSESS
-  REXEC -->|uses| RCTX
-
-  STAGE -->|gets proposals| HROUT
-  STAGE -->|dispatches action| HEXEC
-  STAGE -->|retrieves knowledge| RETR
-  STAGE -->|injects skills| SLDR
-
-  MWORCH -->|runs pipeline| HEXEC
-  MWORCH -->|uses| HROUT
-  MWORCH -->|uses| TIER
-
-  HROUT -->|calls| TIER
-  HEXEC -->|calls| CINV
-  CINV -->|executes| CAP["Capability"]
-
-  LIFE -->|triggers| ENG
-  LIFE -->|stores| STM
-  LIFE -->|ingests| KMGR
-
-  TELE -->|emits| EVEM
-  TELE -->|records| MET
-
-  COMP -->|compresses to| STM
-  RETR -->|queries| KMGR
-  RETR -->|uses| TIER
-
-  ENG -->|extracts skills| SREG
-  ENG -->|updates| SREG
-
-  TIER -->|routes to| LLM["LLM API"]
-  KADP -->|calls| KERNEL["agent-kernel"]
-```
-
----
-
-## 5. 任务执行时序图（Sequence Diagram）
+### 5.1 Submit a run end-to-end (`POST /v1/runs`)
 
 ```mermaid
 sequenceDiagram
-  autonumber
-  participant Client as Client (CLI/API)
-  participant Server as HTTP Server<br/>server/app.py
-  participant RunMgr as RunManager
-  participant Exec as RunExecutor<br/>runner.py
-  participant Stage as StageExecutor<br/>runner_stage.py
-  participant MW as MiddlewareOrchestrator
-  participant Route as HybridRouteEngine
-  participant Harness as HarnessExecutor
-  participant Gov as GovernanceEngine
-  participant Cap as CapabilityInvoker
-  participant LLM as TierAwareLLMGateway
-  participant Know as KnowledgeManager
-  participant Skill as SkillLoader
-  participant Mem as AsyncMemoryCompressor
-  participant Kernel as RuntimeAdapter→agent-kernel
-  participant Evolve as EvolveEngine
+    autonumber
+    participant AS as agent_server<br/>(facade)
+    participant App as AgentServer<br/>(hi_agent.server)
+    participant RM as RunManager
+    participant Idem as IdempotencyStore
+    participant RS as SQLiteRunStore
+    participant RQ as RunQueue
+    participant ES as SQLiteEventStore
+    participant Exec as RunExecutor<br/>(runner.py)
+    participant SB as SyncBridge<br/>(runtime)
+    participant LLM as LLMGateway
 
-  Client->>Server: POST /runs {TaskContract}
-  Server->>RunMgr: submit_run(contract)
-  RunMgr->>Exec: RunExecutor(contract, builder)
-  RunMgr-->>Client: {run_id, status: ACTIVE}
-
-  Exec->>Kernel: start_run(task_id) → run_id
-  Exec->>Exec: build stage_graph (S1→S5)
-
-  loop For each Stage in TRACE (S1 Understand → S5 Deliver)
-    Exec->>Stage: execute_stage(stage_id)
-    Stage->>Kernel: open_stage(stage_id)
-    Stage->>Know: query(stage_context) → KnowledgeResult
-    Stage->>Skill: build_prompt() → skill_context
-    Stage->>MW: process(MiddlewareMessage)
-
-    MW->>MW: Perception: extract entities, build context
-    MW->>LLM: complete(control_request) [medium tier]
-    LLM-->>MW: ExecutionPlan
-    MW->>MW: Control: skill matching, resource binding
-
-    MW->>Route: propose(stage_id, run_id, seq)
-    Route->>LLM: complete(route_request) [if LLM route]
-    LLM-->>Route: BranchProposal[]
-    Route-->>MW: BranchProposal[]
-
-    loop For each BranchProposal
-      MW->>Kernel: open_branch(run_id, stage_id, branch_id)
-      MW->>Harness: execute(ActionSpec)
-      Harness->>Gov: can_execute(spec) → bool
-      Gov-->>Harness: approved
-      Harness->>Cap: invoke(capability_name, payload)
-      Cap-->>Harness: ActionResult
-      Harness->>Harness: store evidence
-      Harness-->>MW: ActionResult + evidence_refs
-      MW->>Kernel: mark_branch_state(branch_id, outcome)
+    AS->>App: handle_create_run(scope, contract, idempotency_key)
+    App->>RM: create_run(contract, ctx)
+    RM->>Idem: reserve_or_replay
+    alt new
+        RM->>RS: upsert(RunRecord, tenant_id)
+        RM->>RQ: enqueue(run_id, tenant_id)
+        RM->>ES: append(run_queued)
+        RM-->>App: ManagedRun(outcome=created)
+        App-->>AS: 202 Accepted
+        Note over RM: background _queue_worker
+        RM->>RQ: claim_next + heartbeat thread
+        RM->>Exec: executor_fn(run)
+        Exec->>SB: bridge.call_sync(coro)
+        SB->>LLM: complete (httpx.AsyncClient<br/>bound to bridge loop)
+        LLM-->>Exec: LLMResponse
+        Exec-->>RM: RunResult
+        RM->>ES: append(run_completed)
+        RM->>RS: mark_complete + finished_at
+        RM->>Idem: mark_complete(snapshot)
+    else replayed
+        Idem-->>RM: existing record + snapshot
+        RM-->>App: ManagedRun(outcome=replayed, status_code)
+        App-->>AS: 200 OK + cached body
     end
+```
 
-    MW->>MW: Evaluation: quality_score ≥ threshold?
-    MW-->>Stage: MiddlewareResult
+The async resource (`httpx.AsyncClient`) is constructed once on the SyncBridge loop and reused across every `bridge.call_sync` invocation in the run — Rule 5's whole point. See `hi_agent/runtime/ARCHITECTURE.md` §6 for the deep-dive on why this matters (the 04-22 prod incident).
 
-    alt Quality accepted
-      Stage->>Kernel: mark_stage_state(stage_id, COMPLETED)
-      Stage->>Mem: compress_stage(stage_summary)
-      Mem->>LLM: complete(compress_request) [light tier]
-      LLM-->>Mem: CompressedSummary
-      Mem->>Mem: store to ShortTermMemory (L1)
-    else Quality rejected / dead-end
-      Stage->>Stage: detect backtrack edge
-      Stage->>Exec: request_recovery(stage_id)
-      Exec->>Kernel: mark_stage_state(stage_id, FAILED)
+### 5.2 Lifespan startup + lease recovery
+
+```mermaid
+sequenceDiagram
+    participant Lifespan as Starlette lifespan
+    participant App as AgentServer
+    participant RQ as RunQueue
+    participant RS as SQLiteRunStore
+    participant ES as SQLiteEventStore
+
+    Lifespan->>App: build durable backends + AgentServer.__init__
+    Lifespan->>App: warm RetrievalEngine, start MemoryLifecycleManager,<br/>start SLOMonitor, start ConfigFileWatcher
+    Lifespan->>App: install SIGTERM handler → run_manager.shutdown
+    Lifespan->>App: _rehydrate_runs (app.py:1278)
+    App->>RQ: scan lease-expired rows
+    loop for each expired run
+        App->>App: decide_recovery_action(posture)
+        alt research / prod
+            App->>App: _bump_attempt_id_on_release (app.py:1218, W35-T9)
+            App->>RQ: reenqueue
+            App->>ES: append(recovery_decision)
+        else dev
+            App->>App: emit RecoveryAlarm WARNING (warn-only)
+        end
     end
-
-    Stage-->>Exec: StageResult {findings, decisions}
-  end
-
-  Exec->>Evolve: on_run_completed(RunPostmortem)
-  Evolve->>Evolve: PostmortemAnalyzer.analyze()
-  Evolve->>Evolve: SkillExtractor.extract() → SkillCandidate[]
-  Evolve->>Evolve: RegressionDetector.record()
-  Evolve->>Evolve: ChampionChallenger.update_metrics()
-
-  Exec->>Kernel: close_run(run_id, outcome)
-  Exec-->>RunMgr: RunResult {run_id, findings, cost}
-  RunMgr->>Server: emit RUN_COMPLETED event (SSE)
-  Server-->>Client: GET /runs/{run_id}/events (SSE stream)
+    Lifespan->>App: yield (server live)
 ```
 
----
-
-## 6. 数据流图（Data Flow Diagram）
+### 5.3 Per-store retention purge loop (W36-A3 reference shape)
 
 ```mermaid
-flowchart TD
-  INPUT["用户输入<br/>TaskContract<br/>{goal, constraints, budget}"]
-
-  subgraph INGRESS["入口层"]
-    API["POST /runs"]
-    RUN_CTX["RunContext 创建<br/>run_context.py"]
-    SESS["RunSession 初始化<br/>session/run_session.py"]
-  end
-
-  subgraph PREPROCESS["预处理层"]
-    KNOW_QUERY["Knowledge Query<br/>retrieval_engine.retrieve()"]
-    SKILL_INJECT["Skill Injection<br/>skill_loader.build_prompt()"]
-    TASK_VIEW["Task View 构建<br/>task_view/builder.py"]
-  end
-
-  subgraph PIPELINE["中间件管道"]
-    PERC_DATA["Perception Data<br/>entity_map, context_str"]
-    CTRL_DATA["Control Data<br/>ExecutionPlan, resource_bindings"]
-    EXEC_DATA["Execution Data<br/>ActionSpec, capability_name"]
-    EVAL_DATA["Evaluation Data<br/>quality_score, retry_flag"]
-  end
-
-  subgraph LLM_LAYER["LLM 调用层"]
-    LLM_REQ["LLMRequest<br/>{messages, model, max_tokens}"]
-    TIER_ROUTE["TierRouter<br/>purpose→strong/medium/light"]
-    CACHE_CHK["PromptCacheInjector<br/>cache_control anchors"]
-    LLM_RESP["LLMResponse<br/>{content, usage, finish_reason}"]
-  end
-
-  subgraph EXECUTION["执行层"]
-    ACTION_SPEC["ActionSpec<br/>{action_id, capability_name, payload}"]
-    GOV_CHECK["GovernanceEngine<br/>EffectClass + SideEffectClass 分级"]
-    CAP_RESULT["Capability Result<br/>{output, metadata}"]
-    EVIDENCE["EvidenceRecord<br/>{action_id, result, timestamp}"]
-  end
-
-  subgraph CAPTURE["捕获层"]
-    STAGE_SUM["StageSummary<br/>{findings, decisions, outcome}"]
-    RAW_EVT["RawEventRecord (L0)<br/>JSONL uncompressed"]
-    COMPRESS["CompressedMemory<br/>LLM summarized"]
-    STM_REC["ShortTermMemory (L1)<br/>per-session working set"]
-  end
-
-  subgraph KERNEL_LAYER["Kernel 层"]
-    K_EVENTS["Kernel Event Log<br/>immutable facts"]
-    K_STATE["Run/Stage/Branch State<br/>state machine"]
-    K_IDEM["Idempotency Store<br/>dedup key"]
-  end
-
-  subgraph EVOLVE_LAYER["进化层"]
-    POSTMORT["RunPostmortem<br/>{run_id, stage_results, metrics}"]
-    SKILL_CAND["SkillCandidate<br/>{name, prompt_template, trigger}"]
-    REGR_DATA["RegressionPoint<br/>{metric, baseline, delta}"]
-    CC_DATA["ChampionChallenger<br/>A/B metrics comparison"]
-  end
-
-  subgraph OUTPUT["输出层"]
-    RUN_RESULT["RunResult<br/>{run_id, status, findings, cost}"]
-    SSE_STREAM["SSE Events<br/>/runs/{id}/events"]
-    KNOW_UPDATE["Knowledge Update<br/>wiki + graph auto-ingest"]
-    SKILL_UPDATE["Skill Registry Update<br/>new/promoted skills"]
-  end
-
-  INPUT --> API
-  API --> RUN_CTX
-  API --> SESS
-
-  RUN_CTX --> KNOW_QUERY
-  RUN_CTX --> SKILL_INJECT
-  KNOW_QUERY --> TASK_VIEW
-  SKILL_INJECT --> TASK_VIEW
-
-  TASK_VIEW --> PERC_DATA
-  PERC_DATA --> CTRL_DATA
-  CTRL_DATA --> EXEC_DATA
-  EXEC_DATA --> EVAL_DATA
-
-  CTRL_DATA --> LLM_REQ
-  LLM_REQ --> TIER_ROUTE
-  TIER_ROUTE --> CACHE_CHK
-  CACHE_CHK --> LLM_RESP
-  LLM_RESP --> CTRL_DATA
-
-  EXEC_DATA --> ACTION_SPEC
-  ACTION_SPEC --> GOV_CHECK
-  GOV_CHECK --> CAP_RESULT
-  CAP_RESULT --> EVIDENCE
-
-  EVAL_DATA --> STAGE_SUM
-  EVIDENCE --> STAGE_SUM
-  STAGE_SUM --> RAW_EVT
-  STAGE_SUM --> COMPRESS
-  COMPRESS --> STM_REC
-
-  ACTION_SPEC --> K_EVENTS
-  STAGE_SUM --> K_STATE
-  K_STATE --> K_IDEM
-
-  STAGE_SUM --> POSTMORT
-  POSTMORT --> SKILL_CAND
-  POSTMORT --> REGR_DATA
-  SKILL_CAND --> CC_DATA
-
-  STAGE_SUM --> RUN_RESULT
-  K_STATE --> SSE_STREAM
-  STM_REC --> KNOW_UPDATE
-  CC_DATA --> SKILL_UPDATE
-
-  RUN_RESULT --> OUTPUT
-  SSE_STREAM --> OUTPUT
-  KNOW_UPDATE --> OUTPUT
-  SKILL_UPDATE --> OUTPUT
-```
-
----
-
-## 7. 记忆系统数据流（Memory Consolidation Flow）
-
-```mermaid
-flowchart LR
-  subgraph SESSION["Session"]
-    ACT["Action Events<br/>RawEventRecord"]
-    STAGE_DONE["Stage Completion<br/>StageSummary"]
-  end
-
-  subgraph L0["L0: Raw Store"]
-    RAW["JSONL append-only<br/>memory/l0_raw.py"]
-  end
-
-  subgraph L1["L1: Short-Term (per session)"]
-    STM["ShortTermMemory<br/>LLM-compressed summaries<br/>memory/short_term.py"]
-    CTX_WINDOW["Context Window<br/>last N turns"]
-  end
-
-  subgraph L2["L2: Mid-Term (daily dream)"]
-    DREAM["DreamConsolidator<br/>memory/mid_term.py"]
-    DAILY["DailySummary<br/>{date, key_facts, decisions}"]
-  end
-
-  subgraph L3["L3: Long-Term (graph)"]
-    LTMG["LongTermMemoryGraph<br/>memory/long_term.py"]
-    NODES["MemoryNode<br/>{id, content, type, embedding}"]
-    EDGES["MemoryEdge<br/>{source, target, relation}"]
-  end
-
-  subgraph RETRIEVAL["检索层"]
-    URET["UnifiedMemoryRetriever<br/>memory/unified_retriever.py"]
-    RENG["RetrievalEngine<br/>knowledge/retrieval_engine.py"]
-  end
-
-  ACT --> RAW
-  STAGE_DONE --> STM
-  RAW --> STM
-  STM --> CTX_WINDOW
-
-  STM -->|nightly dream| DREAM
-  DREAM --> DAILY
-  DAILY --> LTMG
-  LTMG --> NODES
-  LTMG --> EDGES
-
-  URET --> STM
-  URET --> DAILY
-  URET --> LTMG
-  RENG --> URET
-```
-
----
-
-## 8. 进化引擎流程（Evolve Engine Flow）
-
-```mermaid
-flowchart TD
-  RUN_END["Run Completed<br/>RunPostmortem"]
-
-  POST["PostmortemAnalyzer<br/>evolve/postmortem.py<br/>分析成功/失败模式"]
-  SEXT["SkillExtractor<br/>evolve/skill_extractor.py<br/>提取可复用技能候选"]
-  DSET["DatasetEvaluator<br/>evolve/dataset_evaluator.py<br/>benchmark 评测"]
-  REG["RegressionDetector<br/>evolve/regression_detector.py<br/>检测性能退化"]
-  CC["ChampionChallenger<br/>evolve/champion_challenger.py<br/>A/B 版本对比"]
-
-  CAND["SkillCandidate<br/>{name, prompt, trigger, score}"]
-  SREG["SkillRegistry<br/>skill/registry.py"]
-  SVER["SkillVersionManager<br/>champion/challenger"]
-  SEVO["SkillEvolver<br/>textual gradient 优化"]
-
-  ALERT["RegressionAlert<br/>observability/notification.py"]
-
-  RUN_END --> POST
-  POST --> SEXT
-  POST --> DSET
-  POST --> REG
-  SEXT --> CAND
-  CAND --> SREG
-  SREG --> SVER
-  SVER --> CC
-  CC --> SEVO
-  SEVO --> SREG
-  REG --> ALERT
-  DSET --> REG
-```
-
----
-
-## 9. 关键模块接口说明
-
-### 9.1 RunExecutor — 主执行入口
-
-| 方法 | 签名 | 职责 |
-|------|------|------|
-| `execute` | `() → dict` | 线性 stage 遍历执行（TRACE S1→S5） |
-| `execute_graph` | `(stage_graph: TrajectoryGraph) → dict` | 动态图遍历含回溯与多后继路由 |
-| `execute_async` | `() → Coroutine[dict]` | asyncio 全异步模式（AsyncTaskScheduler） |
-| `resume_from_checkpoint` | `(checkpoint: dict) → dict` | 从 checkpoint 恢复运行 |
-
-### 9.2 LLMGateway Protocol
-
-| 方法 | 签名 | 职责 |
-|------|------|------|
-| `complete` | `(request: LLMRequest) → LLMResponse` | 同步模型调用 |
-| `stream` | `(request: LLMRequest) → Iterator[LLMStreamChunk]` | SSE 流式调用（httpx chunked transfer） |
-| `supports_model` | `(model: str) → bool` | 检查模型兼容性（`AnthropicGateway` 始终返回 True，支持代理端点） |
-
-**LLMRequest 扩展字段**：
-- `messages: list[dict[str, Any]]` — content 支持字符串或 content block 列表（multimodal）
-- `thinking_budget: int | None` — per-request 思考预算，覆盖 gateway 级默认值；`> 0` 开启，`0` 强制关闭
-
-**LLMStreamChunk**（`llm/protocol.py`）：
-```
-delta: str              # 本次文字增量
-thinking_delta: str     # 思考过程增量（Anthropic extended thinking）
-finish_reason: str|None # 最终块携带停止原因
-usage: TokenUsage|None  # 最终块携带 token 用量
-model: str              # message_start 块携带模型 ID
-```
-
-**实现链路**：`TierAwareLLMGateway` → `FailoverChain` → `AnthropicLLMGateway`（Anthropic API / 兼容代理）或 `HttpLLMGateway`（OpenAI API）
-
-- `TierAwareLLMGateway` 同时提供同步 `complete()`、异步 `acomplete()`、流式 `stream()`；无流式能力的后端自动降级为单 chunk 包装。
-- `AnthropicLLMGateway` 支持自定义 `base_url`，可接入 DashScope 等 Anthropic 协议兼容代理；`default_thinking_budget` 配置 gateway 级思考预算。
-- 思考模式开启时自动强制 `temperature=1`（Anthropic API 要求）。
-
-**provider 配置（`config/llm_config.json`）**：
-```json
-{
-  "default_provider": "dashscope",
-  "providers": {
-    "dashscope": {
-      "api_key": "sk-...",
-      "base_url": "https://...",
-      "api_format": "anthropic",
-      "models": {"strong": "...", "medium": "...", "light": "..."},
-      "features": {"stream": true, "thinking_budget": null, "multimodal": false}
-    }
-  }
-}
-```
-`build_gateway_from_config()` 读取此文件，按 `api_format` 选择 `AnthropicLLMGateway` 或 `HttpLLMGateway`，注入 `thinking_budget`，并包装进 `TierAwareLLMGateway` 返回。`SystemBuilder.build_llm_gateway()` 在 env var 未命中时自动回落到此配置文件。
-
-### 9.3 RuntimeAdapter Protocol（22 方法）
-
-| 方法组 | 方法 | 职责 |
-|--------|------|------|
-| Run 生命周期 | `start_run`, `query_run`, `cancel_run`, `resume_run`, `signal_run` | run 全生命周期管理 |
-| Stage | `open_stage`, `mark_stage_state` | stage 状态推进 |
-| Branch | `open_branch`, `mark_branch_state` | branch 状态管理 |
-| Task View | `record_task_view`, `bind_task_view_to_decision` | 任务视图持久化与决策绑定 |
-| Human Gate | `open_human_gate`, `submit_approval`, `resolve_escalation` | 人类审批 + escalation 恢复 |
-| Events / Trace | `stream_run_events`, `query_trace_runtime` | 事件流与 trace 快照 |
-| Diagnostics | `query_run_postmortem`, `get_manifest` | 事后分析与能力清单 |
-| Child Runs | `spawn_child_run`, `query_child_runs`, `spawn_child_run_async`, `query_child_runs_async` | 子 run 管理（同步 + 异步） |
-
-`resolve_escalation(run_id, *, resolution_notes, caused_by)` — 当 run 因 `human_escalation` 恢复决策进入 `waiting_external` 状态时，通过此方法发送 `recovery_succeeded` 信号令工作流继续执行。对应 agent-kernel `POST /runs/{id}/resolve-escalation`。
-
-**KernelFacadeClient**（`runtime_adapter/kernel_facade_client.py`）：concrete dual-mode 实现，同时支持 `direct`（in-process KernelFacade）和 `http`（REST over KernelFacade HTTP）两种模式。全部 22 个协议方法均实现 direct/http 双分支；`resolve_escalation` 因 keyword-only 参数直接调用 facade，绕过通用 `_direct_call()` 辅助方法。
-
-### 9.4 Middleware Protocol
-
-| 生命周期 | 方法 | 职责 |
-|---------|------|------|
-| 创建 | `on_create(config)` | 中间件初始化 |
-| 处理 | `process(message: MiddlewareMessage) → MiddlewareMessage` | 核心管道处理 |
-| 销毁 | `on_destroy()` | 资源清理 |
-
-**HookAction**: `CONTINUE` / `MODIFY` / `SKIP` / `BLOCK` / `RETRY`
-
-**线程安全**：`MiddlewareOrchestrator` 的所有结构变更方法（`add/replace/remove_middleware`、`add/remove_hook`、`add_global_hook`）均在 `threading.Lock` 保护下执行。`run()` 入口持锁创建管道快照（`_mw_snapshot`），整个 pipeline 遍历使用快照，消除并发 run 与结构修改之间的竞态条件。
-
-### 9.5 Server API 端点
-
-| 路径 | 方法 | 职责 |
-|------|------|------|
-| `/runs` | `POST` | 提交任务，返回 run_id |
-| `/runs` | `GET` | 列出活跃 run |
-| `/runs/{id}` | `GET` | 查询 run 状态 |
-| `/runs/{id}/signal` | `POST` | 发送信号（pause/resume/cancel） |
-| `/runs/{id}/resume` | `POST` | 从 checkpoint 恢复 |
-| `/runs/{id}/events` | `GET` | SSE 事件流 |
-| `/knowledge/ingest` | `POST` | 文本摄取到 wiki |
-| `/knowledge/ingest-structured` | `POST` | 结构化事实摄取到图谱 |
-| `/knowledge/query` | `GET` | 知识查询 |
-| `/knowledge/status` | `GET` | 知识库状态 |
-| `/knowledge/lint` | `POST` | 知识健康检查 |
-| `/memory/dream` | `POST` | 触发 dream 整合（mid-term） |
-| `/memory/consolidate` | `POST` | 触发长期图整合 |
-| `/memory/status` | `GET` | 记忆系统状态 |
-| `/skills/list` | `GET` | 技能列表 |
-| `/skills/evolve` | `POST` | 触发 champion/challenger 轮次 |
-| `/skills/{id}/optimize` | `POST` | 优化技能 prompt |
-| `/skills/{id}/promote` | `POST` | challenger → champion |
-| `/context/health` | `GET` | 上下文预算健康 |
-| `/health` | `GET` | 全系统健康 |
-| `/ready` | `GET` | 平台就绪检查（200=ready，503=not ready，返回 capabilities 列表） |
-| `/manifest` | `GET` | 系统能力清单（`contract_field_status`、MCP 状态、e2e 端点目录） |
-| `/tools` | `GET` | 注册的能力列表 |
-| `/tools/call` | `POST` | 按名称调用能力 |
-| `/mcp/tools/list` | `POST` | MCP 工具枚举（含 JSON Schema） |
-| `/mcp/tools/call` | `POST` | MCP 工具调用 |
-| `/sessions` | `GET` | 列出当前用户的活跃 session |
-| `/sessions/{id}/runs` | `GET` | 列出 session 内所有 run |
-| `/sessions/{id}` | `PATCH` | 归档或重命名 session |
-| `/team/events` | `GET` | 列出 team space 事件（支持 since_id） |
-| `/metrics` | `GET` | Prometheus 指标 |
-| `/metrics/json` | `GET` | JSON 指标快照 |
-
-### 9.6 Public API Surface
-
-Top-level symbols exported from `hi_agent` for external callers:
-
-| Symbol | Description |
-|--------|-------------|
-| `hi_agent.RunExecutorFacade` | `start(run_id, profile_id, model_tier, skill_dir)` / `run(prompt) → RunFacadeResult` / `stop()` |
-| `hi_agent.check_readiness()` | Returns `ReadinessReport` — per-subsystem health check |
-| `hi_agent.GateEvent` | Human gate lifecycle event dataclass |
-| `hi_agent.GatePendingError` | Raised when stage execution hits a pending gate |
-| `hi_agent.SubRunHandle` / `SubRunResult` | Nested sub-run dispatch / collection |
-| `hi_agent.llm.tier_presets.apply_strict_defaults(router)` | Strict platform tier preset — configures TierRouter with strict-posture defaults (`apply_research_defaults` is deprecated; Wave 12 removal) |
-
----
-
-## 10. 配置与组件装配（SystemBuilder）
-
-```mermaid
-flowchart LR
-  CFG["TraceConfig<br/>95+ 参数<br/>JSON/env/code"]
-  STACK["ProfileAwareConfigStack<br/>config/stack.py<br/>5 层合并"]
-  PROFMGR["ProfileDirectoryManager<br/>profile/manager.py<br/>HI_AGENT_HOME"]
-
-  subgraph SB["SystemBuilder<br/>config/builder.py"]
-    subgraph CB["CognitionBuilder<br/>config/cognition_builder.py"]
-      LLM["build_llm_gateway()<br/>→ TierAwareLLMGateway"]
-      EVO["build_evolve_engine()<br/>→ EvolveEngine"]
-      REFL["build_reflection_orchestrator()"]
+sequenceDiagram
+    participant Lifespan as agent_server lifespan
+    participant Loop as _<store>_purge_loop
+    participant Store as Durable store
+    participant Met as Prometheus
+
+    Lifespan->>Loop: launch as supervised task
+    loop every interval_s
+        Loop->>Loop: await asyncio.sleep(interval_s)
+        Loop->>Store: purge_expired(now)
+        Store-->>Loop: deleted_count
+        opt deleted >= 100
+            Store->>Store: VACUUM (best-effort)
+        end
+        opt deleted > 0
+            Loop->>Met: hi_agent_<store>_purged_total{tenant_id} += deleted
+        end
     end
-    subgraph RB["RuntimeBuilder<br/>config/runtime_builder.py"]
-      KRN["build_kernel()<br/>→ RuntimeAdapter"]
-      MW["build_middleware_orchestrator()<br/>→ MiddlewareOrchestrator"]
-      MET["build_metrics_collector()"]
-    end
-    MEM["build_memory_manager()<br/>→ 3-tier stack"]
-    KNOW["build_knowledge_manager()<br/>→ KnowledgeManager"]
-    SKL["build_skill_registry()<br/>→ SkillRegistry"]
-    HARN["build_harness_executor()<br/>→ HarnessExecutor"]
-    SCHED["build_task_scheduler()<br/>→ TaskScheduler"]
-    SRV["build_http_server()<br/>→ AgentServer"]
-  end
-
-  STACK --> CFG
-  PROFMGR --> STACK
-  CFG --> SB
-  SB --> REXEC["RunExecutor<br/>(assembled, no post-construction mutation)"]
 ```
 
-**TraceConfig 核心参数**：
-
-| 类别 | 参数示例 |
-|------|---------|
-| Kernel | `kernel_base_url` ("local" / HTTP URL) |
-| LLM | `llm_api_key`, `llm_default_model`, `llm_budget_max_calls` |
-| 缓存 | `prompt_cache_enabled`, `prompt_cache_anchor_messages` |
-| 记忆 | `memory_tier_enabled`, `memory_consolidation_interval_seconds`, `memory_compress_max_findings`, `memory_compress_max_decisions`, `memory_compress_max_entities`, `memory_compress_max_tokens` |
-| 知识 | `knowledge_storage_dir` |
-| 技能 | `skill_registry_dir`, `skill_evolution_enabled` |
-| 上下文预算 | `context_skill_prompts_budget`（默认 2000），`context_knowledge_context_budget`，`context_system_prompt_budget` |
-| AutoCompress | `compress_snip_threshold`, `compress_window_threshold`, `compress_compress_threshold`, `compress_default_budget_tokens` |
-| 中间件 | `middleware_enabled`, `gate_quality_threshold` |
-| 服务器 | `server_host`, `server_port`, `server_workers` |
+This shape clones `IdempotencyStore.purge_expired` (`hi_agent/server/idempotency.py:193`) — the W35-T4 reference impl — and is the binding template every W36-A3 adopter follows (event_store, run_store, audit_store, gate_store, feedback_store, team_event_store, decision_audit, session_store).
 
 ---
 
-## 11. 失败处理与恢复机制
+## 6. Cross-cutting Concerns
 
-```mermaid
-flowchart TD
-  FAIL_EVT["Action/Stage 失败"]
-
-  subgraph DETECT["检测层"]
-    FC["FailureCollector<br/>failures/collector.py"]
-    WD["ProgressWatchdog<br/>failures/watchdog.py"]
-    DD["DeadEndDetector<br/>trajectory/dead_end.py"]
-  end
-
-  subgraph CLASSIFY["分类层<br/>failures/taxonomy.py"]
-    MISSING["missing_evidence"]
-    HARNESS_D["harness_denied"]
-    MODEL_INV["model_output_invalid"]
-    NO_PROG["no_progress"]
-    BUDGET_X["execution_budget_exhausted"]
-  end
-
-  subgraph RECOVER["恢复层"]
-    RPOL["RestartPolicyEngine<br/>task_mgmt/restart_policy.py"]
-    REFL["ReflectionOrchestrator<br/>task_mgmt/reflection.py"]
-    BACK["Backtrack Edge<br/>trajectory/graph.py"]
-    GATE["HumanGate<br/>runtime_adapter → kernel"]
-  end
-
-  FAIL_EVT --> FC
-  FAIL_EVT --> WD
-  FAIL_EVT --> DD
-
-  FC --> MISSING
-  FC --> HARNESS_D
-  FC --> MODEL_INV
-  WD --> NO_PROG
-  DD --> BUDGET_X
-
-  MISSING --> RPOL
-  HARNESS_D --> GATE
-  MODEL_INV --> REFL
-  NO_PROG --> BACK
-  BUDGET_X --> RPOL
-
-  RPOL --> RECOVER_ACTION["retry / reflect / escalate / abort"]
-  REFL --> LLM_REFL["LLM 生成恢复建议"]
-  LLM_REFL --> RPOL
-```
+| Concern | Mechanism | Reference |
+|---|---|---|
+| **Posture-aware defaults** (Rule 11) | `Posture.from_env()`; `dev` permissive, `research`/`prod` fail-closed | `hi_agent/config/posture.py` |
+| **Async resource lifetime** (Rule 5) | `SyncBridge` persistent loop; ban on `asyncio.run()` in library code | `hi_agent/runtime/sync_bridge.py:62` |
+| **Single construction path** (Rule 6) | `build_durable_backends` for stores; `SystemBuilder` for runtime; required-kwargs for scope | `hi_agent/server/_durable_backends.py:14`, `hi_agent/config/builder.py` |
+| **Resilience without silence** (Rule 7) | Every fallback emits Counter + WARNING + fallback_event + gate-asserted | `hi_agent/server/recovery.py:38` (RecoveryAlarm reference) |
+| **Operator-shape gate** (Rule 8) | T3 evidence under `docs/delivery/`; gate-script `scripts/run_t3_gate.py` | `docs/governance/score_caps.yaml` |
+| **Auth-authoritative tenant_id** (W35-T3) | Tenant_id sourced only from `agent_server/auth/`; `hi_agent` never trusts request body | `agent_server/auth/`, `hi_agent/server/run_manager.py:344` |
+| **Contract spine** (Rule 12) | Every persistent record carries `tenant_id`, `user_id`, `session_id`, `project_id`, `run_id`, `parent_run_id`, `attempt_id`, `phase_id` | `hi_agent/contracts/_spine_validation.py`, `RunRecord.__post_init__` (`run_store.py:91`) |
+| **Capability maturity** (Rule 13) | L0–L4 levels; default-on requires posture-aware default + observable fallbacks | `docs/governance/maturity-glossary.md` |
+| **Manifest-truth releases** (Rule 14) | Closure notices derive from manifest; no claims pre-final-manifest | `scripts/check_manifest_freshness.py` |
+| **Closure level taxonomy** (Rule 15) | `component_exists` → `wired` → `e2e` → `verified_at_release_head` → `operationally_observable` | `docs/governance/closure-taxonomy.md` |
+| **Test profile taxonomy** (Rule 16) | 7 profiles in `tests/profiles.toml`; `default-offline` is offline-only | `tests/profiles.toml` |
+| **Allowlist discipline** (Rule 17) | Every `# noqa` / silenced-gate carries owner / risk / expiry_wave / replacement_test | `docs/governance/allowlists.yaml` |
 
 ---
 
-## 12. 已知工程边界
+## 7. Architecture Decisions
 
-- `agent-kernel` 通过固定 commit 引用（git submodule），未来建议切换可发布制品（wheel/index）。
-- `TaskAttemptRecord` 保留兼容入口（带弃用提示），新代码仅使用 `TaskAttempt`。
-- Windows 环境代理绕行依赖运行环境配置（P0）。
-- MCP 传输层（`mcp/transport.py`）当前 `transport_status = not_wired`：MCPServer 包裹能力注册表可正常枚举工具，但外部 JSON-RPC/SSE 传输尚未接入，`/manifest` 中 `capability_mode = infrastructure_only` 明确标注。
-
-**2026-04-14 自审修复归档（全部已关闭）：**
-
-| 缺口 | 修复内容 |
-|------|---------|
-| SSE 推流断路 | `RunExecutor._record_event()` 现直接调用 `event_bus.publish()`，将运行事件实时推入 SSE 流。 |
-| KernelFacadeClient HTTP 模式不完整 | `query_run_postmortem`、`query_child_runs` 补全 HTTP 分支；新增 `spawn_child_run` 完整实现。 |
-| HybridRouteEngine 审计空转 | `propose_with_provenance()` 两个返回路径均调用 `persist_route_decision_audit()`，决策写入 `DecisionAuditStore`。 |
-| 异步路径绕过 tier 路由 | `TierAwareLLMGateway` 新增 `acomplete()`；`DelegationManager` 异步路径经由该方法统一 tier 选择。 |
-| SkillEvolver 空指针 | `analyze_skill / optimize_prompt / deploy_optimization / discover_patterns / evolve_cycle` 全部加 `_observer` / `_version_manager` 空值守卫。 |
-| RestartPolicyEngine 状态写入空操作 | `update_state` lambda 现写入 `_state_store` 字典，状态持久有效。 |
-
-## 12.1 TaskContract 字段消费边界
-
-`POST /runs` 接受 13 个 TaskContract 字段，消费级别如下（`/manifest` 的 `contract_field_status` 节动态返回）：
-
-| 字段 | 消费级别 | 说明 |
-|------|---------|------|
-| `goal` | **ACTIVE** | 驱动 TaskView 构建与 LLM prompt |
-| `task_family` | **ACTIVE** | 选择路由配置 |
-| `risk_level` | **ACTIVE** | Harness 治理决策 |
-| `constraints` | **ACTIVE** | 解析 `fail_action:*`、`action_max_retries:*`、`invoker_role:*` 前缀 |
-| `acceptance_criteria` | **ACTIVE** | run 完成后检查 `required_stage:*`、`required_artifact:*` 是否满足 |
-| `budget` | **ACTIVE** | BudgetGuard tier 降级与 deadline 执行 |
-| `deadline` | **ACTIVE** | wall-clock deadline 检查（过期立即失败） |
-| `profile_id` | **ACTIVE** | SystemBuilder profile 解析 |
-| `decomposition_strategy` | **ACTIVE** | TaskOrchestrator 分解模式 |
-| `priority` | **QUEUE_ONLY** | RunManager 队列排序，不进入 stage 执行 |
-| `environment_scope` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
-| `input_refs` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
-| `parent_task_id` | **PASSTHROUGH** | 存储并回传，执行层不消费 |
-
-PASSTHROUGH 字段的消费由调用层（business agent / profile）负责。
+| ADR | Decision | Why |
+|---|---|---|
+| **R-AS-1: Single seam** | Only `agent_server/runtime/kernel_adapter.py` and `agent_server/bootstrap.py` may import `hi_agent.*` | Lets `agent_server/` freeze its v1 contract while `hi_agent/` evolves; one diff surface for breaking-change reviews |
+| **Rule 5: SyncBridge** | One persistent event loop on a daemon thread, instead of per-call `asyncio.run` | Async resources (`httpx.AsyncClient`, `asyncpg.Pool`) bound to a doomed loop caused the 04-22 prod outage — every retry got `RuntimeError: Event loop is closed` |
+| **Rule 6: build_durable_backends** | All durable SQLite stores constructed in one function; injected by name | Inline `x or DefaultX()` produced two unshared in-memory stores in production (DF-11); single construction path eliminates the class |
+| **Rule 7: Observable degradation** | Every fallback path = Prometheus counter + WARNING + `fallback_events` + ship-gate assertion | Silent fallbacks were classified as "successful" runs while real signal was lost |
+| **W35-T3: Auth-authoritative tenant_id** | Tenant_id sourced only from JWT in `agent_server/auth/`; `hi_agent` rejects request-body tenant_id under research/prod | Request-body tenant_id was bypassable; a single trust origin (JWT claim) is now the only legal source |
+| **W35-T4: Idempotency TTL purge** | `IdempotencyStore.purge_expired` + lifespan loop + `hi_agent_idempotency_purged_total` | Reference implementation for all unbounded-growth stores; cloned by W36-A3 across 8 Tier-1 stores |
+| **W35-T9: Re-lease attempt_id bump** | On lease re-enqueue, mint a fresh `attempt_id` (UUID4) and link `parent_run_id` to original `run_id`, increment `attempt_count` | Without bump, two attempts shared the same `attempt_id` → cross-attempt metrics collided. Helper extracted to `_bump_attempt_id_on_release` (`app.py:1218`) so the W34-F.2 lineage invariants are testable |
+| **runtime/runtime_adapter split** | `runtime/` = in-process helpers (sync_bridge, harness, cancellation); `runtime_adapter/` = kernel facade transport (direct + http) | A name collision pre-W31 obscured which module owned which lifecycle; `RUNTIME-LAYERS.md` codifies the split |
+| **harness moved into runtime/** | W31-H.6 relocated `hi_agent/harness/` into `hi_agent/runtime/harness/` | Unifies the runtime-helper namespace; legacy import path is a deprecation shim, removed in Wave 36 |
 
 ---
 
-## 13. 质量门禁
+## 8. Quality Attributes
 
-```bash
-python -m ruff check hi_agent tests scripts examples
-python -m pytest -q        # 3858 passed, 13 skipped, 0 failures
-
-# LLM 端到端冒烟（streaming / thinking / multimodal）
-python scripts/verify_llm.py [--thinking] [--multimodal <image_path>]
-```
-
-当前文档对应代码形态已通过全量测试回归（2026-04-25，Wave 9 pass）。
+| Attribute | Target | How verified |
+|---|---|---|
+| **Run dispatch latency** | p95 ≤ `2× observed_p95` per Rule 8 step 3 | `docs/delivery/<date>-<sha>.md` gate run |
+| **Cross-loop stability** | 3 sequential real-LLM runs reuse the same gateway/adapter | Rule 8 step 4 (sync_bridge guarantees this) |
+| **Lifecycle observability** | `current_stage` non-`None` within 30 s on every turn | Rule 8 step 5 |
+| **Cancellation round-trip** | `POST /runs/{id}/cancel` on live run = 200; on unknown = 404 | Rule 8 step 6 |
+| **Tenant isolation** | Every persistent row carries `tenant_id`; cross-tenant read returns 404 | `scripts/check_contract_spine_completeness.py`, `RunRecord.__post_init__` |
+| **Lint clean** | `ruff check` exits 0 | `.github/workflows/claude-rules.yml` |
+| **Test honesty** | No MagicMock on subsystem under test in integration tests | Rule 4 + manual review |
+| **Architectural 7×24** | 5 assertions PASS at each release HEAD: cross-loop, lifespan, cancellation, spine real, chaos runtime-coupled | `docs/verification/<sha>-arch-7x24.json` |
 
 ---
 
-## 12. 安全加固与工作区隔离（W13 + Workspace Isolation）
+## 9. Risks & Technical Debt
 
-**W13 安全加固 (已合并):** GovernedToolExecutor (harness/executor.py), CapabilityDescriptor risk metadata (risk_class/requires_approval/provenance_required), PathPolicy/URLPolicy (harness/policies.py), shell_exec prod-default-disabled, FallbackTaxonomy, ToolCallAuditEvent, JSON-backed RetrievalEngine cache.
+| Risk | Tracker | W36 plan |
+|---|---|---|
+| **24 unbounded-growth stores** | `docs/governance/retention-roadmap.md` | W36-A3 binding for 8 Tier-1 stores; W37 binding for Tier-2 (clones W35-T4 shape) |
+| **14 boot-time assertions missing (B1–B14)** | `docs/governance/boot-time-assertions-roadmap.md` | W36-A5 binding; reference shape at `agent_server/api/__init__.py:138-156` (W35-T8) — all use the shared `assert_research_posture_required` helper |
+| **5 of 8 W36-A3 stores lack `tenant_id` columns** | retention-roadmap §Tier 1 | W36-A4 schema-lineage extension before A3 can chunk-DELETE per tenant |
+| **MCP transport not_wired** | `routes_manifest.py` | `transport_status = not_wired`; `capability_mode = infrastructure_only`; W37+ binding |
+| **EventBus is process-local** | `hi_agent/server/event_bus.py` | Multi-process deployment requires every process to wire the same SQLite event store; the bus does not federate |
+| **`_runs` dict authoritative for live state** | `hi_agent/server/run_manager.py` | A partial restart between enqueue and `_publish_run_event` reconciles only via lease expiry + `_rehydrate_runs`. Tested under W14; remaining gap = fully-atomic enqueue |
+| **AuthMiddleware no-op without `HI_AGENT_API_KEY`** | `hi_agent/server/auth_middleware.py:96` | Dev-friendly default; `HI_AGENT_AUTH_REQUIRED=1` forces fail-closed in prod. Posture-aware: research/prod fail-closed when both absent |
+| **Lifespan startup is best-effort** | `hi_agent/server/app.py:1450` | Every subsystem wrapped in try/except; `/health` may report `degraded` instead of failing the process |
+| **Soft-replacement by `agent_server/`** | this doc | Public surface migrated to `agent_server/api/v1/*`; `hi_agent/server/` routes are pre-versioning and may be soft-deprecated |
+| **L3 KG JSON backend at scale** | `feedback_neo4j_decline.md` | Operations team verified JSON suffices through W35; revisit only when retrieval p95 regresses |
 
-**WorkspaceIsolation (已合并):** WorkspaceKey/WorkspacePathHelper (workspace/), SessionStore/SessionMiddleware (server/session_middleware.py), workspace-scoped memory paths (L0–L3 + checkpoints), TeamEventStore (server/team_event_store.py), TeamSpace.publish(), GET /team/events, opt-in RunFinalizer auto-sync.
+---
 
-**Wave 9 平台合约加固 (已合并):** Posture enum (config/posture.py), project_id/profile_id posture-required, RunQueue/TeamRunRegistry durable under research/prod, ArtifactLedger quarantine+metric+WARNING (artifacts/ledger.py), canonical CapabilityDescriptor (capability/registry.py, DF-50 closed), TeamRunSpec (contracts/team_runtime.py), ReasoningTrace schema (contracts/reasoning_trace.py), per-kind fallback Counters (hi_agent_{llm,heuristic,capability,route}_fallback_total), structured HTTP error categories (server/error_categories.py), auth-scoped idempotency, init CLI (cli_commands/init.py).
+## 10. References
 
-See `docs/downstream-responses/2026-04-25-wave9-delivery-notice.md` for full Wave 9 delivery evidence.
+- Sub-package detail docs: `hi_agent/server/ARCHITECTURE.md`, `hi_agent/runtime/ARCHITECTURE.md`, `hi_agent/runtime_adapter/ARCHITECTURE.md`, `hi_agent/llm/ARCHITECTURE.md`, `hi_agent/observability/ARCHITECTURE.md`, `hi_agent/memory/ARCHITECTURE.md`, `hi_agent/knowledge/ARCHITECTURE.md`, `hi_agent/skill/ARCHITECTURE.md`, `hi_agent/capability/ARCHITECTURE.md`
+- Runtime layering rule: `hi_agent/RUNTIME-LAYERS.md`
+- Contracts: `hi_agent/contracts/CONTRACTS.md`
+- Top-level system context: `../ARCHITECTURE.md`
+- Kernel substrate: `../agent_kernel/ARCHITECTURE.md`
+- Northbound facade: `../agent_server/README.md`
+- CLAUDE.md Rules 1–17 — engineering rules + ownership tracks
+- W36 binding plans: `docs/superpowers/plans/2026-05-06-wave-36-a3-tier1-retention-adoption.md`, `…-a4-schema-lineage-extensions.md`, `…-a5-boot-time-assertions.md`
+- Roadmaps: `docs/governance/retention-roadmap.md`, `docs/governance/boot-time-assertions-roadmap.md`
+- Gate scripts: `scripts/check_rules.py`, `scripts/run_t3_gate.py`, `scripts/check_manifest_freshness.py`, `scripts/check_contract_spine_completeness.py`, `scripts/check_seam_isolation.py`, `scripts/check_durable_wiring.py`

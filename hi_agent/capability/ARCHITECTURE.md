@@ -1,293 +1,244 @@
-# Capability Architecture
+# Capability — Architecture
 
-## 1. Purpose & Position in System
+> **Last refreshed:** 2026-05-06 (W35 corrective close + W36 plans). HEAD `276917d8`.
+> **Audience:** platform engineers + capability owners.
+> **Status:** authoritative.
 
-`hi_agent/capability/` owns the **platform-level capability registry** — the directory of named, callable, schema-described tools (e.g. `read_file`, `write_file`, `http_request`, `llm_completion`, `git_status`) that hi_agent runs make available to skills and stages. The registry is **process-internal**: a single `CapabilityRegistry` instance is shared across all tenants in the worker process. Per-tenant capability assignment is enforced **above** this layer — by `CapabilityPolicy` (RBAC), the harness `PermissionGate`, and HTTP-route-level authorization.
+## 1. Purpose & Responsibilities
 
-The package is annotated with `# scope: process-internal` markers (`hi_agent/capability/__init__.py:1`) and the W31 T-6' decision documented in the package docstring: *"CapabilitySpec describes a platform-level capability that any tenant can invoke; ownership and per-tenant overrides live above this layer (route / policy gates), not on the registry row."*
+`hi_agent/capability/` owns the **platform-level capability registry** — the directory of named, callable, schema-described tools (e.g. `read_file`, `write_file`, `http_request`, `llm_completion`) that skills, runners, and stages invoke. The registry is **process-internal**: a single `CapabilityRegistry` instance is shared across all tenants in the worker process. Per-tenant assignment, denial, and override are enforced **above** this layer — by `CapabilityPolicy` (RBAC), HTTP-route auth, and posture gates.
 
-The package owns:
-1. **`CapabilityRegistry`** — the in-memory name → spec map.
-2. **`CapabilitySpec`** — name + handler callable + description + JSON Schema parameters + `CapabilityDescriptor`.
-3. **`CapabilityDescriptor`** — risk metadata (`risk_class`, `effect_class`, `requires_auth`, `requires_approval`, `available_in_dev/research/prod`, `availability_probe`, …).
-4. **`CapabilityInvoker`** / **`AsyncCapabilityInvoker`** — safe invocation with policy + circuit breaker + retry + timeout.
-5. **`CircuitBreaker`** — per-capability failure-count breaker.
-6. **`CapabilityPolicy`** — minimal RBAC: `role → allowed capability names`; `role → allowed (stage_id, action_kind)`.
-7. **`GovernedToolExecutor`** (`governance.py`) — central governance gate for all tool calls (P0-1b).
-8. **`adapters/`** — `CoreToolAdapter`, `CapabilityDescriptorFactory` (descriptor builders).
-9. **`bundles/`** — capability bundles (groups of related capabilities registered together).
-10. **`tools/`** — built-in tool implementations.
-11. **`defaults.py`** — `register_default_capabilities(registry, llm_gateway, ...)` registers the standard capability set.
+The package docstring records this decision explicitly (`__init__.py:1`):
 
-It does **not** own: action-level orchestration (delegated to `hi_agent/runtime/harness/`), tool dispatch from MCP protocol (delegated to `hi_agent/server/mcp.py`), or skill resolution (delegated to `hi_agent/skill/`).
+> CapabilitySpec and CapabilityDescriptor are platform-level metadata for tools that are available to every tenant equally. They do not carry tenant_id because the platform operator owns the capability surface; tenant-specific override or denial lives above this layer (in route handlers / policy gates / posture flags), not on the registry row.
 
-## 2. External Interfaces
+Concrete responsibilities:
 
-**Public exports** (`hi_agent/capability/__init__.py:36`):
+1. Maintain the `name → CapabilitySpec` map (`CapabilityRegistry`, `registry.py:138`).
+2. Carry risk metadata per capability via `CapabilityDescriptor` (`registry.py:78`): `risk_class`, `effect_class`, `requires_auth`, `requires_approval`, `available_in_{dev,research,prod}`, `availability_probe`, license/provenance policy, output budgets, maturity L-level.
+3. Provide safe invocation: `CapabilityInvoker` / `AsyncCapabilityInvoker` add policy enforcement, circuit breaker, retry, timeout (`invoker.py:58`, `async_invoker.py`).
+4. Enforce **posture gating** at dispatch time: `probe_availability_with_posture(name, posture)` raises `CapabilityNotAvailableError` when the descriptor flag for the active posture is `False` (`registry.py:221`).
+5. Surface a unified extension-manifest dict per capability (`to_extension_manifest_dict`, `registry.py:282`) so the manifest layer renders posture support, effect class, and risk class faithfully — not as a hardcoded triple.
+6. Provide capability bundles (`bundles/`) — coherent groups registered together — and core tool adapters (`adapters/`).
 
-Registry:
-- `CapabilityRegistry()` (`registry.py:138`)
-- `CapabilitySpec(name, handler, description, parameters, descriptor)` (`registry.py:127`) — `# scope: process-internal`
-- `CapabilityDescriptor(name, risk_class, effect_class, side_effect_class, remote_callable, prod_enabled_default, requires_auth, requires_approval, required_env, output_budget_chars, availability_probe, source_reference_policy, artifact_output_schema, provenance_required, reproducibility_level, license_policy, tags, sandbox_level, description, parameters, extra, toolset_id, output_budget_tokens, maturity_level, available_in_dev, available_in_research, available_in_prod)` (`registry.py:78`)
-- `CapabilityNotAvailableError(capability_name, posture, reason)` (`registry.py:17`) — raised under posture-policy denial; carries `to_envelope()` for HTTP 400.
+The package does **not** own:
 
-Invocation:
-- `CapabilityInvoker(registry, breaker, policy, max_retries, retry_exceptions, call_timeout_seconds, timeout_call, allow_unguarded)` (`invoker.py:58`)
-- `AsyncCapabilityInvoker(registry, breaker, policy, max_retries, retry_exceptions, call_timeout_seconds, ...)` (`async_invoker.py:20`)
-- `CapabilityUnavailableError(capability_name, reason)` (`invoker.py:35`) — env-var / probe failure (distinct from posture-policy denial).
+- Action-level orchestration (delegated to `hi_agent/runtime/harness/`).
+- MCP-protocol tool dispatch (delegated to `hi_agent/server/mcp.py`).
+- Skill resolution (delegated to `hi_agent/skill/`).
+- The LLM gateway itself (delegated to `hi_agent/llm/`).
 
-Circuit breaker:
-- `CircuitBreaker(failure_threshold, cooldown_seconds, clock, db_path)` (`circuit_breaker.py:31`)
-- `CircuitState(failures, status, opened_at)` (`circuit_breaker.py:17`) — `# scope: process-internal`
-- `CircuitStatus` Literal `"closed" | "open" | "half_open"`
-
-Policy:
-- `CapabilityPolicy(role_permissions, action_permissions)` (`policy.py:6`)
-
-Governance:
-- `GovernedToolExecutor` (`governance.py`)
-- `GovernanceDecision(decision, reason)` (`governance.py:36`) — `# scope: process-internal`
-- `RiskClass` Literal `"read_only" | "filesystem_read" | "filesystem_write" | "network" | "shell" | "credential"` (`registry.py:68`)
-
-Adapters and bundles:
-- `CoreToolAdapter`, `CapabilityDescriptorFactory` (`adapters/__init__.py`)
-- `register_default_capabilities(registry, ...)` (`defaults.py`)
-
-## 3. Internal Components
+## 2. Context & Scope
 
 ```mermaid
-graph TD
-    Boot[SystemBuilder.build_invoker] --> Reg[CapabilityRegistry]
-    Defaults[register_default_capabilities] --> Reg
-    Bundles[CapabilityBundle.register] --> Reg
-    Plugins[Plugin Loader] --> Reg
-
-    Reg -->|name to spec| Specs[CapabilitySpec]
-    Specs --> Handler[handler callable]
-    Specs --> Desc[CapabilityDescriptor]
-
-    Stage[Stage / Skill / MCP] --> Inv[CapabilityInvoker]
-    Inv --> Policy[CapabilityPolicy<br/>RBAC]
-    Inv --> Probe[probe_availability]
-    Inv --> CB[CircuitBreaker]
-    Inv --> Reg
-    Inv --> Handler
-    Handler --> Result[output dict]
-
-    GovExec[GovernedToolExecutor] --> Inv
-    HarnessExec[HarnessExecutor] --> Inv
-    Routes[/tools/call HTTP/] --> GovExec
-    MCP[/mcp/tools/call/] --> GovExec
-
-    Inv -.metrics.-> Counter[hi_agent_capability_*_total]
-    Inv -.spine.-> Spine[emit_capability_handler]
+flowchart LR
+    SK[Skill / SkillRegistry] -->|allowed_tools| INV[CapabilityInvoker]
+    RUN[Runner / Stage] --> INV
+    INV --> POL[CapabilityPolicy<br/>policy.py]
+    INV --> CB[CircuitBreaker<br/>circuit_breaker.py]
+    INV --> REG[CapabilityRegistry<br/>registry.py:138]
+    REG --> SPEC[CapabilitySpec]
+    SPEC --> DESC[CapabilityDescriptor]
+    SPEC --> H["handler(payload) -> dict"]
+    REG --> POSTURE{Posture gate<br/>probe_availability_with_posture}
+    REG --> EXT[ExtensionManifest dict<br/>to_extension_manifest_dict]
+    BUN[CapabilityBundle] -->|register| REG
+    DEF[register_default_capabilities<br/>defaults.py] --> REG
+    LLM[LLMGateway] -.backs.-> H
 ```
 
-| Component | File | Responsibility |
-|---|---|---|
-| `CapabilityRegistry` | `registry.py:138` | In-memory `dict[str, CapabilitySpec]`; `register`, `get`, `list_names`, `register_bundle`, `probe_availability`. |
-| `CapabilitySpec` | `registry.py:127` | Frozen dataclass: name + handler + description + params + descriptor. |
-| `CapabilityDescriptor` | `registry.py:78` | Risk + effect + posture availability + probe + license + reproducibility. |
-| `CapabilityInvoker` | `invoker.py:58` | Sync invocation with policy, breaker, retry, timeout. |
-| `AsyncCapabilityInvoker` | `async_invoker.py:20` | Async equivalent with `asyncio` retry + backoff. |
-| `CircuitBreaker` | `circuit_breaker.py:31` | Per-capability failure counter; closed → open → half-open. |
-| `CapabilityPolicy` | `policy.py:6` | `role → set[capability_name]` + `role → set[(stage_id, action_kind)]`. |
-| `GovernedToolExecutor` | `governance.py` | Central gate for all tool calls (path policy, URL policy, sensitive-field redaction). |
-| `defaults.py` | `defaults.py` | `register_default_capabilities` populates the standard set. |
-| `adapters/descriptor_factory.py` | `adapters/descriptor_factory.py` | Builds `CapabilityDescriptor` from declarative metadata. |
-| `bundles/` | `bundles/` | Capability bundles (e.g. filesystem bundle, http bundle). |
-| `tools/` | `tools/` | Built-in tool implementations. |
+**In scope:** registry, policy, circuit breaker, descriptors, posture gate, manifest dict generation, default-capability factories.
 
-## 4. Data Flow
+**Out of scope:** business-domain capability bundles (e.g. research-team-specific tools live in their repo and register against this layer's Protocol), per-tenant capability sets (planned via a future `TenantCapabilityOverlay` table layered on top of this registry — explicitly noted in `__init__.py:13`).
+
+## 3. Module Boundary & Dependencies
+
+| Inbound (callers) | Reason |
+|---|---|
+| `hi_agent/runner.py`, `hi_agent/runner_stage.py` | Tool dispatch from a stage |
+| `hi_agent/skill/loader.py` | Cross-check `SkillDefinition.allowed_tools` against registered capabilities |
+| `hi_agent/server/routes_runs.py` and friends | Policy / posture pre-checks before hitting a handler |
+| `hi_agent/server/mcp.py` | MCP request → registry lookup |
+| `hi_agent/runtime/harness/governed_executor.py` | Delegates to `GovernedToolExecutor` (`governance.py`) |
+
+| Outbound (dependencies) | Reason |
+|---|---|
+| `hi_agent/observability/metric_counter.py` | `_registry_errors_total`, `_capability_posture_denied_total` counters |
+| `hi_agent/observability/silent_degradation.py` | Heuristic-fallback alarm in `defaults.py` |
+| `hi_agent/runtime/async_bridge.py` | Shared executor for `_default_timeout_call` |
+| `hi_agent/config/posture.py` | `Posture.from_env`, `resolve_runtime_mode` for default-fallback decisions |
+| `hi_agent/llm/protocol.py` (TYPE_CHECKING) | `LLMGateway` is the dependency for LLM-backed handlers |
+
+**Not allowed:** importing `hi_agent/server/` from inside this package — capabilities are leaf modules consumed by the orchestration layer.
+
+## 4. Building Blocks
+
+```mermaid
+flowchart TB
+    subgraph Public_Surface
+        REG[CapabilityRegistry<br/>registry.py:138]
+        SPEC[CapabilitySpec<br/>registry.py:127<br/>scope: process-internal]
+        DESC[CapabilityDescriptor<br/>registry.py:78<br/>scope: process-internal]
+        ERR[CapabilityNotAvailableError<br/>registry.py:17]
+    end
+    subgraph Invocation
+        INV[CapabilityInvoker<br/>invoker.py:58]
+        AINV[AsyncCapabilityInvoker<br/>async_invoker.py]
+        CB[CircuitBreaker<br/>circuit_breaker.py]
+        POL[CapabilityPolicy<br/>policy.py:6]
+    end
+    subgraph Composition
+        BUN[CapabilityBundle<br/>bundles/base.py:12]
+        BUN_RESEARCH[bundles/research.py]
+        ADAPT[CoreToolAdapter<br/>CapabilityDescriptorFactory<br/>adapters/]
+    end
+    subgraph Defaults_and_Tools
+        DEF[register_default_capabilities<br/>defaults.py:1<br/>deprecated wrapper]
+        MK[make_llm_capability_handler<br/>defaults.py:48]
+        TOOLS[tools/builtin.py]
+    end
+    REG --> SPEC
+    SPEC --> DESC
+    INV --> REG
+    INV --> POL
+    INV --> CB
+    AINV --> REG
+    BUN -->|register| REG
+    BUN_RESEARCH --> BUN
+    ADAPT --> DESC
+    DEF --> REG
+    MK --> SPEC
+    TOOLS --> SPEC
+```
+
+Key types and citations:
+
+- `CapabilityRegistry()` — `registry.py:138`. Methods: `register`, `get`, `list_names`, `register_bundle`, `get_descriptor`, `probe_availability` (`registry.py:178`), `probe_availability_with_posture` (`registry.py:221`), `to_extension_manifest_dict` (`registry.py:282`), `list_with_views` (`registry.py:315`).
+- `CapabilitySpec(name, handler, description, parameters, descriptor)` — `registry.py:127`. Frozen dataclass; `# scope: process-internal`.
+- `CapabilityDescriptor(name, risk_class, effect_class, requires_auth, available_in_{dev,research,prod}, availability_probe, source_reference_policy, artifact_output_schema, provenance_required, reproducibility_level, license_policy, sandbox_level, parameters, output_budget_tokens, maturity_level, …)` — `registry.py:78`. Frozen dataclass; `# scope: process-internal`. `maturity_level` is the per-capability L0–L4 record (Rule 13).
+- `CapabilityNotAvailableError(capability_name, posture, reason)` — `registry.py:17`. `to_envelope()` returns the structured 400 envelope used by HTTP routes.
+- `CapabilityInvoker(registry, breaker, policy, max_retries, retry_exceptions, call_timeout_seconds, timeout_call, allow_unguarded)` — `invoker.py:58`. Wraps a handler with policy → breaker → timeout → retry. The dangerous-effect guard (`_DANGEROUS_ALLOWED_ROLES = {"approver","admin"}`, `invoker.py:19`) refuses irreversible-write capabilities for non-admin roles.
+- `CapabilityPolicy(role_permissions, action_permissions)` — `policy.py:6`. RBAC: `role → set[capability_name]` and `role → set[(stage_id, action_kind)]`.
+- `CapabilityBundle` — `bundles/base.py:12`. Abstract; `register(registry) -> int` returns the count of registered capabilities.
+- `make_llm_capability_handler(capability_name, system_prompt, gateway)` — `defaults.py:48`. Generic factory: any name + prompt + gateway → handler. Heuristic fallback gated by `_allow_heuristic_fallback()` which routes through `resolve_runtime_mode()` (`defaults.py:33`) so HI_AGENT_POSTURE and HI_AGENT_ENV agree.
+
+## 5. Runtime View — Key Scenarios
+
+### 5.1 Capability lookup + invocation under posture
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Stage / Skill / Route
-    participant GovExec as GovernedToolExecutor
+    autonumber
+    participant Skill as Skill prompt
+    participant Run as Runner / Stage
     participant Inv as CapabilityInvoker
     participant Pol as CapabilityPolicy
     participant Reg as CapabilityRegistry
     participant CB as CircuitBreaker
-    participant Spec as CapabilitySpec
-    participant Handler as handler callable
-
-    Caller->>+GovExec: execute(capability_name, args, role, ctx)
-    GovExec->>GovExec: redact sensitive fields
-    GovExec->>GovExec: path_policy / url_policy checks
-    GovExec->>GovExec: GovernanceDecision
-    alt deny
-        GovExec-->>Caller: GovernancePolicyError
-    else approval_required
-        GovExec-->>Caller: ApprovalRequired (status_code=423)
-    else allow
-        GovExec->>+Inv: invoke(name, payload, role)
-        Inv->>+Pol: is_allowed(name, role)
-        alt not allowed
-            Pol-->>Inv: false
-            Inv-->>GovExec: PermissionDenied
-        else allowed
-            Pol-->>-Inv: true
-            Inv->>Reg: probe_availability(name)
-            alt env / probe failure
-                Reg-->>Inv: (false, reason)
-                Inv-->>GovExec: CapabilityUnavailableError
-            else available
-                Reg-->>Inv: (true, "")
-                Inv->>+CB: check(name)
-                alt circuit open (cooldown)
-                    CB-->>Inv: open → fail-fast
-                    Inv-->>GovExec: CircuitOpenError
-                else closed / half-open
-                    CB-->>-Inv: ok
-                    Inv->>Reg: get(name) → CapabilitySpec
-                    loop max_retries+1 attempts
-                        Inv->>+Handler: handler(payload)
-                        alt success
-                            Handler-->>-Inv: output dict
-                            Inv->>CB: record_success
-                            Inv-->>GovExec: output
-                        else exception
-                            Handler-->>Inv: raises
-                            Inv->>CB: record_failure
-                            Note over Inv: retry backoff if attempt<max
-                        end
-                    end
-                end
-            end
+    participant H as handler(payload)
+    Skill->>Run: tool_call("write_file", payload)
+    Run->>Inv: invoke("write_file", payload, role="agent")
+    Inv->>Pol: is_allowed("write_file","agent")
+    Pol-->>Inv: True / False
+    alt denied
+        Inv-->>Run: PermissionError
+    else allowed
+        Inv->>Reg: probe_availability_with_posture("write_file", posture)
+        alt descriptor.available_in_<posture>=False
+            Reg-->>Inv: raise CapabilityNotAvailableError<br/>(envelope: error_category=invalid_request)
+            Inv-->>Run: HTTP 400 envelope
+        else available
+            Reg-->>Inv: ok
+            Inv->>CB: assert closed
+            CB-->>Inv: ok
+            Inv->>H: handler(payload) under timeout
+            H-->>Inv: result
+            CB-->>Inv: record success
+            Inv-->>Run: result
         end
-        Inv-->>-GovExec: result or exception
-        GovExec-->>-Caller: result or wrapped error
     end
 ```
 
-`probe_availability` (`registry.py:178`) checks `descriptor.required_env` (env vars present) and `descriptor.availability_probe()` (custom callable). Probe failure wraps as `CapabilityUnavailableError`. Posture-availability denial (`available_in_<posture>=False`) wraps as `CapabilityNotAvailableError` with structured 400 envelope.
+### 5.2 Bundle registration at boot
 
-## 5. State & Persistence
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CB as ConfigBuilder
+    participant BUN as CapabilityBundle subclass
+    participant Reg as CapabilityRegistry
+    participant DEF as make_llm_capability_handler
+    CB->>Reg: CapabilityRegistry()
+    CB->>BUN: bundle = ResearchBundle(...)
+    CB->>BUN: bundle.register(registry)
+    BUN->>DEF: handler = make_llm_capability_handler(name, prompt, gateway)
+    BUN->>Reg: registry.register(CapabilitySpec(name, handler, descriptor=...))
+    BUN-->>CB: count=N
+    CB-->>CB: registry shared with Invoker / MCP / SkillLoader
+```
 
-| State | Location | Lifetime |
+### 5.3 Manifest rendering (extension layer)
+
+`registry.to_extension_manifest_dict("read_file")` (`registry.py:282`) reads the live descriptor's `available_in_{dev,research,prod}` directly into `posture_support`, plus `effect_class`, `risk_class`, `description`. Rationale: pre-W24 the manifest hardcoded `{dev:true, research:true, prod:true}`; W24 Track D made the manifest faithful to the registry — there is a regression test pinning this.
+
+## 6. Cross-cutting Concerns
+
+| Concern | Mechanism |
+|---|---|
+| **Rule 6 — single construction path** | Bundles register against the same `CapabilityRegistry` instance built by `ConfigBuilder`; no inline `registry or CapabilityRegistry()` fallbacks. |
+| **Rule 11 — posture-aware defaults** | `CapabilityDescriptor.available_in_{dev,research,prod}` flags + `probe_availability_with_posture` (`registry.py:221`); heuristic fallback in `defaults.py:33` routes through `resolve_runtime_mode()` so posture+env agree. |
+| **Rule 12 — contract spine** | `capability_name` is a contract-spine field on every persistent record across `hi_agent/contracts/` and `agent_server/`. The registry rows themselves are platform-level (`# scope: process-internal`), per W31 T-6'. |
+| **Rule 13 — capability maturity (L0–L4)** | Per-capability `CapabilityDescriptor.maturity_level: Literal["L0","L1","L2","L3","L4"]` (`registry.py:115`). |
+| **Rule 7 — alarm signals** | Counters: `hi_agent_capability_registry_errors_total`, `hi_agent_capability_posture_denied_total`, `hi_agent_capability_invoker_errors_total`, `hi_agent_capability_defaults_errors_total`. WARNING logs at every denial site. Heuristic fallback in non-prod mode emits a silent-degradation event. |
+| **Dangerous-effect guard** | `_DANGEROUS_ALLOWED_ROLES = {"approver","admin"}` in `invoker.py:19`; `irreversible_write` effect class is refused for any other role. |
+| **G2 — abstraction gate** | New capability requests must first show that composition from existing capabilities cannot meet the need (CLAUDE.md three-gate intake). |
+| **Circuit breaker** | Per-capability `CircuitBreaker` in `circuit_breaker.py`; states OPEN / HALF_OPEN / CLOSED; failure-count threshold + cool-down window. |
+| **Timeout** | `_default_timeout_call` uses the shared `AsyncBridgeService` executor (`invoker.py:45`); `Future.cancel()` on `FutureTimeoutError`. |
+
+## 7. Architecture Decisions
+
+### ADR-C-1: Platform-level (not per-tenant) registry rows
+
+W31 T-6': capabilities are tenant-agnostic platform metadata. Per-tenant override is the responsibility of the **route / policy gate**, not a row on `CapabilitySpec`. The `__init__.py:1` docstring records this; the contract-spine completeness gate (`scripts/check_contract_spine_completeness.py`) recognises the `# scope: process-internal` marker and exempts these classes from the `tenant_id` requirement. A future `TenantCapabilityOverlay` table is the right model if per-tenant uploads land — adding `tenant_id` to `CapabilitySpec` is **not** the right model.
+
+### ADR-C-2: `CapabilityDescriptor` is the single canonical metadata type (CO-6)
+
+Two historical sources — platform-governance fields (`risk_class`, `requires_auth`) and adapter/factory fields (`effect_class`, `tags`, `sandbox_level`) — are unified on `CapabilityDescriptor`. The adapter-side dict shape lives in `build_capability_view()` in `descriptor_factory.py` (a view, not a separate dataclass).
+
+### ADR-C-3: Posture gate is a hard fail, not a notification
+
+Calling `probe_availability_with_posture(name, posture)` raises `CapabilityNotAvailableError` (with a structured 400 envelope) when the descriptor's posture flag is `False`. This is the strongest interpretation of "available_in_prod=False" — Rule 1 — and it lets HTTP routes return a typed error without string-matching on log lines.
+
+### ADR-C-4: Manifest dict reads descriptor flags directly (W24 Track D)
+
+`to_extension_manifest_dict` reads `available_in_{dev,research,prod}` from each descriptor, never from a hardcoded triple. Rationale: drift between the manifest and the registry was the highest-incidence platform-defect class through Wave 24. Pinned by a regression test.
+
+### ADR-C-5: Dangerous capabilities surface to the skill load gate
+
+The dangerous-capability list lives on `ExtensionManifest.dangerous_capabilities` (`hi_agent/plugins/manifest.py:60`). The W35 corrective close H1 added the dev-side test that fires the gate at skill load time. From the capability registry's side, all that changes is that `CapabilityDescriptor.risk_class` plus `effect_class` plus the manifest gate combine into the dangerous-capability decision; the registry stays the single source of truth for capability metadata.
+
+## 8. Quality Attributes
+
+| Attribute | Target | Mechanism |
 |---|---|---|
-| `CapabilityRegistry._capabilities` | In-memory dict in process | Process |
-| `CircuitBreaker._states` | In-memory dict + optional SQLite | Process or persistent (when `db_path` set) |
-| `CapabilityPolicy._role_permissions` | In-memory dict | Process |
-| `CapabilityPolicy._action_permissions` | In-memory dict | Process |
+| Lookup latency | O(1) | Plain dict; no I/O on the hot path. |
+| Boot-time registration | <50ms for ~30 capabilities | Bundles register synchronously; no async initialisation. |
+| Concurrency safety | Per-handler timeout via shared executor | `AsyncBridgeService.get_executor()` guarantees one durable thread for sync-bridge calls (Rule 5). |
+| Posture isolation | Hard fail on prod-disabled capability | `CapabilityNotAvailableError` carries 400 envelope; structured downstream. |
+| Auditability | Every denial logs at WARNING + counter | `_capability_posture_denied_total` increments at every denial branch (`registry.py:245-278`). |
 
-The registry is **process-shared, never tenant-partitioned**. Persisting capability registrations is not required because `register_default_capabilities` and bundles run at every process start. `CircuitBreaker` optionally persists state to SQLite (`db_path` kwarg) so circuit transitions survive restarts.
+## 9. Risks & Technical Debt
 
-## 6. Concurrency & Lifecycle
+| Risk | Severity | Mitigation / Plan |
+|---|---|---|
+| Capability namespace collision | Medium | `register_bundle` returns the count; a colliding name silently overwrites today (`registry.register` does upsert). A future bundle-registration validator could refuse colliding names; tracked as backlog. |
+| Registration ordering during boot | Low | Bundles run synchronously in the order `ConfigBuilder` calls them; deterministic. Any reorder must keep `register_default_capabilities` before tenant-specific bundles so descriptors land first. |
+| Heuristic fallback when LLM gateway is `None` | Medium | Allowed in non-prod via `_allow_heuristic_fallback()` (`defaults.py:33`); under prod returns a structured failure response rather than fabricating output (Rule 7). |
+| Per-tenant overlay missing | Medium | Documented in `__init__.py:13` as a future enhancement; route handlers and policy gates currently carry the per-tenant decision. |
+| Circuit breaker state is in-process only | Low | Per-process `CircuitBreaker` is the design today; multi-process platforms would need a shared state store, deferred. |
 
-`CapabilityRegistry` is constructed once per `SystemBuilder` (`SystemBuilder.build_capability_registry`). The instance is registered onto `AgentServer._builder` and shared by:
-- `MCPServer(registry, invoker)` — for `/mcp/tools/list` and `/mcp/tools/call`
-- `RunExecutor(invoker=…)` — for stage and skill execution
-- `GovernedToolExecutor(registry, invoker)` — for HTTP `/tools/call`
+## 10. References
 
-**Registration phase** (lifespan startup): `register_default_capabilities` + `register_bundle` for each declared bundle + `_wire_plugin_contributions` for plugin-supplied capabilities. After lifespan startup, the registry is treated as immutable in practice (no lock around `_capabilities` dict — registrations during runtime are not supported).
-
-**Invocation concurrency**: `CapabilityInvoker.invoke` is fully reentrant — no per-invoker state; per-capability state lives in `CircuitBreaker._states` (locked).
-
-**Async path**: `AsyncCapabilityInvoker` uses `asyncio.iscoroutinefunction(handler)` to dispatch async handlers natively; sync handlers are off-loaded to `runtime.async_bridge.AsyncBridgeService.get_executor()` per Rule 5.
-
-**Process-internal**: explicitly annotated (`__init__.py:1`). The registry is shared across tenants in the worker process; per-tenant capability assignment happens in `CapabilityPolicy.is_allowed(name, role)` and in route-level / harness-level permission gates.
-
-**Locks**:
-- `CircuitBreaker` — `threading.Lock` around state mutation.
-- `CapabilityRegistry` — implicit (assumed startup-only).
-- `CapabilityPolicy` — implicit (assumed startup-only).
-
-## 7. Error Handling & Observability
-
-**Error taxonomy**:
-- `CapabilityNotAvailableError` — posture-policy denial (registered + probe-clean but `available_in_<posture>=False`). HTTP 400 envelope: `error_category=invalid_request`, `retryable=False`.
-- `CapabilityUnavailableError` — env / probe failure. HTTP 503 (operator can fix env).
-- `KeyError` — unknown capability name. HTTP 404.
-- `CircuitOpenError` — fail-fast during cooldown. HTTP 503.
-- Handler exceptions — re-raised; retries per `RetryPolicy.max_retries`; final failure surfaces as the underlying exception.
-
-**Counters** (`# scope: process-internal`):
-- `hi_agent_capability_registry_errors_total` — registry-level errors (`registry.py:13`)
-- `hi_agent_capability_posture_denied_total` — posture-policy denials (`registry.py:14`)
-- `hi_agent_capability_invoker_errors_total` — invocation-level errors (`invoker.py:17`)
-- `hi_agent_async_invoker_errors_total` — async-invoker errors (`async_invoker.py:17`)
-- `hi_agent_capability_governance_errors_total` — governance gate errors (`governance.py:29`)
-
-**Logs**:
-- WARNING on probe failure (`registry.py:213`).
-- WARNING on circuit open (in CircuitBreaker).
-- INFO on every invocation (with `run_id`, `capability_name`, `latency_ms`).
-
-**Spine emitter**: `emit_capability_handler(tool_name, tenant_id, profile_id)` (`hi_agent/observability/spine_events.py:154`) is called by the harness on every dispatch.
-
-**Audit trail**: invocations from HTTP routes are audited via `record_tenant_scoped_access(tenant_id, resource="tools", op="call")` so cross-tenant invocations are inspectable.
-
-## 8. Security Boundary — Governance Gate
-
-**Layered enforcement, every layer is fail-closed**:
-
-1. **Route layer**: HTTP route handler enforces auth (Bearer token via AuthMiddleware) and `record_tenant_scoped_access` audit.
-2. **`GovernedToolExecutor`** (`governance.py`):
-   - Path policy: `safe_resolve(path)` — rejects paths outside the workspace root (path traversal).
-   - URL policy: `URLPolicy.check(url)` — rejects intranet / metadata service URLs.
-   - Sensitive field redaction: `_SENSITIVE_ARG_FIELDS = {"password", "secret", "token", "key"}` — redacted in logs and audit (`governance.py:31`).
-   - Posture check: `descriptor.available_in_<posture>` — false → `CapabilityNotAvailableError`.
-   - Approval required: `descriptor.requires_approval=True` → returns `GovernanceDecision(decision="approval_required")`.
-3. **`CapabilityPolicy.is_allowed(name, role)`** — RBAC: caller's role must have the capability in its allowed set.
-4. **`CapabilityRegistry.probe_availability`** — env var presence + custom probe.
-5. **`CircuitBreaker`** — fails fast during cooldown so a hammering caller cannot overwhelm a struggling capability.
-6. **Handler-level checks** — individual handlers may add their own validation (file size limits, URL whitelists, etc.).
-
-**Tenant scoping**:
-- `CapabilityRegistry` itself is **process-shared** (W31 T-6' decision). The platform owner controls the capability surface; per-tenant overrides are layered above.
-- Per-tenant capability assignment happens at the **policy layer** (`CapabilityPolicy.is_allowed(name, role)`) and at the **harness permission gate** (`hi_agent/runtime/harness/permission_rules.py`).
-- Future: per-tenant capability overlay (W31 future enhancement) would be a separate `TenantCapabilityOverlay` table layered on top of the platform registry — **not** adding `tenant_id` to `CapabilitySpec`.
-
-**Process-internal markers** (CLAUDE.md Rule 12 marker discipline):
-- `CapabilitySpec` (`registry.py:127`): `# scope: process-internal`
-- `CapabilityDescriptor` (`registry.py:78`): `# scope: process-internal`
-- `CircuitState` (`circuit_breaker.py:17`): `# scope: process-internal`
-- `CircuitBreaker` (`circuit_breaker.py:31`): `# scope: process-internal`
-- `GovernanceDecision` (`governance.py:36`): `# scope: process-internal`
-
-## 9. Extension Points
-
-- **New capability**: implement `handler(payload: dict) -> dict`; build `CapabilityDescriptor`; register `CapabilitySpec(name, handler, description, parameters, descriptor)` in `register_default_capabilities` or a custom bundle.
-- **New capability bundle**: subclass / implement `CapabilityBundle.register(registry) -> int`; call `registry.register_bundle(bundle)`.
-- **New risk class**: extend `RiskClass` Literal (`registry.py:68`); update governance gate's risk-vs-posture matrix.
-- **Custom availability probe**: pass `availability_probe=lambda: (True, "")` on `CapabilityDescriptor`.
-- **Custom RBAC**: pass `CapabilityPolicy(role_permissions=…)` to `CapabilityInvoker`.
-- **Custom circuit policy**: subclass `CircuitBreaker`; override `record_failure`/`is_open`.
-- **Plugin capabilities**: declare under `plugins/<plugin_name>/capabilities/`; loaded via `_wire_plugin_contributions`.
-
-## 10. Constraints & Trade-offs
-
-- **Registry is process-shared, not tenant-partitioned**: a malicious tenant cannot register a new capability (no API), but every tenant sees the same set. Tenant-specific gating happens at the policy and permission layer. Operators wanting per-tenant capability overrides need the future `TenantCapabilityOverlay` (not yet implemented).
-- **No durable registration**: `register_default_capabilities` runs every startup. Boot time is dominated by descriptor probe execution if probes are slow.
-- **`CircuitBreaker` is per-capability, not per-tenant**: a tenant whose calls happen to fail repeatedly opens the breaker for everyone. This is a known trade-off — per-tenant breakers would multiply state by tenant count. Operators concerned about noisy-tenant DoS should rate-limit at the route layer.
-- **`CapabilityPolicy` is RBAC, not ABAC**: a role either has access to a capability or not. Attribute-based policy (e.g. only allow `write_file` for paths under `/data/<tenant_id>/`) is enforced at the **handler** level, not the policy level.
-- **Posture-availability is a static descriptor field**: changing posture mid-process does not refresh availability. Operators must restart after `HI_AGENT_POSTURE` change. Rule 11 enforces fail-closed defaults under research/prod.
-- **No timeout default**: `call_timeout_seconds=None` means handlers run unbounded. Production deployments should set this; the default exists for tests that need to step through long handlers.
-
-## 11. References
-
-**Files**:
-- `hi_agent/capability/__init__.py` — public surface + W31 T-6' decision documentation
-- `hi_agent/capability/registry.py` — `CapabilityRegistry`, `CapabilitySpec`, `CapabilityDescriptor`, `CapabilityNotAvailableError`
-- `hi_agent/capability/invoker.py` — `CapabilityInvoker`, `CapabilityUnavailableError`
-- `hi_agent/capability/async_invoker.py` — `AsyncCapabilityInvoker`
-- `hi_agent/capability/circuit_breaker.py` — `CircuitBreaker`, `CircuitState`
-- `hi_agent/capability/policy.py` — `CapabilityPolicy`
-- `hi_agent/capability/governance.py` — `GovernedToolExecutor`, `GovernanceDecision`
-- `hi_agent/capability/defaults.py` — `register_default_capabilities`
-- `hi_agent/capability/adapters/` — `CoreToolAdapter`, `CapabilityDescriptorFactory`
-- `hi_agent/capability/bundles/`, `hi_agent/capability/tools/` — bundles + built-in tool impls
-
-**Related**:
-- `hi_agent/runtime/harness/executor.py` — `HarnessExecutor` invokes via `CapabilityInvoker`
-- `hi_agent/server/mcp.py` — MCP protocol bridges `/mcp/tools/*` to invoker
-- `hi_agent/server/routes_tools_mcp.py` — `/tools/call` HTTP route
-- `hi_agent/auth/operation_policy.py` — `@require_operation` decorators
-- `hi_agent/security/path_policy.py`, `url_policy.py` — governance-gate sub-policies
-
-**Rules and gates**:
-- CLAUDE.md Rule 11 (Posture-Aware Defaults — `available_in_<posture>` matrix)
-- CLAUDE.md Rule 12 (Contract Spine + `# scope: process-internal` marker discipline)
-- W31 T-6' decision: capabilities are platform-level, tenant-agnostic (documented in `__init__.py`)
-- `scripts/check_contract_spine_completeness.py` — validates `# scope: process-internal` markers and absence of `tenant_id` field where intentional
+- Source: `hi_agent/capability/registry.py`, `hi_agent/capability/invoker.py`, `hi_agent/capability/async_invoker.py`, `hi_agent/capability/policy.py`, `hi_agent/capability/circuit_breaker.py`, `hi_agent/capability/defaults.py`, `hi_agent/capability/governance.py`, `hi_agent/capability/bundles/base.py`, `hi_agent/capability/adapters/descriptor_factory.py`, `hi_agent/plugins/manifest.py`.
+- Rules: `CLAUDE.md` Rule 1 (strongest interpretation), Rule 6 (single construction path), Rule 7 (resilience signals), Rule 11 (posture-aware defaults), Rule 12 (contract spine), Rule 13 (capability maturity), G2 abstraction gate.
+- Sibling docs: `hi_agent/skill/ARCHITECTURE.md` (consumer of `allowed_tools`), `hi_agent/runtime/ARCHITECTURE.md` (to-confirm — owns harness dispatch), `hi_agent/server/ARCHITECTURE.md` (to-confirm — HTTP route layer).

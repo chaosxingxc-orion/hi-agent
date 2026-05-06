@@ -1,280 +1,290 @@
-# Observability Architecture
+# Observability — Architecture
 
-## 1. Purpose & Position in System
+> **Last refreshed:** 2026-05-06 (W35 corrective close + W36 plans). HEAD `276917d8`.
+> **Audience:** platform engineers + observability operators.
+> **Status:** authoritative.
 
-`hi_agent/observability/` is the **cross-cutting spine** of hi_agent. Every other subsystem emits through it; no subsystem consumes from another directly. The package owns:
-1. **12 typed run lifecycle events** (`RunEventEmitter`) with named Prometheus counters and structured per-run event lists.
-2. **14 spine layers** (`spine_events`) for cross-subsystem observability — emitted at every layer boundary (LLM call, tool call, heartbeat renewed, run manager, sync bridge, http transport, etc.).
-3. **Fallback recording** (Rule 7 four-prong contract): countable / attributable / inspectable / gate-asserted.
-4. **Metrics aggregation** (`MetricsCollector`, `metric_counter`, `metrics`) with Prometheus exposition format.
-5. **Trace context propagation** (`TraceContext`, `TraceContextManager`, `Tracer`, `SpanRecord`).
-6. **Silent-degradation recording** for paths that legitimately swallow exceptions but must remain observable.
-7. **Audit logging**, **log redaction**, **HTTP middleware**, **alert rules**, **trajectory export**.
+## 1. Purpose & Responsibilities
 
-The package contract is one-way: subsystems **emit**; observability **records and surfaces**. The persisted store for events is `SQLiteEventStore` in `hi_agent/server/event_store.py` (the observability emitters do not own the SQL schema). Prometheus exposition is served at `/metrics` (`hi_agent/server/app.py:406`).
+`hi_agent/observability/` is the **cross-cutting spine** of hi_agent. Every other subsystem emits through it; no subsystem consumes from another directly. Outside test paths, no module owns its own counter, log redaction, or trace-context primitive — those concerns live here.
 
-It does **not** own: durable run state (delegated to `hi_agent/server/`), event consumption / SSE streaming (delegated to `hi_agent/server/sse_routes.py`), or alert delivery (delegated to `notification.py` backends).
+The package owns:
 
-## 2. External Interfaces
+1. **12 typed run-lifecycle events** (`RunEventEmitter` — `event_emitter.py:87`) with named Prometheus counters and structured per-run event lists.
+2. **14 spine layers** (`spine_events`) for cross-subsystem observability — emitted at every layer boundary (LLM call, tool call, heartbeat renewed, run manager, sync bridge, http transport, …).
+3. **Fallback recording** (`fallback.py` — Rule 7 four-prong contract: countable / attributable / inspectable / gate-asserted).
+4. **Metrics aggregation** (`MetricsCollector`, `Counter`, `metrics.py`) with Prometheus exposition format and JSON snapshots; **zero external dependencies**.
+5. **Idempotency-store metrics** (`idempotency_metrics.py` — W35-T6) for the `IdempotencyStore` boundary.
+6. **Trace context propagation** (`TraceContext`, `TraceContextManager`, `Tracer`, `SpanRecord`).
+7. **W3C traceparent ingestion** (`http_middleware.py::TraceIdMiddleware`).
+8. **Silent-degradation recording** (`silent_degradation.py`) for paths that legitimately swallow exceptions but must remain observable.
+9. **Audit logging** (`audit.py`), **log redaction** (`log_redaction.py`), **alert rules** (`alerts.py`), **trajectory export** (`trajectory_exporter.py`).
 
-**12 typed lifecycle events** (`RunEventEmitter`, `event_emitter.py:87`):
+The package contract is one-way: subsystems **emit**; observability **records and surfaces**. Durable event persistence is delegated to `SQLiteEventStore` in `hi_agent/server/event_store.py`. Prometheus exposition is served at `/metrics` (`hi_agent/server/app.py:406`).
 
-| Method | Counter |
-|---|---|
-| `record_run_submitted()` | `hi_agent_run_submitted_total` |
-| `record_run_started()` | `hi_agent_run_started_total` |
-| `record_run_completed(duration_ms)` | `hi_agent_run_completed_total` |
-| `record_run_failed(reason)` | `hi_agent_run_failed_total{reason}` |
-| `record_run_cancelled(reason)` | `hi_agent_run_cancelled_total{reason}` |
-| `record_run_resumed(from_stage)` | `hi_agent_run_resumed_total{from_stage}` |
-| `record_stage_started(stage_id)` | `hi_agent_stage_started_total{stage}` |
-| `record_stage_completed(stage_id, duration_ms)` | `hi_agent_stage_completed_total{stage}` |
-| `record_stage_failed(stage_id, reason)` | `hi_agent_stage_failed_total{stage,reason}` |
-| `record_artifact_created(artifact_type)` | `hi_agent_artifact_created_total{artifact_type}` |
-| `record_experiment_posted(experiment_id)` | `hi_agent_experiment_posted_total` |
-| `record_feedback_submitted()` | `hi_agent_feedback_submitted_total` |
+It does **not** own: durable run state (delegated to `hi_agent/server/`), event streaming (delegated to `hi_agent/server/sse_routes.py`), or alert delivery (delegated to `notification.py` backends).
 
-`RUN_EVENT_METRIC_NAMES` (`event_emitter.py:49`) is the canonical frozenset asserted by the metrics-cardinality gate.
-
-**14 spine emitters** (`spine_events.py` — `emit_*`):
-- `emit_llm_call(tenant_id, profile_id)` — hot path: `HttpLLMGateway.complete`, `AsyncHTTPGateway.complete`, `HTTPStreamingGateway.stream`
-- `emit_tool_call(tool_name, tenant_id, profile_id)` — `ActionDispatcher._execute_action_with_retry`
-- `emit_heartbeat_renewed(tenant_id, run_id)` — `RunManager._heartbeat_loop`
-- `emit_trace_id_propagated(trace_id, tenant_id)` — `TraceIdMiddleware`
-- `emit_run_manager(tenant_id, run_id)`, `emit_tenant_context(tenant_id)`, `emit_reasoning_loop(...)`, `emit_capability_handler(...)`, `emit_sync_bridge(tenant_id)`, `emit_http_transport(...)`, `emit_artifact_ledger(...)`, `emit_event_store(...)` — added in W25-F to wire previously unobserved layers
-- `emit_stage_skipped(run_id, stage_id, target, posture, reason, correlation_id)` (M.5)
-- `emit_stage_inserted(run_id, anchor, new_stage, posture, reason, correlation_id)` (M.5)
-- `emit_stage_replanned(run_id, action, from_stage, to_stage, posture, reason, correlation_id)` (M.5)
-
-**Fallback recording** (`fallback.py`):
-- `record_fallback(kind, reason, run_id, extra)` — `kind ∈ {llm, heuristic, capability, route}` (`fallback.py:61`)
-- `get_fallback_events(run_id)` → `list[dict]`
-- `clear_fallback_events(run_id)` (test isolation)
-- `FallbackTaxonomy` StrEnum (legacy six-value)
-
-**Metrics primitives**:
-- `Counter(name, labels)` (`metric_counter.py`) — Prometheus-compatible counter with `.labels(...).inc()`
-- `MetricsCollector` (`collector.py`) — process singleton; `snapshot()` → JSON; `to_prometheus_text()`
-- `get_metrics_collector()`, `set_metrics_collector(collector)`
-- `RunMetricsRecord(run_id, status, input_tokens, output_tokens, latency_ms)` (`metrics.py:10`)
-- `aggregate_counters`, `avg_token_per_run`, `p95_latency`, `run_success_rate`
-
-**Trace context**:
-- `TraceContext` / `TraceContextManager` (`trace_context.py`) — propagated via ContextVar
-- `Tracer`, `SpanRecord` (`tracing.py`)
-
-**Other**:
-- `Alert`, `AlertRule`, `default_alert_rules` (`collector.py`)
-- `NotificationBackend`, `InMemoryNotificationBackend`, `format_webhook_payload`, `send_notification` (`notification.py`)
-- `record_silent_degradation(component, reason, run_id, exc)` (`silent_degradation.py`)
-
-## 3. Internal Components
+## 2. Context & Scope
 
 ```mermaid
-graph TD
-    Subsystems[hi_agent subsystems] --> SpineEmit[spine_events.emit_*]
-    Subsystems --> RunEmit[RunEventEmitter.record_*]
-    Subsystems --> Fallback[fallback.record_fallback]
-    Subsystems --> Silent[silent_degradation.record_*]
-    Subsystems --> TraceCtx[TraceContext via ContextVar]
+flowchart LR
+    subgraph hi_agent["hi_agent runtime"]
+        Run[runner / runner_stage]
+        LLM[hi_agent.llm gateways]
+        Tool[ActionDispatcher]
+        Run_Mgr[RunManager]
+        Idem[IdempotencyStore]
+        ASGI[server.app TraceIdMiddleware]
+    end
 
-    SpineEmit --> Counter[Counter labels.inc]
-    RunEmit --> Counter
-    Fallback --> Counter
-    Silent --> Counter
+    subgraph Obs["hi_agent.observability"]
+        Spine[spine_events.emit_*]
+        EmitR[RunEventEmitter]
+        Fb[fallback.record_fallback]
+        IdemM[idempotency_metrics]
+        Trace[TraceContextManager]
+        Counters[MetricsCollector]
+        Audit[audit / log_redaction]
+    end
 
-    Counter --> MC[MetricsCollector singleton]
-    MC --> PromText[/metrics Prometheus text/]
-    MC --> JSON[/metrics/json/]
+    subgraph Persist["hi_agent.server"]
+        ES[(SQLiteEventStore)]
+        SSE["/runs/&#123;id&#125;/events SSE"]
+    end
 
-    RunEmit --> RunEvents[in-memory _RUN_EVENTS dict]
-    Fallback --> RunFallback[in-memory fallback dict]
+    subgraph Ops["operator surface"]
+        PromEP["GET /metrics<br/>Prometheus text"]
+        JSON["GET /metrics/json"]
+        LogDest[log dest]
+        Notif[NotificationBackend]
+    end
 
-    Subsystems --> EventStore[(SQLiteEventStore<br/>in hi_agent.server)]
-    EventStore --> SSE[/runs/{id}/events SSE/]
+    Run --> EmitR
+    Run --> Spine
+    LLM --> Spine
+    LLM --> Fb
+    Tool --> Spine
+    Run_Mgr --> Spine
+    Idem --> IdemM
+    ASGI --> Trace
 
-    TraceCtx --> StructLog[Structured log<br/>extra=trace_id]
-    Subsystems --> StructLog
+    EmitR --> Counters
+    Spine --> Counters
+    Fb --> Counters
+    IdemM --> Counters
+    Audit --> LogDest
 
-    AlertEng[AlertRule evaluator] --> MC
-    AlertEng --> Notif[NotificationBackend]
+    Counters --> PromEP
+    Counters --> JSON
+
+    Run --> ES
+    ES --> SSE
+
+    Trace -.trace_id.-> ES
+    Trace -.trace_id.-> LogDest
+
+    Counters --> Notif
 ```
 
-| Component | File | Responsibility |
-|---|---|---|
-| `RunEventEmitter` | `event_emitter.py:87` | 12 typed `record_*` methods; counter + log + per-run list. |
-| `spine_events.emit_*` | `spine_events.py` | 14 cross-subsystem layer probes; counter + DEBUG log. |
-| `fallback.record_fallback` | `fallback.py` | Rule 7 four-prong recorder for degradation paths. |
-| `MetricsCollector` | `collector.py` | Process-singleton aggregator; Prometheus + JSON exposition. |
-| `Counter` | `metric_counter.py` | Cardinality-bounded counter with label support. |
-| `TraceContextManager` | `trace_context.py` | ContextVar-backed trace propagation. |
-| `Tracer`, `SpanRecord` | `tracing.py` | Span-level tracing primitive (in-memory by default). |
-| `silent_degradation.record_silent_degradation` | `silent_degradation.py` | Records paths that legitimately swallow exceptions. |
-| `Alert`, `AlertRule` | `collector.py` | Rule evaluator over MetricsCollector snapshot. |
-| `NotificationBackend` | `notification.py` | Pluggable delivery for alert payloads. |
-| `audit.py` | `audit.py` | Tenant-scoped access audit records. |
-| `log_redaction.py` | `log_redaction.py` | Redacts PII / credentials from log records. |
-| `http_middleware.py` | `http_middleware.py` | TraceIdMiddleware + access-log middleware. |
-| `metric_counter.py` | `metric_counter.py` | Counter / Gauge / Histogram primitives. |
-| `metrics.py` | `metrics.py` | Aggregation helpers (`p95_latency`, `aggregate_counters`). |
-| `trajectory_exporter.py` | `trajectory_exporter.py` | Exports run trajectory for downstream analysis. |
+Boundaries:
 
-## 4. Data Flow
+- **Inbound**: `record_*` / `emit_*` / `record_fallback` / `record_silent_degradation` / counter helpers — called from anywhere in `hi_agent/`.
+- **Outbound**: `/metrics` (Prometheus text), `/metrics/json`, structured logs to whichever logger handler the operator configures, `NotificationBackend.send` for alerts.
+- **Out of scope**: SSE delivery (server), persisted run state (server), the SQL schema for stored events (server), any business taxonomy of failure (capability layer).
+
+## 3. Module Boundary & Dependencies
+
+| External dep | Used by | Why |
+|---|---|---|
+| Python stdlib (`logging`, `threading`, `contextvars`, `re`, `secrets`, `time`, `dataclasses`, `collections.deque`) | every module | zero-dependency goal — no `prometheus_client`, no `opentelemetry-sdk`. |
+| `starlette.types` | `http_middleware.py` | ASGI Scope/Receive/Send types only — no Starlette runtime objects. |
+| `hi_agent.server.event_store` | (consumed only) | observability writes via `RunManager`/server callers; does not import directly. |
+
+What this package may **not** import:
+
+- `hi_agent.runtime` — to keep observability free of event-loop assumptions.
+- `hi_agent.llm` — would create a cycle (the gateway emits through us).
+- `agent_kernel.*` — observability is platform-side, not kernel-side. Spine emitters carry kernel-shaped data only as opaque labels.
+- Any test fixture (`hi_agent.testing`) — production-only surface.
+
+What may import this package: anything. Spine emitters are the entry point of last resort for any silent-degradation path.
+
+## 4. Building Blocks
+
+```mermaid
+flowchart TB
+    subgraph Emit["Emit layer"]
+        EE[RunEventEmitter<br/>event_emitter.py:87]
+        SE[spine_events.emit_*<br/>spine_events.py]
+        FB[fallback.record_fallback<br/>fallback.py:125]
+        SD[silent_degradation<br/>record_silent_degradation]
+        TXM[TraceIdMiddleware<br/>http_middleware.py:24]
+        IM[idempotency_metrics<br/>record_replay/conflict/purged/age]
+    end
+
+    subgraph Aggregate["Aggregate layer"]
+        Counter[Counter / Gauge / Histogram<br/>metric_counter.py]
+        MC[MetricsCollector singleton<br/>collector.py]
+        AggHelp[metrics.py<br/>p95_latency, run_success_rate]
+    end
+
+    subgraph CTX["Context"]
+        TCM[TraceContextManager<br/>trace_context.py]
+        Tracer[Tracer / SpanRecord<br/>tracing.py]
+    end
+
+    subgraph Sink["Sink layer"]
+        Prom["MetricsCollector.to_prometheus_text"]
+        Snap[snapshot JSON]
+        Logs[stdlib logging]
+        AuditL[audit log file]
+        AlertEng[AlertRule.evaluate]
+        Notif[NotificationBackend.send]
+        TraceExp[trajectory_exporter]
+    end
+
+    subgraph GovEvi["governance evidence"]
+        Spine14[scripts/build_observability_spine_e2e_real.py<br/>14-layer evidence]
+    end
+
+    EE --> Counter
+    SE --> Counter
+    FB --> Counter
+    IM --> Counter
+    TXM --> Counter
+    SD --> Counter
+
+    Counter --> MC
+    MC --> Prom
+    MC --> Snap
+    MC --> AggHelp
+
+    EE --> Logs
+    FB --> Logs
+    SD --> Logs
+    AuditL <-- audit.record_tenant_scoped_access --- Sink
+
+    TXM --> TCM
+    TCM --> Tracer
+
+    AlertEng --> MC
+    AlertEng --> Notif
+
+    Spine14 --> SE
+    Spine14 --> EE
+```
+
+| Block | File | Responsibility |
+|---|---|---|
+| `RunEventEmitter` | `event_emitter.py:87` | 12 typed `record_*` methods; counter + log + per-run list. `RUN_EVENT_METRIC_NAMES` (`event_emitter.py:49`) is the canonical frozenset asserted by the metrics-cardinality gate. |
+| `spine_events.emit_*` | `spine_events.py` | 14 cross-subsystem layer probes — `emit_llm_call`, `emit_tool_call`, `emit_heartbeat_renewed`, `emit_trace_id_propagated`, `emit_run_manager`, `emit_tenant_context`, `emit_reasoning_loop`, `emit_capability_handler`, `emit_sync_bridge`, `emit_http_transport`, `emit_artifact_ledger`, `emit_event_store`, `emit_stage_skipped`, `emit_stage_inserted`, `emit_stage_replanned`. Each is `with contextlib.suppress(Exception)`-guarded (`# rule7-exempt: spine emitters must never block execution path  # expiry_wave: permanent`). |
+| `fallback.record_fallback` | `fallback.py:125` | Rule-7 four-prong recorder. Kinds: `{llm, heuristic, capability, route}` (`_VALID_KINDS`, `fallback.py:61`). Also exposes `event_bus_publish_errors_total` and `fallback_recording_errors_total` (`fallback.py:75-76`) for previously-silent gateway failure modes. |
+| `fallback.record_llm_request` | `fallback.py:212` | Rule-8 step 3 hook — increments `hi_agent_llm_requests_total{provider, model, tier}`. |
+| `idempotency_metrics` | `idempotency_metrics.py` | Four metrics for the IdempotencyStore boundary (replay / conflict / purged / record_age_seconds). |
+| `MetricsCollector` | `collector.py` | Process-singleton aggregator; Prometheus + JSON exposition; `_METRIC_DEFS` registry is the source of truth for declared metrics. |
+| `Counter` / `Gauge` / `Histogram` | `metric_counter.py` | Cardinality-bounded primitives; `.labels(...).inc()`. |
+| `TraceIdMiddleware` | `http_middleware.py:24` | Reads W3C `traceparent`; mints fresh `secrets.token_hex(16)` if absent; sets `_current_trace_ctx` ContextVar; emits `hi_agent_http_requests_total{method,path}` and `emit_trace_id_propagated` post-request. |
+| `TraceContextManager` | `trace_context.py` | `ContextVar`-backed trace propagation across async hops. |
+| `Tracer`, `SpanRecord` | `tracing.py` | Span-level tracing primitive (in-memory by default). |
+| `silent_degradation.record_silent_degradation` | `silent_degradation.py` | Records paths that legitimately swallow exceptions; `hi_agent_silent_degradation_total{component, reason}`. |
+| `Alert`, `AlertRule`, `default_alert_rules` | `collector.py`, `alerts.py` | Rule evaluator over `MetricsCollector.snapshot()`. |
+| `NotificationBackend`, `InMemoryNotificationBackend`, `format_webhook_payload`, `send_notification` | `notification.py` | Pluggable delivery for alert payloads. |
+| `audit.record_tenant_scoped_access` | `audit.py` | Append-only tenant-scoped access audit. |
+| `log_redaction` | `log_redaction.py` | Strips API keys, JWT tokens, email addresses. |
+| `trajectory_exporter` | `trajectory_exporter.py` | Exports run trajectory for downstream analysis. |
+| `metrics.py` | `metrics.py` | `RunMetricsRecord`, `aggregate_counters`, `avg_token_per_run`, `p95_latency`, `run_success_rate`. |
+
+**Spine evidence builder** (gov-side, not under `hi_agent/observability/`):
+`scripts/build_observability_spine_e2e_real.py` — emits the 14-layer JSON evidence file consumed by the manifest scorecard's `observability_spine_completeness` dimension. The 14 layers correspond 1:1 to the spine emitters above plus the run-lifecycle counters.
+
+## 5. Runtime View — Key Scenarios
+
+### 5.1 LLM-call fallback emission (Rule 7 hot path)
 
 ```mermaid
 sequenceDiagram
-    participant Stage as Stage Code
-    participant Emitter as RunEventEmitter
-    participant Spine as spine_events
-    participant Fallback as fallback
-    participant Counter as Counter
+    participant Gateway as HttpLLMGateway / AsyncHTTPGateway
+    participant FB as fallback.record_fallback
     participant MC as MetricsCollector
-    participant ES as SQLiteEventStore
-    participant Bus as EventBus
-    participant Client as SSE Client
+    participant Log as logger.WARNING
+    participant Run as fallback_events[run_id]
+    participant Result as RunResult.fallback_events
+    participant Gate as run_t3_gate.py
 
-    Note over Stage: run_submitted
-    Stage->>Emitter: record_run_submitted
-    Emitter->>Counter: hi_agent_run_submitted_total.inc
-    Emitter->>Emitter: log INFO + append _RUN_EVENTS
+    Gateway->>+FB: record_fallback("llm",<br/>reason="retries_exhausted",<br/>run_id=run_id, extra={model, provider})
 
-    Note over Stage: run_started
-    Stage->>Emitter: record_run_started
-    Stage->>Bus: publish run_started
-    Bus->>ES: append StoredEvent
-    Bus->>Client: SSE forward
+    FB->>FB: _coerce_kind → "llm"
 
-    loop for each stage
-        Stage->>Emitter: record_stage_started
-        Stage->>Spine: emit_reasoning_loop
-        Stage->>Spine: emit_llm_call (per LLM call)
-        alt LLM fallback
-            Stage->>Fallback: record_fallback("llm", reason, run_id)
-            Fallback->>Counter: hi_agent_llm_fallback_total.inc
-            Fallback->>Fallback: append fallback_events[run_id]
-            Fallback->>Stage: warning log
-        end
-        Stage->>Spine: emit_tool_call (per tool dispatch)
-        Stage->>Emitter: record_stage_completed
+    par 1. Countable
+        FB->>MC: increment("fallback_llm",<br/>labels={reason, model})
+        FB->>MC: increment("hi_agent_llm_fallback_total",<br/>labels={reason, model})
+    and 2. Attributable
+        FB->>Log: WARNING "fallback recorded run_id=… kind=llm reason=…"
+    and 3. Inspectable
+        FB->>Run: append_fallback_event(run_id, event)
     end
 
-    Note over Stage: run_completed
-    Stage->>Emitter: record_run_completed(duration_ms)
-    Stage->>Bus: publish run_completed
-    Bus->>ES: append
-    Counter-->>MC: collected at snapshot time
-    MC-->>Client: /metrics scrape
+    Note over Gateway,FB: best-effort: every block in<br/>contextlib.suppress / try-except
+    FB-->>-Gateway: returns None
+
+    Note over Run,Result: Run finalization drains list<br/>into RunResult.fallback_events
+    Run->>Result: drain to RunResult
+
+    Note over Gate: Rule 8 / 4. Gate-asserted
+    Gate->>MC: scrape llm_fallback_count
+    Gate->>Gate: assert == 0 OR ship blocked
 ```
 
-For a simple successful run (no fallbacks): `run_submitted → run_started → stage_started/completed (×N stages) → run_completed`. Stage-level counters carry the `stage` label so per-stage health is queryable.
+Notes:
 
-## 5. State & Persistence
+- The function never raises (`fallback.py` docstring at line 140).
+- `run_id="system"` increments `hi_agent_fallback_no_run_scope_total` instead of appending to a per-run list (`fallback.py:198`).
+- A kind outside `_VALID_KINDS` is still recorded (Rule 7's "no silent drops") but logged at DEBUG with a migration hint.
 
-| State | Location | Lifetime |
-|---|---|---|
-| Counters / Gauges / Histograms | `Counter._registry` (module-level dict in `metric_counter.py`) | Process |
-| `MetricsCollector` snapshots | `_collector_singleton` | Process; replaced by `set_metrics_collector` |
-| `_RUN_EVENTS` (per-run lifecycle event list) | In-memory dict in `event_emitter.py:66` | Process; cleared via `clear_run_events(run_id)` |
-| Fallback events | In-memory dict in `fallback.py` (locked) | Process; drained by `RunManager.to_dict` |
-| `_SILENT_EVENTS` | `silent_degradation.py` | Process |
-| Trace context | ContextVar (per asyncio task / thread) | Per-task |
-| Persisted events | `SQLiteEventStore` (in `hi_agent/server/`) | Durable |
-| Alert state | `AlertRule._last_fired` | Per-rule |
+### 5.2 W3C traceparent ingestion → SSE event correlation
 
-The package owns no SQLite schema — durable persistence is delegated to `SQLiteEventStore`.
+```mermaid
+sequenceDiagram
+    participant Client as HTTP client
+    participant ASGI as TraceIdMiddleware
+    participant CV as _current_trace_ctx<br/>ContextVar
+    participant App as ASGI app (routes)
+    participant ES as SQLiteEventStore
+    participant SSE as /runs/{id}/events
 
-## 6. Concurrency & Lifecycle
+    Client->>+ASGI: POST /runs<br/>traceparent: 00-{32hex}-{16hex}-01
+    ASGI->>ASGI: regex parse traceparent;<br/>extract 32-hex trace_id<br/>(else secrets.token_hex(16))
+    ASGI->>CV: set TraceContext(trace_id, span_id)
+    ASGI->>+App: scope, receive, send
+    App->>App: route handler runs;<br/>any code reads<br/>TraceContextManager.current()
+    App->>ES: append StoredEvent(trace_id=…)
+    App-->>-ASGI: response
+    ASGI->>CV: reset(token)
+    ASGI->>ASGI: emit hi_agent_http_requests_total{method,path}
+    ASGI->>ASGI: spine_events.emit_trace_id_propagated(trace_id, "")
+    ASGI-->>-Client: 200
 
-**`RunEventEmitter`** is per-run; thread-safe via module-level `_EVENTS_LOCK` (`event_emitter.py:65`). Event list mutations are locked.
+    Note over ES,SSE: Stored events carry trace_id;<br/>SSE consumers correlate per-tenant<br/>across multiple HTTP hops
+```
 
-**`MetricsCollector`** is a process singleton (`get_metrics_collector` / `set_metrics_collector`). Set during `AgentServer.__init__` (`hi_agent/server/app.py:1903`) so `record_fallback` and `record_llm_request` reach the collector from any call site.
+A non-HTTP scope (`websocket`, `lifespan`) is passed through unchanged (`http_middleware.py:41`). Both the metric increment and the spine emit are wrapped — a wiring failure is logged at WARNING but never blocks the request.
 
-**Spine emitters** are stateless module functions; counters use `threading.Lock` internally.
+## 6. Cross-cutting Concerns
 
-**Trace context** uses Python `contextvars.ContextVar` so each asyncio task / thread has isolated context.
+### 6.1 Rule 7 — Resilience must not mask signals
 
-**Lifecycle**: no startup/shutdown hooks. Counters are constructed lazily at module import time. `MetricsCollector.snapshot()` is on-demand.
+Every silent-degradation path satisfies the four-prong contract.
 
-## 7. Error Handling & Observability
+| Prong | Mechanism |
+|---|---|
+| **Countable** | `MetricsCollector.fallback.<kind>` + canonical `hi_agent_<kind>_fallback_total{reason,…}`. Plus the two LLM-hot-path counters: `hi_agent_event_bus_publish_errors_total`, `hi_agent_fallback_recording_errors_total` (`fallback.py:75-76`). |
+| **Attributable** | WARNING log carries `run_id`, `kind`, `reason`, `extra={…}`. |
+| **Inspectable** | Per-run list appended in `fallback.py::append_fallback_event`; surfaced on `RunResult.fallback_events` and `GET /runs/{id}.fallback_events`. |
+| **Gate-asserted** | Rule 8 operator-shape gate asserts `llm_fallback_count == 0`; T3 gate (`scripts/run_t3_gate.py`) asserts the same for three sequential real-LLM runs. |
 
-**Spine emitters never raise**: every call site is wrapped in `with contextlib.suppress(Exception):` and annotated `# rule7-exempt: spine emitters must never block execution path  # expiry_wave: permanent`. Failure during emit is recorded via `record_silent_degradation` rather than propagated.
+`record_silent_degradation` (`silent_degradation.py`) is the catch-all for paths that legitimately swallow exceptions — parse failures, best-effort cleanup, optional metric increments. Each call increments `hi_agent_silent_degradation_total{component, reason}`.
 
-**`record_fallback` is the canonical Rule 7 entry point** (`fallback.py`). Four prongs:
-1. **Countable** — `MetricsCollector.fallback.<kind>` counter incremented.
-2. **Attributable** — WARNING log carries `run_id`, `kind`, `reason`, `extra`.
-3. **Inspectable** — append to per-run `fallback_events[run_id]` list; surfaced via `RunResult.fallback_events` and `GET /runs/{id}.fallback_events`.
-4. **Gate-asserted** — Rule 8 operator-shape gate asserts `llm_fallback_count == 0`.
-
-**Two error counters expose previously-silent failure modes** (`fallback.py:74`):
-- `hi_agent_event_bus_publish_errors_total` — EventBus.publish failures on the LLM-call boundary
-- `hi_agent_fallback_recording_errors_total` — `record_fallback` itself raising inside the gateway fallback branch
-
-**`record_silent_degradation`** (`silent_degradation.py`) is the catch-all for paths that legitimately swallow exceptions but must remain observable: parse failures, best-effort cleanup, optional metric increments. Each call increments `hi_agent_silent_degradation_total{component, reason}`.
-
-**Alert evaluation**: `AlertRule(name, query_fn, threshold, comparator)` polled via `MetricsCollector.evaluate_rules()`; firing rules trigger `NotificationBackend.send`.
-
-## 8. Security Boundary
-
-- **No PII in counter labels**: counter labels are bounded (`stage`, `reason`, `kind`, `posture`, `tool`, `profile`). High-cardinality fields like `run_id`, `tenant_id`, `task_id` go to logs (DEBUG/INFO/WARNING `extra={…}`), never to counter labels. This is enforced by the `metrics_cardinality` gate.
-- **Log redaction** (`log_redaction.py`) — strips API keys, JWT tokens, email addresses from log records before emission.
-- **Tenant scope on events**: `RunEventEmitter(run_id, tenant_id)` carries `tenant_id` on every log line and event payload. Cross-tenant log mixing is impossible because `_RUN_EVENTS` is keyed by `run_id`.
-- **Audit records** (`audit.py`): `record_tenant_scoped_access(tenant_id, resource, op)` writes a tenant-scoped audit row for every `/skills/list`, `/skills/status`, `/skills/evolve`, `/skills/{id}/metrics` access — global-readonly endpoints still leave a per-tenant trail.
-
-## 9. Extension Points
-
-- **New typed event**: add `record_<name>` to `RunEventEmitter`; add counter; append name to `RUN_EVENT_METRIC_NAMES` so the metrics-cardinality gate validates it.
-- **New spine layer**: add `emit_<name>` to `spine_events.py`; declare counter; wrap in `try/suppress`.
-- **New fallback kind**: extend `_VALID_KINDS` in `fallback.py` (currently `{llm, heuristic, capability, route}`). Update Rule 8 gate's `llm_fallback_count == 0` check if the new kind should also block ship.
-- **New alert backend**: implement `NotificationBackend` Protocol in `notification.py`.
-- **New trace exporter**: implement against `Tracer.spans` and `SpanRecord`.
-- **New aggregation helper**: add to `metrics.py`; consume from `MetricsCollector.snapshot()`.
-
-## 10. Constraints & Trade-offs
-
-- **In-memory event list**: `_RUN_EVENTS` is process-local; durable persistence is the responsibility of `SQLiteEventStore`. A multi-process deployment requires every process to write to the same SQLite file (or a federated store). Current architecture is single-process per pod.
-- **Counter cardinality discipline**: high-cardinality labels (`run_id`, `task_id`, `tenant_id`) are intentionally excluded from counter labels. This caps Prometheus memory but means per-run drill-down requires correlating with logs.
-- **Spine emitters are best-effort**: if the counter increment or log emission fails, the call site never knows. Rationale: spine observability must not block execution — the alternative (fail-closed on emit) was rejected as a stability risk.
-- **`MetricsCollector` is a singleton**: `set_metrics_collector` swaps it; tests that need isolation must reset around each test. Acceptable trade-off for production simplicity.
-- **No native OpenTelemetry**: tracing is in-memory (`Tracer.spans`); `trajectory_exporter.py` provides export hooks but no built-in OTLP transport. Rationale: keeps the package zero-dependency outside `httpx` and `prometheus_client`-equivalent primitives.
-- **Audit records do not enforce retention**: `record_tenant_scoped_access` is append-only with no rotation. Operators must rotate the audit log file out-of-band.
-
-## 11. References
-
-**12 lifecycle events** (`event_emitter.py:34-46`):
-- `hi_agent_run_submitted_total`, `hi_agent_run_started_total`, `hi_agent_run_completed_total`, `hi_agent_run_failed_total`, `hi_agent_run_cancelled_total`, `hi_agent_run_resumed_total`
-- `hi_agent_stage_started_total`, `hi_agent_stage_completed_total`, `hi_agent_stage_failed_total`
-- `hi_agent_artifact_created_total`, `hi_agent_experiment_posted_total`, `hi_agent_feedback_submitted_total`
-
-**14 spine emitters** (`spine_events.py:34-51`):
-- `emit_llm_call`, `emit_tool_call`, `emit_heartbeat_renewed`, `emit_trace_id_propagated`
-- `emit_run_manager`, `emit_tenant_context`, `emit_reasoning_loop`, `emit_capability_handler`, `emit_sync_bridge`, `emit_http_transport`, `emit_artifact_ledger`, `emit_event_store` (W25-F)
-- `emit_stage_skipped`, `emit_stage_inserted`, `emit_stage_replanned` (M.5)
-
-**Files**:
-- `hi_agent/observability/__init__.py` — public surface
-- `hi_agent/observability/event_emitter.py` — `RunEventEmitter`
-- `hi_agent/observability/spine_events.py` — spine layer probes
-- `hi_agent/observability/fallback.py` — `record_fallback`, `get_fallback_events`
-- `hi_agent/observability/collector.py` — `MetricsCollector`, `Alert`, `AlertRule`
-- `hi_agent/observability/metric_counter.py` — `Counter` primitive
-- `hi_agent/observability/metrics.py` — aggregation helpers
-- `hi_agent/observability/silent_degradation.py` — silent-path recorder
-- `hi_agent/observability/trace_context.py` — `TraceContextManager`
-- `hi_agent/observability/tracing.py` — `Tracer`, `SpanRecord`
-- `hi_agent/observability/audit.py` — tenant-scoped access audit
-- `hi_agent/observability/log_redaction.py` — PII redaction
-- `hi_agent/observability/http_middleware.py` — TraceIdMiddleware
-- `hi_agent/observability/notification.py` — alert delivery
-- `hi_agent/observability/alerts.py` — alert rule definitions
-- `hi_agent/observability/trajectory_exporter.py` — trajectory export
-- `hi_agent/server/event_store.py` — durable persistence (SQLiteEventStore)
-- CLAUDE.md Rule 7 (Resilience Must Not Mask Signals), Rule 8 (Operator-Shape Gate)
-- `scripts/check_rule7_observability.py` — Rule 7 enforcement gate
-- `docs/governance/closure-taxonomy.md` Level `operationally_observable`
-
----
-
-## Metric label cardinality policy
+### 6.2 Metric label cardinality policy
 
 Platform-side Prometheus metrics carry raw `{tenant_id}` (and other
 dimension labels). Cardinality control belongs at PromQL recording-rule
@@ -291,7 +301,73 @@ asking the platform to bucket at emit time. See
 `docs/observability/idempotency-metrics.md` for the recording-rule
 pattern.
 
-## Orphan-metric audit (W35-corrective hidden H4)
+### 6.3 Trace context propagation
+
+`TraceContext` is held in `_current_trace_ctx: ContextVar[TraceContext]` (`trace_context.py`). The middleware (`http_middleware.py:24`) sets the context on each HTTP request and resets it on response. Async hops inherit the context naturally; new threads must explicitly `Context.run` if they need it.
+
+Stored events carry `trace_id` so `/runs/{id}/events` correlates across HTTP hops. The W3C `traceparent` regex (`http_middleware.py:17`) accepts only the standard `00-{32hex}-{16hex}-{2hex}` form; any malformed header is replaced with a fresh `secrets.token_hex(16)` rather than rejected.
+
+### 6.4 Log redaction
+
+`log_redaction.py` strips:
+
+- API-key-shaped tokens (Bearer / `sk-…` / Anthropic `x-api-key`)
+- JWT tokens (three-segment dot-separated)
+- Email addresses
+
+Redaction runs as a logging filter; it is opt-in per logger, attached at server startup. Counters remain unredacted because labels are bounded (see §6.2).
+
+### 6.5 Audit logging
+
+`audit.record_tenant_scoped_access(tenant_id, resource, op)` writes a tenant-scoped audit row for every `/skills/list`, `/skills/status`, `/skills/evolve`, `/skills/{id}/metrics` access — global-readonly endpoints still leave a per-tenant trail. Records are append-only; rotation is operator-side.
+
+### 6.6 Concurrency
+
+| Component | Concurrency model |
+|---|---|
+| `RunEventEmitter` | Per-run; module-level `_EVENTS_LOCK` guards mutations (`event_emitter.py:65`). |
+| `MetricsCollector` | Process singleton (`get_metrics_collector`/`set_metrics_collector`). Set during `AgentServer.__init__` (`hi_agent/server/app.py:1903`). |
+| `Counter` / `Gauge` / `Histogram` | `threading.Lock` internally; safe across threads and bridge loop. |
+| Spine emitters | Stateless module functions. |
+| `TraceContextManager` | `ContextVar` — per-task isolation under asyncio. |
+| `_EVENTS` (fallback per-run dict) | `threading.Lock` (`fallback.py:80-81`). |
+| Histograms | deque-backed raw samples; percentiles computed on read. |
+
+No startup/shutdown hooks. Counters are constructed lazily at module import. Snapshots are on-demand.
+
+## 7. Architecture Decisions
+
+### 7.1 ADR-OBS-1 — In-house Prometheus-compatible MetricsCollector (no `prometheus_client`)
+
+**Decision**: implement `Counter`/`Gauge`/`Histogram` and Prometheus text exposition in-house under `metric_counter.py` and `collector.py`.
+
+**Rationale**: Rule 2 (simplicity) — the only prometheus features we need are counters with labels and a `/metrics` text endpoint. An external dep adds a 30+ MB transitive footprint and a runtime singleton that conflicts with our `set_metrics_collector` swap pattern.
+
+**Consequence**: tests that need metric isolation use `set_metrics_collector(MetricsCollector())` to swap the singleton.
+
+### 7.2 ADR-OBS-2 — Cardinality policy: raw `tenant_id` at platform; bucketing is ops-side (W35 corrective C-1)
+
+See §6.2 above. The W35 corrective C-1 reverted three new metrics that had launched with `tenant_bucket` labels back to raw `tenant_id`, restoring consistency with the `hi_agent_run_*` family.
+
+### 7.3 ADR-OBS-3 — Spine emitters never raise
+
+Every spine emitter is wrapped in `with contextlib.suppress(Exception)` and annotated `# rule7-exempt: spine emitters must never block execution path  # expiry_wave: permanent`. Failure during emit is recorded via `record_silent_degradation` rather than propagated.
+
+**Rationale**: observability that crashes the request path is worse than no observability. The alternative (fail-closed on emit) was rejected as a stability risk.
+
+**Consequence**: a wiring defect in a counter or log is invisible until the spine evidence builder (`scripts/build_observability_spine_e2e_real.py`) catches the missing layer. Mitigation: that script runs in CI on every release.
+
+### 7.4 ADR-OBS-4 — Process-internal `_EVENTS` dict; durable persistence delegated
+
+`fallback._EVENTS` and `event_emitter._RUN_EVENTS` are process-local dicts. Durable storage of run lifecycle events is `SQLiteEventStore` in `hi_agent/server/`. The split keeps observability dependency-free and makes cross-process testing cheap.
+
+**Consequence**: a multi-process deployment must route SSE through a single SQLite file (or federated store). Current architecture is single-process per pod.
+
+### 7.5 ADR-OBS-5 — Observability spine completeness gate
+
+The 14-layer JSON emitted by `scripts/build_observability_spine_e2e_real.py` is consumed by the release manifest scorecard's `observability_spine_completeness` dimension. A missing layer caps `current_verified_readiness`. Provenance must be `real` (i.e. the evidence was produced from a live LLM run), not structural.
+
+### 7.6 ADR-OBS-6 — Orphan-metric audit (W35-corrective hidden H4)
 
 A 2026-05-06 hidden-defect scan found 11 W12-G `_MetricDef` entries with
 no producer call-site anywhere in `hi_agent/`, `agent_server/`, or
@@ -310,3 +386,55 @@ held in place by `tests/unit/test_metrics_catalogue_complete.py
 requires at least one emitter at landing time.** Reserved-for-upcoming
 declarations get an inline `# orphan: pending wire-up in W<N>-<TRACK>`
 comment naming the consumer; otherwise do not declare.
+
+## 8. Quality Attributes
+
+| Attribute | Target | How achieved | Evidence |
+|---|---|---|---|
+| Latency overhead per emit | < 50 µs typical | lock-free fast path; raw-sample histograms; deque-bounded | benchmarked in `tests/perf/` (advisory) |
+| Cardinality bound | counter labels enumerable; no `run_id`/`task_id`/raw timestamps in labels | `metrics_cardinality` gate validates `RUN_EVENT_METRIC_NAMES` | `event_emitter.py:49` |
+| Failure-mode visibility | every silent path has an alarm | Rule 7 four-prong + `record_silent_degradation` | `scripts/check_rule7_observability.py` |
+| Spine completeness | 14 layers emit per real-LLM run | spine evidence builder | `docs/observability/spine-evidence/<sha>.json` |
+| Contract stability | counter names freeze once published | catalogue test pinned | `test_metrics_catalogue_complete.py` |
+| Trace propagation | every `/runs` HTTP hop carries trace_id end-to-end | `TraceIdMiddleware` + ContextVar + stored event field | `tests/integration/test_trace_propagation.py` |
+
+## 9. Risks & Technical Debt
+
+| Risk / debt | Severity | Tracking |
+|---|---|---|
+| Spine evidence provenance still **structural** for some evidence files (the 14-layer JSON exists but was generated from a synthetic shape rather than a live run). Real-provenance is a hard requirement of the manifest scorecard but legacy fixtures may slip in during dev. | medium | W36 spine-real-provenance enforcement; `score_caps.yaml::observability_spine_completeness` cap. |
+| Six histograms deleted by H4 (`hi_agent_run_duration_seconds`, `run_no_progress_seconds`, `queue_claim_latency_seconds`, `tool_latency_seconds`, `human_gate_age_seconds`, `drain_duration_seconds`) may need revival. They were removed because no producer existed; the latency contracts they implied are still valid, and operators have asked for them back. Revival must land producer + consumer + test in the same commit. | medium | W36 plan; Rule 14 reapplies to any revival commit. |
+| `MetricsCollector` is a singleton — tests that need isolation must reset around each test. Acceptable trade-off but a cross-test leak has surfaced twice in W31/W34. | low | `conftest.py` fixture resets the collector for unit tests; integration tests inherit process state. |
+| `_RUN_EVENTS` is process-local — multi-process deployment requires every process to write to the same SQLite file (or a federated store). No federated store today. | low | document-only; single-process-per-pod is the deployment shape. |
+| Audit records are append-only with no rotation. Operators must rotate the audit log out-of-band. | low | runbook section in `docs/operator/audit-rotation.md`. |
+| `_VALID_KINDS` is a frozenset of four; new kinds require code change in `fallback.py` plus the Rule-8 gate's `llm_fallback_count` predicate. | low | comment at `fallback.py:61`; covered by review. |
+| Spine emitters are best-effort — if the counter increment or log emission itself fails (e.g. during fork-bomb or OOM), the call site never knows. Mitigation: `record_silent_degradation` re-records and the spine builder catches missing layers in CI. | low | accepted; documented in ADR-OBS-3. |
+| No native OpenTelemetry — `Tracer.spans` is in-memory; `trajectory_exporter.py` provides export hooks but no built-in OTLP transport. | low | accepted; out-of-scope for the platform's zero-dep goal. |
+
+## 10. References
+
+- `hi_agent/observability/__init__.py` — public surface
+- `hi_agent/observability/event_emitter.py` — `RunEventEmitter`, `RUN_EVENT_METRIC_NAMES` (line 49)
+- `hi_agent/observability/spine_events.py` — 14 spine emitters
+- `hi_agent/observability/fallback.py` — `record_fallback` (line 125), `record_llm_request` (line 212)
+- `hi_agent/observability/idempotency_metrics.py` — `record_replay`, `record_conflict`, `record_purged`, `record_age`
+- `hi_agent/observability/collector.py` — `MetricsCollector`, `_METRIC_DEFS`, `Alert`, `AlertRule`
+- `hi_agent/observability/metric_counter.py` — `Counter`, `Gauge`, `Histogram`
+- `hi_agent/observability/http_middleware.py` — `TraceIdMiddleware` (line 24), W3C traceparent regex (line 17)
+- `hi_agent/observability/trace_context.py` — `TraceContext`, `TraceContextManager`, `_current_trace_ctx`
+- `hi_agent/observability/tracing.py` — `Tracer`, `SpanRecord`
+- `hi_agent/observability/silent_degradation.py` — `record_silent_degradation`
+- `hi_agent/observability/audit.py` — `record_tenant_scoped_access`
+- `hi_agent/observability/log_redaction.py` — PII redaction filter
+- `hi_agent/observability/notification.py` — alert delivery
+- `hi_agent/observability/alerts.py` — default alert rules
+- `hi_agent/observability/trajectory_exporter.py` — trajectory export
+- `hi_agent/observability/metrics.py` — aggregation helpers
+- `hi_agent/server/event_store.py` — durable persistence (`SQLiteEventStore`)
+- `hi_agent/server/app.py:406` — `/metrics` route; `app.py:1903` — collector wired
+- `scripts/build_observability_spine_e2e_real.py` — 14-layer evidence builder
+- `scripts/check_rule7_observability.py` — Rule-7 enforcement gate
+- `tests/unit/test_metrics_catalogue_complete.py::TestW35OrphanMetricsStayDeleted` — H4 deletion guard
+- `docs/observability/idempotency-metrics.md` — recording-rule patterns
+- `docs/governance/closure-taxonomy.md` — `operationally_observable` level
+- CLAUDE.md Rule 7 (Resilience Must Not Mask Signals), Rule 8 (Operator-Shape Gate), Rule 14 (Manifest single fact source)

@@ -1,279 +1,230 @@
-# Skill Architecture
+# Skill — Architecture
 
-## 1. Purpose & Position in System
+> **Last refreshed:** 2026-05-06 (W35 corrective close + W36 plans). HEAD `276917d8`.
+> **Audience:** platform engineers + capability owners.
+> **Status:** authoritative.
 
-`hi_agent/skill/` owns the platform's first-class skill capability layer. A **skill** is a packaged prompt fragment + applicability scope + lifecycle metadata stored as a `SKILL.md` file with YAML frontmatter and markdown body. Skills are loaded from the filesystem, registered with lifecycle metadata, observed during execution, and evolved over time.
+## 1. Purpose & Responsibilities
 
-The package owns:
-1. **`SkillDefinition`** — the on-disk contract (parsed from `SKILL.md`).
-2. **`SkillLoader`** — multi-source filesystem discovery (built-in / user / project / generated) with token-budget-aware loading.
-3. **`SkillRegistry`** — lifecycle store keyed by `(tenant_id, skill_id)`; `ManagedSkill` records track Candidate → Provisional → Certified → Deprecated → Retired.
-4. **`SkillObserver`** — non-blocking JSONL telemetry of every skill execution.
-5. **`SkillEvolver`** — analyses observations + drives skill evolution (optimize prompt / create new skill).
-6. **`SkillUsageRecorder`** — feedback loop: post-run, updates registry evidence counts.
-7. **`SkillVersionManager`** — champion / challenger versioning for A/B testing.
-8. **`SkillValidator`** — schema validation on load and at lifecycle transitions.
-9. **`SkillMatcher`** — query-time skill selection.
+`hi_agent/skill/` owns the platform's first-class **skill** capability layer. A skill is a packaged prompt fragment plus applicability scope plus lifecycle metadata, stored as a `SKILL.md` file with YAML frontmatter and markdown body. Skills are loaded from the filesystem, registered with lifecycle metadata, observed during execution, and evolved over time.
 
-It does **not** own: the LLM call that consumes the skill prompt (delegated to `hi_agent/llm/`), capability execution (delegated to `hi_agent/capability/`), or skill-related HTTP endpoints (delegated to `hi_agent/server/routes_runs.py` and friends).
+Concrete responsibilities:
 
-## 2. External Interfaces
+1. Parse and validate skill definitions from disk (`SkillDefinition`, `SkillLoader`, `SkillValidator`).
+2. Maintain a per-tenant lifecycle store: `SkillRegistry` keyed by `skill_id` and scoped by `tenant_id` under research/prod posture (`registry.py:74`); `ManagedSkill` records track `Candidate → Provisional → Certified → Deprecated → Retired` (`registry.py:28`).
+3. Capture every skill execution as a `SkillObservation` JSONL line without blocking the runtime (`observer.py:21`).
+4. Drive skill evolution: optimize an existing prompt or create a new skill from observed patterns (`evolver.py`).
+5. Feed run outcomes back to the registry's evidence counts (`SkillUsageRecorder`, `recorder.py:10`).
+6. Match skills to a stage / task family (`SkillMatcher`).
+7. Manage champion / challenger versioning for A/B testing (`SkillVersionManager`, `version.py`).
+8. Enforce Rule 12 spine on `ManagedSkill`, `SkillObservation`, `SkillAnalysis`: `tenant_id` is a fail-closed required field under strict posture; missing `run_id`/`tenant_id` raises `SpineCompletenessError` (`observer.py:69`).
+9. Gate skill enablement against the **extension manifest** dangerous-capability check (W35 corrective close H1; see ADR-S-3) — a skill that would invoke a manifest-flagged dangerous capability is rejected at load.
 
-**Public exports** (`hi_agent/skill/__init__.py`):
+The package does **not** own:
 
-Definition + loading:
-- `SkillDefinition(skill_id, name, version, description, when_to_use, prompt_content, allowed_tools, model, tags, lifecycle_stage, confidence, cost_estimate_tokens, requires_bins, requires_env, source, source_path, tenant_id, ...)` (`definition.py:154`)
-- `SkillLoader(search_dirs, max_skills_in_prompt, max_prompt_tokens)` (`loader.py:80`)
-- `SkillPrompt(full_skills, compact_skills, total_tokens, budget_tokens, full_count, compact_count, truncated_count)` (`loader.py:42`)
+- The LLM call that consumes the skill prompt (delegated to `hi_agent/llm/`).
+- Capability execution (delegated to `hi_agent/capability/`).
+- HTTP routes that surface skills (delegated to `hi_agent/server/`).
+- Skill-related run-event recording for the wider event store (delegated to `hi_agent/server/event_store.py` — see ADR-S-2 for the recorder/event_store distinction).
 
-Registry:
-- `SkillRegistry(storage_dir)` (`registry.py:66`)
-- `ManagedSkill(skill_id, name, description, version, lifecycle_stage, applicability_scope, preconditions, forbidden_conditions, evidence_requirements, side_effect_class, rollback_policy, evidence_count, success_count, failure_count, source_run_ids, promotion_history, tenant_id)` (`registry.py:28`)
-- `PromotionRecord(from_stage, to_stage, evidence, timestamp, reason)` (`registry.py:17`)
-
-Observation + recording:
-- `SkillObserver(storage_path)` (`observer.py`)
-- `SkillObservation(observation_id, skill_id, skill_version, run_id, stage_id, timestamp, success, input_summary, output_summary, quality_score, tokens_used, latency_ms, failure_code, task_family, tags, tenant_id, user_id, session_id, project_id, max_summary_len)` (`observer.py:22`)
-- `SkillMetrics` (`observer.py`)
-- `SkillUsageRecorder(registry)` (`recorder.py:10`)
-
-Evolution:
-- `SkillEvolver(observer, registry, version_mgr, llm_gateway, evolve_interval=10, ...)` (`evolver.py`)
-- `EvolutionReport` (`evolver.py`)
-- `SkillAnalysis(skill_id, total_executions, success_rate, avg_quality, top_failures, optimization_needed, suggestions, tenant_id)` (`evolver.py:37`)
-- `SkillPattern` (`evolver.py`)
-
-Versioning + matching:
-- `SkillVersionManager(storage_dir)` (`version.py`)
-- `SkillVersionRecord` (`version.py`)
-- `SkillMatcher(...)` (`matcher.py`) — query-time selection
-- `SkillValidator()` (`validator.py`) — schema + invariant checks
-
-## 3. Internal Components
+## 2. Context & Scope
 
 ```mermaid
-graph TD
-    FS[Filesystem<br/>SKILL.md files] --> SL[SkillLoader]
-    SL --> SD[SkillDefinition]
-    SL --> SyncReg[sync_to_registry]
-    SyncReg --> SR[SkillRegistry]
-    SR --> MS[ManagedSkill records<br/>per tenant_id, skill_id]
-
-    Run[Run / Stage] --> CapInv[CapabilityInvoker]
-    CapInv --> SR
-    CapInv --> RunExec[Execution]
-
-    RunExec --> Recorder[SkillUsageRecorder]
-    Recorder --> SR
-
-    RunExec --> Observer[SkillObserver]
-    Observer --> JSONL[(observations.jsonl)]
-
-    Observer --> Evolver[SkillEvolver]
-    Evolver --> SA[SkillAnalysis]
-    SA --> Patterns[SkillPattern]
-    Evolver --> LLM[LLM Gateway]
-    Evolver --> VM[SkillVersionManager]
-    VM --> Champion[champion]
-    VM --> Challenger[challenger]
-    SR --> Champion
-    SR --> Challenger
-
-    Validator[SkillValidator] --> SR
-    Matcher[SkillMatcher] --> SR
+flowchart LR
+    AUTHOR["Skill author<br/>SKILL.md on disk"] --> SL[SkillLoader]
+    BUILD["ConfigBuilder /<br/>build_skill_registry"] --> SR[SkillRegistry]
+    SL --> SR
+    PLAN["Stage planner<br/>(runner/runner_stage)"] -->|list_applicable| SR
+    PLAN -->|to_prompt_string| SL
+    LLM["LLMGateway"] -->|skill prompt injection| ENG[Stage execution]
+    ENG -->|usage event| SO[SkillObserver]
+    ENG -->|usage event| SUR[SkillUsageRecorder]
+    SO --> JSONL[(observations.jsonl)]
+    SUR --> SR
+    EVO[SkillEvolver] -->|reads| SO
+    EVO -->|optimize / create| SVR[SkillVersionManager]
+    EVO -->|register / promote| SR
+    EXT[ExtensionManifest<br/>plugins/manifest.py] -.dangerous-capability gate.-> SL
 ```
 
-| Component | File | Responsibility |
-|---|---|---|
-| `SkillDefinition` | `definition.py:154` | YAML frontmatter + markdown body parsed contract; validates `tenant_id` under strict posture. |
-| `SkillLoader` | `loader.py:80` | Multi-source discovery; token-budget-aware loading (full / compact / truncated). |
-| `SkillRegistry` | `registry.py:66` | Lifecycle store; `register_candidate`, `promote`, `deprecate`, `retire`. |
-| `ManagedSkill` | `registry.py:28` | Lifecycle record (Candidate → Provisional → Certified → Deprecated → Retired). |
-| `SkillObserver` | `observer.py` | Non-blocking JSONL append per execution. |
-| `SkillObservation` | `observer.py:22` | Single execution observation (success, tokens, latency, quality_score, failure_code). |
-| `SkillUsageRecorder` | `recorder.py:10` | Post-run evidence_count + success/failure counter update. |
-| `SkillEvolver` | `evolver.py` | OPTIMIZE (improve prompt) + CREATE (extract pattern → new skill). |
-| `SkillVersionManager` | `version.py` | Champion / challenger versioning with rollback. |
-| `SkillValidator` | `validator.py` | Frontmatter schema + lifecycle transition validation. |
-| `SkillMatcher` | `matcher.py` | Query → ranked list of applicable skills. |
+**In scope:** definition parsing, lifecycle persistence (JSON `registry.json`), observation telemetry, evolution loop, version management, applicability matching.
 
-## 4. Data Flow
+**Out of scope:** business-skill packaging (kept on the research-team side), distributed registry (single-process JSON store; team-wide sharing is a research proposal).
+
+## 3. Module Boundary & Dependencies
+
+| Inbound (callers) | Reason |
+|---|---|
+| `hi_agent/runner.py`, `hi_agent/runner_stage.py` | Apply skills at stage selection time |
+| `hi_agent/llm/*` | Consume `SkillPrompt.to_prompt_string()` for system prompt injection |
+| `hi_agent/server/event_store.py` | Skill-related event facets (ID + lifecycle stage) |
+| `hi_agent/evolve/*` | Promotes `SkillCandidate` → `ManagedSkill` via `SkillRegistry.register_candidate` (`registry.py:87`) |
+
+| Outbound (dependencies) | Reason |
+|---|---|
+| `hi_agent/config/posture.py` | `Posture.from_env()` for strict-mode tenant enforcement |
+| `hi_agent/contracts/reasoning.py` | `SpineCompletenessError` raised by `SkillObservation.__post_init__` |
+| `hi_agent/evolve/skill_extractor.py` | `SkillCandidate` source type |
+| `hi_agent/llm/protocol.py` | `LLMGateway` for `SkillEvolver` calls |
+| `hi_agent/failures/taxonomy.py` | `is_budget_exhausted_failure_code` for evolver heuristics |
+| `hi_agent/plugins/manifest.py` | `ExtensionManifest.dangerous_capabilities` (`plugins/manifest.py:60`) — load-time gate |
+
+**Not allowed:** importing `hi_agent/server/` or `hi_agent/runtime/` from inside this package — skills are a leaf module.
+
+## 4. Building Blocks
+
+```mermaid
+flowchart TB
+    subgraph On_Disk
+        FS[(SKILL.md files<br/>built-in / user / project / generated)]
+        REG_JSON[(registry.json)]
+        OBS_JSONL[(observations.jsonl)]
+    end
+    subgraph Loading
+        SDEF[SkillDefinition<br/>definition.py]
+        SL[SkillLoader<br/>loader.py:80]
+        SP[SkillPrompt<br/>loader.py:42]
+    end
+    subgraph Lifecycle
+        SR[SkillRegistry<br/>registry.py:74]
+        MS[ManagedSkill<br/>registry.py:28]
+        PR[PromotionRecord<br/>registry.py:17]
+        SV[SkillValidator]
+        SVR[SkillVersionManager]
+        SUR[SkillUsageRecorder<br/>recorder.py:10]
+    end
+    subgraph Telemetry_and_Evolution
+        SO[SkillObserver<br/>observer.py]
+        SOBS[SkillObservation<br/>observer.py:21]
+        SE[SkillEvolver<br/>evolver.py]
+        SA[SkillAnalysis<br/>evolver.py:38]
+        SP2[SkillPattern<br/>evolver.py:68]
+    end
+    FS --> SL
+    SL --> SDEF
+    SL --> SP
+    SR --> MS
+    MS --> PR
+    SV -.gates promotions.-> SR
+    REG_JSON <-.save / load.-> SR
+    SR --> SVR
+    SO --> SOBS
+    SOBS --> OBS_JSONL
+    SUR --> MS
+    SE --> SOBS
+    SE --> SA
+    SE --> SP2
+    SE --> SVR
+    SE --> SR
+```
+
+Key types and citations:
+
+- `SkillDefinition` — `definition.py` (parsed from YAML frontmatter + body; carries `tenant_id` spine field).
+- `SkillLoader(search_dirs, max_skills_in_prompt, max_prompt_tokens)` — `loader.py:80`.
+- `SkillPrompt` (`# scope: process-internal`) — `loader.py:42`.
+- `SkillRegistry(storage_dir)` — `registry.py:74`. Public methods: `register_candidate`, `promote`, `deprecate`, `retire`, `get`, `list_by_stage`, `list_certified`, `list_applicable`, `save`, `load`. Strict posture requires `tenant_id` on every read (`_enforce_tenant_scope`, `registry.py:307`).
+- `ManagedSkill` — `registry.py:28`. Spine field: `tenant_id` (`registry.py:55`); fail-closed under strict posture in `__post_init__`.
+- `PromotionRecord` (`# scope: process-internal`) — `registry.py:17`. Embedded inside `ManagedSkill.promotion_history`. Retention plan: keep last N=20 (`docs/governance/retention-roadmap.md` Tier 2 #14).
+- `SkillObservation` — `observer.py:21`. Spine fields: `run_id`, `tenant_id`, `user_id`, `session_id`, `project_id`. Constructor enforces Rule 12 — missing `run_id` or `tenant_id` under strict posture raises `SpineCompletenessError` (`observer.py:69`).
+- `SkillEvolver` / `SkillAnalysis` / `SkillPattern` — `evolver.py:38, 68`. Modes: `OPTIMIZE` (textual-gradient prompt patch on failure analysis) and `CREATE` (mine recurring patterns from observations).
+
+## 5. Runtime View — Key Scenarios
+
+### 5.1 Skill registration → applicable lookup → invocation
 
 ```mermaid
 sequenceDiagram
-    participant FS as Filesystem
+    autonumber
+    participant CB as ConfigBuilder
     participant SL as SkillLoader
+    participant SV as SkillValidator
     participant SR as SkillRegistry
-    participant Run as Run / Stage
-    participant CI as CapabilityInvoker
-    participant Obs as SkillObserver
-    participant Rec as SkillUsageRecorder
-    participant EV as SkillEvolver
-    participant VM as SkillVersionManager
-
-    Note over FS,SR: Discovery + Registration (lifespan)
-    FS->>+SL: discover()
-    SL->>SL: load_dir for each search_dir
-    SL->>SL: parse_frontmatter + body → SkillDefinition
-    SL->>SR: sync_to_registry(skill_definitions, tenant_id)
-    SR->>SR: register_candidate(SkillCandidate) per skill
-    SR->>SR: persist ManagedSkill
-    SL-->>-FS: load_count
-
-    Note over Run,Obs: Per-run skill use
-    Run->>SR: get(skill_id, tenant_id) → ManagedSkill
-    Run->>CI: invoke(skill, payload)
-    CI->>CI: build prompt with SkillDefinition.to_full_prompt
-    CI->>CI: dispatch LLM call
-    CI-->>Run: result
-    Run->>Obs: record(SkillObservation)
-    Obs->>Obs: append to observations.jsonl
-
-    Note over Run,Rec: Post-run feedback
-    Run->>+Rec: record_usage(skill_id, run_id, success)
-    Rec->>SR: update evidence_count + success/failure
-    Rec-->>-Run: ok
-
-    Note over EV,VM: Evolution cycle (every N runs)
-    EV->>Obs: get_observations(window)
-    EV->>EV: SkillAnalysis(success_rate, top_failures)
-    alt optimization_needed
-        EV->>+LLM: optimize_prompt(skill, failures)
-        LLM-->>-EV: improved_prompt
-        EV->>VM: register_challenger(skill_id, improved_prompt)
-    end
-    alt new pattern detected
-        EV->>+LLM: extract_skill_from_pattern
-        LLM-->>-EV: SkillCandidate
-        EV->>SR: register_candidate
-    end
+    participant Run as Runner / Stage
+    participant LLM as LLMGateway
+    participant SO as SkillObserver
+    participant SUR as SkillUsageRecorder
+    CB->>SL: load(search_dirs)
+    SL->>SV: validate(SkillDefinition)
+    SL-->>CB: list[SkillDefinition]
+    CB->>SR: register_candidate(SkillCandidate)<br/>or load(registry.json)
+    SR-->>CB: ManagedSkill (lifecycle_stage=candidate/certified)
+    Run->>SR: list_applicable(task_family, stage_id, tenant_id)
+    SR-->>Run: [ManagedSkill...] sorted by evidence_count
+    Run->>SL: build SkillPrompt under token budget
+    SL-->>Run: SkillPrompt (full + compact + truncated)
+    Run->>LLM: complete(system + skill prompt)
+    LLM-->>Run: response
+    Run->>SO: emit(SkillObservation with run_id+tenant_id)
+    Run->>SUR: record_usage(skill_id, run_id, success)
+    SUR->>SR: bump evidence_count + success_count
 ```
 
-The skill resolution path: `run.task_contract.skill_id → SkillRegistry.get(skill_id, tenant_id) → ManagedSkill → CapabilityInvoker.invoke(...)` produces the result. `SKILL.md` parsing happens once at discovery; the `SkillDefinition.prompt_content` field carries the markdown body for prompt injection.
+### 5.2 Promotion gated by validator
 
-## 5. State & Persistence
+`SkillRegistry.promote(skill_id, to_stage, evidence)` (`registry.py:124`):
 
-| State | Location | Lifetime |
+1. `SkillValidator.can_promote(skill, to_stage)` returns `(allowed, reason)`. If not allowed, raises `ValueError(...)`.
+2. Append `PromotionRecord(from_stage, to_stage, evidence, timestamp)` to `skill.promotion_history` (capped at last N=20 per retention plan; older records archived to `registry.history.<wave>.json`).
+3. Update `skill.lifecycle_stage` and `updated_at`.
+
+### 5.3 Dangerous-capability dev-side gate (W35 corrective close H1)
+
+`ExtensionManifest.dangerous_capabilities` (`hi_agent/plugins/manifest.py:60`) lists capabilities that require explicit admin approval (e.g. `shell_exec`). At skill load time, `SkillLoader` cross-references `SkillDefinition.allowed_tools` against the active `ExtensionManifest`; any overlap with `dangerous_capabilities` causes the skill to be rejected (or kept at `lifecycle_stage=candidate` and never promoted to `certified`) under research/prod posture. The W35 corrective work added the dev-side test that proves the gate fires before the runner can ever load the skill.
+
+## 6. Cross-cutting Concerns
+
+| Concern | Mechanism |
+|---|---|
+| **Rule 11 — posture-aware defaults** | `SkillRegistry._enforce_tenant_scope` raises under strict posture when `tenant_id` is `None` (`registry.py:307`); under dev, logs a WARNING and proceeds. |
+| **Rule 12 — contract spine** | `ManagedSkill.tenant_id`, `SkillObservation.{run_id,tenant_id,user_id,session_id,project_id}`, `SkillAnalysis.tenant_id` are spine-required (`evolver.py:48`). |
+| **Rule 13 — capability maturity** | Skills traverse the L0–L4 ladder via lifecycle stages; promotion to `certified` requires evidence and validator approval. The `applicability_scope` field plus `evidence_count` together encode the L-level signal. |
+| **Rule 17 — allowlist discipline** | Dangerous-capability schema gate is not an allowlist exception — it is a hard fail. (Allowlist of unsafe `noqa` is tracked in `docs/governance/allowlists.yaml`.) |
+| **Tenant scoping on every read** | All `SkillRegistry` query methods (`get`, `list_by_stage`, `list_certified`, `list_applicable`) accept `tenant_id` and either filter by it (dev) or require it (strict). |
+| **Telemetry non-blocking** | `SkillObserver` writes JSONL inside a `threading.Lock` but never on the request path's hot loop; the registry's persistence (`SkillRegistry.save`) is explicit, not autosave. |
+| **Test honesty** | `SkillObservation` cannot be constructed with empty spine fields under strict posture even in tests — tests must supply real IDs. |
+
+## 7. Architecture Decisions
+
+### ADR-S-1: JSON-backed registry, not a DB
+
+`SkillRegistry.save/load` writes a single `registry.json` (`registry.py:333`). Reason: skills are a per-profile asset, the read pattern is "load once at boot, occasional promote", and the working set is small (hundreds of skills). A SQL store would add a build dependency without any access-pattern win. SQLite remains an option if a future workload demands per-row access concurrency from multiple processes.
+
+### ADR-S-2: SkillUsageRecorder is **not** the event store
+
+`SkillUsageRecorder` (`recorder.py:10`) updates registry counters synchronously inside the run thread; it is concerned with **lifecycle evidence**. The wider per-run event log (`hi_agent/server/event_store.py`) carries every run event for replay, audit, and cross-run analysis. A skill usage produces both — a registry counter bump (recorder) and a structured event (event_store). Conflating them was a recurring confusion before W22; this ADR keeps them separate.
+
+### ADR-S-3: Dangerous-capability gate at the schema layer (W35 H1)
+
+Before W35, the dangerous-capability gate lived only inside the runner's tool-dispatch code path. A skill author could ship a `SKILL.md` that looked harmless until the runner happened to invoke its tool. W35 corrective close H1 adds the gate at **skill load time** (in `SkillLoader`) so that a skill referencing a `dangerous_capability` from the active extension manifest is rejected before the runner ever sees it. The W35 dev-side test pins this behaviour. Rationale: Rule 1 strongest-interpretation defaults — "gate" means blocking, not notification.
+
+### ADR-S-4: Promotion-history retention bounded
+
+`promotion_history` is a `list[PromotionRecord]` with no built-in trim. Retention plan in `docs/governance/retention-roadmap.md` Tier 2 #14: keep last N=20 events per skill; older entries archived to `registry.history.<wave>.json` and rotated quarterly. Implementation lives in W37+ (Tier 2 priority).
+
+## 8. Quality Attributes
+
+| Attribute | Target | Mechanism |
 |---|---|---|
-| `SkillDefinition._skills` | In-memory dict in `SkillLoader` | Process; reloaded on `discover()` |
-| `SkillRegistry._skills` | In-memory dict + JSON files in `<storage_dir>/<tenant_id>/<skill_id>.json` | Process + persistent JSON |
-| `SkillObservation` records | JSONL file at `<observer.storage_path>/observations.jsonl` | Persistent, append-only |
-| `SkillVersionRecord` | JSON in `<version_mgr.storage_dir>/` | Persistent |
-| `SkillMatcher` index | Optional in-memory TF-IDF index | Process |
+| Skill load latency | <100ms for ≤100 skills | `SkillLoader` walks four search dirs once at boot; binary-search budget fitter for `SkillPrompt`. |
+| Registry persistence | Atomic save | `json.dump(...)` to a single file; no partial writes (small payload). |
+| Observation throughput | Non-blocking on hot path | `threading.Lock` only around the JSONL append; the run thread is not woken up by observer writers. |
+| Cross-tenant isolation | Hard fail under strict posture | `SkillRegistry._enforce_tenant_scope`; `ManagedSkill.__post_init__` raises if `tenant_id` empty (`registry.py:62`). |
+| Schema drift safety | All YAML frontmatter validated by `SkillValidator` | Definitions whose required fields are missing fail at load, not at invocation. |
 
-Default storage paths:
-- `SkillRegistry`: `.hi_agent/skills/`
-- `SkillLoader.search_dirs`: built-in (`hi_agent/skills/`) + user (`~/.hi_agent/skills/`) + project (`.hi_agent/skills/`) + generated (from evolve)
-- `SkillObserver`: `.hi_agent/skills/observations.jsonl`
+## 9. Risks & Technical Debt
 
-## 6. Concurrency & Lifecycle
+| Risk | Severity | Mitigation / Plan |
+|---|---|---|
+| Registry file growth | Medium | Tier 2 #14 in retention roadmap (last N=20 promotion events; quarterly archive rotation). Action lands W37+. |
+| Skill version drift across waves | Medium | `SkillVersionManager` (champion/challenger) tracks running variants; `SkillEvolver.OPTIMIZE` mode produces a new version rather than mutating the live one. |
+| `SkillEvolver` LLM call cost | Low–Medium | Evolution runs out-of-band (not on the request path); driven by a scheduled job that consumes observation history. |
+| Multi-process registry contention | Low | JSON file is loaded once at boot; concurrent writes from two workers are not currently coordinated. SQLite migration is the planned escape if the pattern turns out to need it. |
+| Dangerous-capability list staleness | Medium | The list is part of the extension manifest, which is part of the wave deliverable; manifest-rewrite-budget gate (Rule 14, W17/B19) keeps it auditable. |
 
-**Discovery** (`SkillLoader.discover`) runs at lifespan startup (`SystemBuilder.build_skill_loader`). Synchronous, single-threaded. Sub-millisecond per `SKILL.md`.
+## 10. References
 
-**Sync to registry** (`SkillLoader.sync_to_registry(registry)`) — invoked from `AgentServer.__init__` (`hi_agent/server/app.py:1968`). This is what makes file-discovered skills visible to the runtime invoker.
-
-**Observation** (`SkillObserver.record`) — uses `threading.Lock` around the JSONL append. Non-blocking from the caller's perspective; writes synchronously but only the file flush blocks (which is fast).
-
-**Evolution cycle** runs on demand via `POST /skills/evolve` (route handler in `hi_agent/server/app.py:629`). Each cycle reads recent observations, computes `SkillMetrics`, calls the LLM gateway for optimize/create, and registers candidates / challengers. The cycle is bounded by `evolve_interval` (default 10 runs).
-
-**No background loop**. The skill subsystem does not run a continuous evolution daemon — operators trigger evolution explicitly. This keeps the runtime hot path free of optimization work.
-
-**Locks**:
-- `SkillLoader._skills` — implicit; assumed single-thread discovery.
-- `SkillRegistry._skills` — implicit; access via methods.
-- `SkillObserver` — `threading.Lock` around JSONL append.
-- `SkillVersionManager` — `threading.Lock` around champion/challenger swap.
-
-## 7. Error Handling & Observability
-
-**Skill validation** (`SkillValidator`):
-- Schema validation runs at load time; invalid `SKILL.md` raises and is skipped (`SkillLoader._load_file` catches and logs).
-- Lifecycle transition validation runs at `promote` / `deprecate` calls.
-
-**Posture-aware tenant validation**: `SkillDefinition.__post_init__` (`definition.py:186`), `ManagedSkill.__post_init__` (`registry.py:57`), and `SkillAnalysis.__post_init__` (`evolver.py:50`) raise `ValueError` if `tenant_id` is empty under research/prod posture.
-
-**Counters** (defined at module level via `Counter`):
-- `hi_agent_skill_loaded_total{source}` — increment per skill loaded
-- `hi_agent_skill_observed_total{skill_id, success}` — per observation
-- `hi_agent_skill_evolved_total{action}` — per evolution outcome (optimized / created / no_change)
-- `hi_agent_skill_promotion_total{from_stage, to_stage}` — per lifecycle transition
-
-**Logs**: WARNING on validation failure during load, on observation persistence failure, on evolution LLM error. INFO on lifecycle transitions.
-
-**Observability surface**:
-- `GET /skills/list` — returns all skills with eligibility + lifecycle stage
-- `GET /skills/status` — registry counts + top performers (sorted by success_rate)
-- `GET /skills/{skill_id}/metrics` — per-skill aggregates
-- `GET /skills/{skill_id}/versions` — champion + challengers + version history
-
-Each endpoint emits a tenant-scoped audit record via `record_tenant_scoped_access` (in `hi_agent/observability/audit.py`).
-
-## 8. Security Boundary
-
-**Tenant scoping at registration + invocation**:
-- `SkillRegistry` storage layout: `<storage_dir>/<tenant_id>/<skill_id>.json` — physical separation per tenant on disk.
-- Every `register_candidate`, `get`, `promote` accepts a `tenant_id`; lookup is keyed by `(tenant_id, skill_id)`.
-- `SkillObservation` carries spine fields `tenant_id`, `user_id`, `session_id`, `project_id` (`observer.py:43`).
-
-**`SkillDefinition.tenant_id` enforcement**: required under research/prod posture (`definition.py:189`). Under dev, default empty string is allowed for backwards compat with pre-spine SKILL.md files.
-
-**`model="default"` coercion** (W32 closure):
-- Under dev posture, `SkillDefinition.model = "default"` is accepted; the gateway's `default_model` is substituted at LLM call time.
-- Under research/prod posture, the coercion is rejected — skills must declare an explicit model (`claude-opus-4`, `gpt-4o-mini`, etc.). This was W32 closure for the silent-default issue: research deployments cannot afford accidental model drift.
-
-**Allowed_tools enforcement**: `SkillDefinition.allowed_tools` is consulted by the `CapabilityInvoker` before dispatch. A skill that calls a tool not in `allowed_tools` is denied. This is the per-skill capability allowlist.
-
-**Eligibility checks** (`SkillDefinition.check_eligibility`):
-- `requires_bins` — checks each binary is on `PATH`
-- `requires_env` — checks each env var is set non-empty
-- Both fields come from the `SKILL.md` `requires:` block
-
-**Process-internal markers**:
-- `PromotionRecord` (`registry.py:17`): `# scope: process-internal — the parent ManagedSkill carries tenant_id`
-- `SkillPrompt` (`loader.py:42`): `# scope: process-internal — spine carried by the caller's tenant context`
-
-## 9. Extension Points
-
-- **Custom skill source**: extend `SkillLoader.search_dirs`; add directory containing `SKILL.md` files.
-- **Custom skill validator**: subclass `SkillValidator`; pass to `SkillRegistry(validator=…)`.
-- **Custom evolution strategy**: subclass `SkillEvolver`; override `_analyze()` or `_optimize()` or `_create_from_pattern()`.
-- **Custom matcher**: subclass `SkillMatcher`; inject into stage execution.
-- **Custom version policy**: extend `SkillVersionManager` with new version naming or rollback logic.
-- **New lifecycle stage**: extend the `lifecycle_stage` enum-like field; update `SkillValidator.is_valid_transition`.
-
-## 10. Constraints & Trade-offs
-
-- **`SKILL.md` parser is YAML-subset, not full YAML** (`definition.py:58`). Supports inline lists, booleans, numbers, strings, simple nested blocks (`requires:` with `bins:` / `env:`). No anchors, references, or multi-document streams. Keeps parsing zero-dependency but rejects sophisticated YAML.
-- **Champion/challenger A/B is single-pair**: a skill has one champion + at most one challenger at a time. Multi-arm bandits would require extending `SkillVersionManager`.
-- **Observations file is single-process append-only**: multi-pod deployments need centralized log aggregation. Operators ship the JSONL out via a sidecar.
-- **Evolution uses the LLM gateway**: optimize/create both call `LLM Gateway`. Failures emit `record_fallback("llm", "skill_evolve_<reason>")` and the cycle is no-op for that skill.
-- **Per-tenant skill counts have no quota**: a malicious tenant could fill the registry. Production deployments add a quota in upstream auth.
-- **`model="default"` dev-only coercion**: research/prod must declare explicit models. Skills written for dev that omit model break under posture promotion. The `SkillValidator` flags this at load time under strict posture.
-- **No skill rollback observability**: `SkillVersionManager.rollback(skill_id)` is silent. Future work: emit `skill_rollback` event.
-
-## 11. References
-
-**Files**:
-- `hi_agent/skill/__init__.py` — public surface
-- `hi_agent/skill/definition.py` — `SkillDefinition`, frontmatter parser
-- `hi_agent/skill/loader.py` — `SkillLoader`, `SkillPrompt`
-- `hi_agent/skill/registry.py` — `SkillRegistry`, `ManagedSkill`, `PromotionRecord`
-- `hi_agent/skill/observer.py` — `SkillObserver`, `SkillObservation`, `SkillMetrics`
-- `hi_agent/skill/recorder.py` — `SkillUsageRecorder`
-- `hi_agent/skill/evolver.py` — `SkillEvolver`, `SkillAnalysis`, `SkillPattern`, `EvolutionReport`
-- `hi_agent/skill/version.py` — `SkillVersionManager`, `SkillVersionRecord`
-- `hi_agent/skill/validator.py` — `SkillValidator`
-- `hi_agent/skill/matcher.py` — `SkillMatcher`
-- `hi_agent/server/app.py:524-743` — `/skills/*` route handlers
-- `hi_agent/observability/audit.py` — tenant-scoped access audit
-- `hi_agent/capability/invoker.py` — capability invocation site that consumes `SkillDefinition.allowed_tools`
-
-**Related**:
-- `hi_agent/capability/ARCHITECTURE.md` — capability registry (skills compose with capabilities at execution time)
-- `hi_agent/evolve/skill_extractor.py` — `SkillCandidate` source (evolve → registry handoff)
-
-**Rules and gates**:
-- CLAUDE.md Rule 11 (Posture-Aware Defaults), Rule 12 (Contract Spine + scope markers), Rule 13 (Capability Maturity)
-- W32 closure: `model="default"` coercion is dev-posture only
-- W24 H1: skill registry overlay per tenant (allowlists.yaml W24-deferred entries `handle_skills_evolve`, `handle_skill_optimize`, `handle_skill_promote`)
-- `scripts/check_contract_spine_completeness.py` — validates `tenant_id` field presence
+- Source: `hi_agent/skill/registry.py`, `hi_agent/skill/loader.py`, `hi_agent/skill/observer.py`, `hi_agent/skill/recorder.py`, `hi_agent/skill/evolver.py`, `hi_agent/skill/version.py`, `hi_agent/skill/validator.py`, `hi_agent/plugins/manifest.py`.
+- Rules: `CLAUDE.md` Rule 7 (resilience signals), Rule 11 (posture-aware defaults), Rule 12 (contract spine), Rule 13 (capability maturity), Rule 17 (allowlist discipline).
+- Retention: `docs/governance/retention-roadmap.md` Tier 2 #14.
+- Sibling docs: `hi_agent/capability/ARCHITECTURE.md` (the registry that backs `SkillDefinition.allowed_tools`), `hi_agent/knowledge/ARCHITECTURE.md` (knowledge consumed by skill prompts), `hi_agent/memory/ARCHITECTURE.md` (the memory that observations enrich).
