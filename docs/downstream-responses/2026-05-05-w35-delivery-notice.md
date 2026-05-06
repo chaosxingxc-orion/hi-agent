@@ -3,22 +3,25 @@
 **Date:** 2026-05-05
 **Wave:** 35
 Status: SHIP
-**Manifest:** `2026-05-05-24cfa0a6` (built at HEAD `24cfa0a6`)
-Functional HEAD: 24cfa0a67249d9824f9ecd39f60764a548fe2699
-notice-pre-final-commit: true
+**Manifest:** `2026-05-06-5b1e4d25` (built at HEAD `5b1e4d25`)
+Functional HEAD: 5b1e4d25da56b17a4c65482dfdbaf7358bcbae10
 
-> Per Rule 14 §4.4, this notice cites the manifest's release_head
-> (`24cfa0a6`). The W35 corrective-window commits (Tracks A–G, hidden
-> defect fixes H1/H2/H4, plus W36 architectural plans) advanced repo
-> HEAD past the manifest release_head. The
-> `notice-pre-final-commit: true` marker tells `check_doc_consistency.py`
-> the divergence is the corrective-window pattern (notice anchored at
-> manifest, repo HEAD ahead). The W35 corrective response document
+> **W35 corrective re-roll** (2026-05-06): the original W35 ship at
+> manifest `2026-05-05-24cfa0a6` (verified=75.0, raw=94.5) is preserved
+> in the archive at
+> `docs/releases/archive/W35/platform-release-manifest-2026-05-05-24cfa0a6.json`.
+> The W35 corrective tracks (C-1 through C-4, §5.1, §5.2, plus hidden
+> defect fixes H1/H2/H4 and the W36 architectural plans) introduced
+> functional commits that invalidated the original manifest under
+> Rule 14. This re-roll writes a fresh manifest at the corrective HEAD
+> with: verified=70.0, raw=94.5, conditional=72.0. New cap factor
+> `t3_deferred` (cap=72) applies because the T3-volces gateway wiring
+> needs setup beyond a VOLCES_API_KEY env var (build_llm_gateway
+> currently inspects only OPENAI_API_KEY/ANTHROPIC_API_KEY); deferred
+> per CLAUDE.md Rule 8 explicit accepted alternative. The W35
+> corrective response document
 > (`docs/downstream-responses/2026-05-05-w35-corrective-response.md`)
-> records the disposition of every corrective track. The closure
-> semantics of *this* notice remain anchored at the manifest release_head:
-> verified=75.0, raw=94.5; the corrective work re-rolls evidence on the
-> next manifest cycle.
+> records the disposition of every corrective track.
 **Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
