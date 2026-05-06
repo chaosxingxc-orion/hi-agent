@@ -1215,6 +1215,66 @@ async def handle_plugins_status(request: Request) -> JSONResponse:
 # ------------------------------------------------------------------
 
 
+def _bump_attempt_id_on_release(
+    run_store: Any,
+    run_id: str,
+    logger: logging.Logger,
+) -> str | None:
+    """Bump attempt_id and link parent_run_id on lease re-release (W35-T9).
+
+    Pure helper extracted from ``_rehydrate_runs`` so the W34-F.2 lineage
+    invariants (fresh UUID4 attempt_id, parent_run_id pointed at the
+    original run_id, attempt_count incremented) are testable without the
+    full FastAPI startup harness. Behaviour is identical to the inline
+    block it replaces; failures are caught and logged at WARNING per the
+    surrounding ``_rehydrate_runs`` resilience contract.
+
+    Args:
+        run_store: A ``SQLiteRunStore``-shaped object exposing ``get`` and
+            ``upsert``. May be ``None``; in that case the helper is a
+            no-op (matches the existing ``_run_store is None`` guard).
+        run_id: The original run_id whose lease is being reclaimed.
+        logger: Logger to receive INFO on success, WARNING on failure.
+
+    Returns:
+        The freshly minted ``attempt_id`` on success; ``None`` if the
+        store is missing, the record does not exist, or the bump raised.
+    """
+    if run_store is None:
+        return None
+    try:
+        import uuid as _uuid
+        from dataclasses import replace as _replace
+
+        existing = run_store.get(run_id)
+        if existing is None:
+            return None
+        new_attempt_id = str(_uuid.uuid4())
+        updated = _replace(
+            existing,
+            attempt_id=new_attempt_id,
+            parent_run_id=run_id,
+            attempt_count=(getattr(existing, "attempt_count", 0) or 0) + 1,
+        )
+        run_store.upsert(updated)
+        logger.info(
+            "_rehydrate_runs: bumped attempt_id for run_id=%s "
+            "old=%r new=%s parent=%s (W35-T9)",
+            run_id,
+            existing.attempt_id,
+            new_attempt_id,
+            run_id,
+        )
+        return new_attempt_id
+    except Exception as exc:
+        logger.warning(
+            "_rehydrate_runs: attempt_id bump failed for run_id=%s: %s",
+            run_id,
+            exc,
+        )
+        return None
+
+
 def _rehydrate_runs(agent_server: AgentServer) -> None:
     """Re-enqueue lease-expired runs according to the current posture.
 
@@ -1347,34 +1407,10 @@ def _rehydrate_runs(agent_server: AgentServer) -> None:
             # W34-F.2 design comment ("recovery / re-lease paths bump
             # attempt_id and set parent_run_id back to this run_id") was
             # documented but never implemented — Rule 15 closure-claim gap.
+            # W35-C-3: extracted to ``_bump_attempt_id_on_release`` so the
+            # lineage invariants are reachable from an integration test.
             _run_store = getattr(agent_server, "_run_store", None)
-            if _run_store is not None:
-                try:
-                    from dataclasses import replace as _replace
-                    existing = _run_store.get(run_id)
-                    if existing is not None:
-                        new_attempt_id = str(uuid.uuid4())
-                        updated = _replace(
-                            existing,
-                            attempt_id=new_attempt_id,
-                            parent_run_id=run_id,
-                            attempt_count=(getattr(existing, "attempt_count", 0) or 0) + 1,
-                        )
-                        _run_store.upsert(updated)
-                        logger.info(
-                            "_rehydrate_runs: bumped attempt_id for run_id=%s "
-                            "old=%r new=%s parent=%s (W35-T9)",
-                            run_id,
-                            existing.attempt_id,
-                            new_attempt_id,
-                            run_id,
-                        )
-                except Exception as exc:
-                    logger.warning(
-                        "_rehydrate_runs: attempt_id bump failed for run_id=%s: %s",
-                        run_id,
-                        exc,
-                    )
+            _bump_attempt_id_on_release(_run_store, run_id, logger)
             # Mirror the bump into the in-memory ManagedRun (when present)
             # so any executor that picks the run up via the in-process
             # registry sees the new attempt without re-reading the store.
