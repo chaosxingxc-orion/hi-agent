@@ -336,6 +336,48 @@ jobs:
       - name: Check notice pre-final-commit clean (Rule 14, W29)
         run: python scripts/check_notice_pre_final_commit_clean.py --json
 
+      # --- Hidden gates wired in W35-corrective ---
+      # 11 governance gates that existed under scripts/ but were never invoked
+      # by any workflow (and not invoked indirectly via multistatus_runner).
+      # Each was verified to PASS at HEAD before wiring; see
+      # docs/governance/orphan-gates-audit-2026-05-05.md for the audit trail.
+
+      - name: Check admin/session store import boundary (W35-corrective)
+        run: python scripts/check_admin_session_store_imports.py --json
+
+      - name: Check concurrency evidence freshness (W35-corrective)
+        run: python scripts/check_concurrency_evidence.py --json
+
+      - name: Check dataclass spine validation (W35-corrective)
+        run: python scripts/check_dataclass_spine_validation.py
+
+      - name: Check documented routes inventory (W35-corrective)
+        run: python scripts/check_documented_routes.py --json
+
+      - name: Check env-var routing (Rule 6, W35-corrective)
+        run: python scripts/check_env_var_routing.py --json
+
+      - name: Check agent_server facade seams (R-AS-1, W35-corrective)
+        run: python scripts/check_facade_seams.py --json
+
+      - name: Check idempotency contract documented (W35-corrective)
+        run: python scripts/check_idempotency_contract_documented.py
+
+      - name: Check lineage population (W35-corrective)
+        run: python scripts/check_lineage_population.py
+
+      - name: Check no direct HI_AGENT_ env reads (Rule 6, W35-corrective)
+        run: python scripts/check_no_hi_agent_env_direct_read.py --json
+
+      - name: Check no shell packages (W35-corrective)
+        run: python scripts/check_no_shell_packages.py --json
+
+      - name: Check no unscoped knowledge reads (W35-corrective)
+        run: python scripts/check_no_unscoped_knowledge_reads.py --json
+
+      - name: Check signoff evidence exemption (W35-corrective §5.2)
+        run: python scripts/check_signoff_evidence_exemption.py --json
+
       # --- Release manifest ---
 
       - name: Build release manifest

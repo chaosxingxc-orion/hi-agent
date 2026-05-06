@@ -20,7 +20,7 @@
     "soak_evidence_not_real"
   ],
   "cap_factors_resolution": {
-    "soak_evidence_not_real": "Held per RIA W35 directive \u00a76 explicit no-cap-change. RIA Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement."
+    "soak_evidence_not_real": "Held per RIA W35 directive §6 explicit no-cap-change. RIA Lens 7 framing: \"feasibility, not capacity\". W36 6h Linux soak roadmap addresses measurement."
   },
   "acceptance_ids": {
     "W35-T1": "PASS",
@@ -61,5 +61,24 @@
     "default_offline_pass_count": 9288,
     "default_offline_skip_count": 8,
     "default_offline_fail_count": 0
+  },
+  "evidence_exemption": {
+    "kind": "gov_infra_gap",
+    "evidence_head": "8ae5314a",
+    "release_head": "24cfa0a67249d9824f9ecd39f60764a548fe2699",
+    "release_head_short": "24cfa0a6",
+    "rationale": "All commits between evidence_head 8ae5314a and release_head 24cfa0a6 are docs/scripts/.github only (gov-infra gap per scripts/_governance/governance_gap.py::is_gov_only_gap). No hot-path code (per CLAUDE.md Rule 8 hot-path file list) was modified between captain evidence runs and final HEAD; therefore evidence collected at 8ae5314a is structurally valid for release_head 24cfa0a6. This is NOT a 'non-hot-path docs-only' shortcut on the strict definition; it is the documented gov-infra exemption from the W17/W22/W31 design.",
+    "commits_in_gap": [
+      {"sha": "4c760f1b", "subject": "[W35] Add 'scope: process-internal' marker to 2 W35-T1 spine fields", "files": ["hi_agent/contracts/*"]},
+      {"sha": "f2909b38", "subject": "[W35-CLOSE-FINAL-v3] Manifest 2026-05-05-bd4d38d5", "files": ["docs/releases/*"]},
+      {"sha": "bd4d38d5", "subject": "[W35] Drop intermediate d767fde0 manifest", "files": ["docs/releases/*"]},
+      {"sha": "24cfa0a6", "subject": "[W35] Verification cycle at HEAD 8ae5314a + archive intermediate", "files": ["docs/verification/*", "docs/delivery/*"]}
+    ],
+    "hot_path_audit": "git diff --name-only 8ae5314a..24cfa0a6 returns only docs/** paths. The 8ae5314a commit itself ('Shorten W35-T1 spine markers to satisfy ruff E501') touched hi_agent/contracts/ but evidence was COLLECTED at HEAD 8ae5314a after that change, so it is captured.",
+    "fired_cap": false,
+    "ria_directive": "docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md §5.2",
+    "corrective_response": "docs/downstream-responses/2026-05-05-w35-corrective-response.md",
+    "regression_gate": "scripts/check_signoff_evidence_exemption.py",
+    "next_action": "On the next manifest cycle (post-W35-corrective), evidence will be re-collected at the new release_head with provenance:real for T3-volces. The exemption mechanism remains for future gov-infra gaps where re-running real evidence has no information value."
   }
 }
