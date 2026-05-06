@@ -1,6 +1,6 @@
 # hi-agent Platform Gaps — Response to Research Roadmap 2026-04-16
 
-**Last updated**: 2026-05-03 (Wave 31 closed; Wave 32 in this PR)
+**Last updated**: 2026-05-06 (Wave 35 closed + corrective in progress; Wave 36 binding scoped)
 **Source**: research/docs/hi-agent-strategic-roadmap-2026-04-16.md
 **Contact**: hi-agent platform team
 

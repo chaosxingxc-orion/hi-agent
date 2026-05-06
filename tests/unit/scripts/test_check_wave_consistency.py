@@ -28,6 +28,16 @@ def _write_allowlists(tmp_path: Path, current_wave: int) -> Path:
     return p
 
 
+def _write_recurrence_ledger(tmp_path: Path, current_wave: int) -> Path:
+    """W35 §5.1: recurrence-ledger.yaml is now a tracked wave source."""
+    p = tmp_path / "recurrence-ledger.yaml"
+    p.write_text(
+        f"schema_version: \"1\"\ncurrent_wave: {current_wave}\nentries: []\n",
+        encoding="utf-8",
+    )
+    return p
+
+
 def _write_manifest(dir_path: Path, sha: str, wave: str, generated_at: str) -> Path:
     name = f"platform-release-manifest-2026-04-28-{sha}.json"
     payload = {
@@ -57,6 +67,7 @@ def test_all_sources_agree_returns_pass(tmp_path, monkeypatch, capsys):
 
     wave_file = _write_wave(tmp_path, "Wave 17")
     allowlists = _write_allowlists(tmp_path, 17)
+    ledger = _write_recurrence_ledger(tmp_path, 17)
     releases = tmp_path / "releases"
     releases.mkdir()
     _write_manifest(releases, "abc1234", "Wave 17", "2026-04-28T10:00:00+00:00")
@@ -66,6 +77,7 @@ def test_all_sources_agree_returns_pass(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", ledger)
     monkeypatch.setattr(mod, "RELEASES_DIR", releases)
     monkeypatch.setattr(mod, "NOTICES_DIR", notices)
     # Patch the wave helper's file pointer so current_wave() reads the tmp file
@@ -90,6 +102,7 @@ def test_manifest_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
 
     wave_file = _write_wave(tmp_path, "Wave 17")
     allowlists = _write_allowlists(tmp_path, 17)
+    ledger = _write_recurrence_ledger(tmp_path, 17)
     releases = tmp_path / "releases"
     releases.mkdir()
     _write_manifest(releases, "abc1234", "Wave 14", "2026-04-28T10:00:00+00:00")  # stale wave
@@ -99,6 +112,7 @@ def test_manifest_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", ledger)
     monkeypatch.setattr(mod, "RELEASES_DIR", releases)
     monkeypatch.setattr(mod, "NOTICES_DIR", notices)
     from _governance import wave as wave_mod
@@ -120,6 +134,7 @@ def test_drift_detected_returns_fail(tmp_path, monkeypatch, capsys):
 
     wave_file = _write_wave(tmp_path, "Wave 17")
     allowlists = _write_allowlists(tmp_path, 16)  # DRIFT: allowlists says 16, txt says 17
+    ledger = _write_recurrence_ledger(tmp_path, 17)
     releases = tmp_path / "releases"
     releases.mkdir()
     _write_manifest(releases, "abc1234", "Wave 17", "2026-04-28T10:00:00+00:00")  # matches current
@@ -129,6 +144,7 @@ def test_drift_detected_returns_fail(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", ledger)
     monkeypatch.setattr(mod, "RELEASES_DIR", releases)
     monkeypatch.setattr(mod, "NOTICES_DIR", notices)
     from _governance import wave as wave_mod
@@ -148,6 +164,7 @@ def test_skips_draft_notice(tmp_path, monkeypatch, capsys):
 
     wave_file = _write_wave(tmp_path, "Wave 17")
     allowlists = _write_allowlists(tmp_path, 17)
+    ledger = _write_recurrence_ledger(tmp_path, 17)
     releases = tmp_path / "releases"
     releases.mkdir()
     _write_manifest(releases, "abc1234", "Wave 17", "2026-04-28T10:00:00+00:00")
@@ -159,6 +176,7 @@ def test_skips_draft_notice(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", ledger)
     monkeypatch.setattr(mod, "RELEASES_DIR", releases)
     monkeypatch.setattr(mod, "NOTICES_DIR", notices)
     from _governance import wave as wave_mod
@@ -176,10 +194,11 @@ def test_insufficient_sources_returns_deferred(tmp_path, monkeypatch, capsys):
     import check_wave_consistency as mod
 
     wave_file = _write_wave(tmp_path, "Wave 17")
-    # No allowlists, no manifests, no notices
+    # No allowlists, no ledger, no manifests, no notices
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", tmp_path / "no-allowlists.yaml")
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", tmp_path / "no-ledger.yaml")
     monkeypatch.setattr(mod, "RELEASES_DIR", tmp_path / "no-releases")
     monkeypatch.setattr(mod, "NOTICES_DIR", tmp_path / "no-notices")
     from _governance import wave as wave_mod
@@ -201,6 +220,7 @@ def test_notice_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
 
     wave_file = _write_wave(tmp_path, "Wave 18")
     allowlists = _write_allowlists(tmp_path, 18)
+    ledger = _write_recurrence_ledger(tmp_path, 18)
     releases = tmp_path / "releases"
     releases.mkdir()
     _write_manifest(releases, "abc1234", "Wave 18", "2026-04-29T10:00:00+00:00")
@@ -211,6 +231,7 @@ def test_notice_from_earlier_wave_is_deferred(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr(mod, "WAVE_FILE", wave_file)
     monkeypatch.setattr(mod, "ALLOWLISTS_FILE", allowlists)
+    monkeypatch.setattr(mod, "RECURRENCE_LEDGER_FILE", ledger)
     monkeypatch.setattr(mod, "RELEASES_DIR", releases)
     monkeypatch.setattr(mod, "NOTICES_DIR", notices)
     from _governance import wave as wave_mod

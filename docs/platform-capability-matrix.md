@@ -1,6 +1,6 @@
 # hi-agent Platform Capability Matrix
 
-Last updated: 2026-05-04 (Wave 32 closed; Wave 33 in progress)
+Last updated: 2026-05-06 (Wave 35 closed + corrective in progress; Wave 36 binding scoped)
 
 ---
 

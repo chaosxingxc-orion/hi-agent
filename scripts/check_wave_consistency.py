@@ -37,6 +37,7 @@ WAVE_FILE = ROOT / "docs" / "current-wave.txt"
 ALLOWLISTS_FILE = ROOT / "docs" / "governance" / "allowlists.yaml"
 RELEASES_DIR = ROOT / "docs" / "releases"
 NOTICES_DIR = ROOT / "docs" / "downstream-responses"
+RECURRENCE_LEDGER_FILE = ROOT / "docs" / "governance" / "recurrence-ledger.yaml"
 
 
 def _read_allowlists_current_wave() -> object | None:
@@ -58,6 +59,33 @@ def _read_allowlists_current_wave() -> object | None:
         return int(raw)
     except ValueError:
         return raw
+
+
+def _recurrence_ledger_current_wave() -> int | None:
+    """Read the top-level `current_wave: N` field from recurrence-ledger.yaml.
+
+    W35 §5.1 (W32-D-recurrence): the recurrence-ledger names the current wave
+    and must be in the wave-consistency scan list. Otherwise drift in the
+    ledger that the gate is meant to police can go undetected (the W35 audit
+    found ledger.current_wave=33 while every other source said 35).
+
+    Returns the int value or None if the file or field is missing/unreadable.
+    Kept dependency-free (regex-only, no PyYAML) to mirror
+    _read_allowlists_current_wave.
+    """
+    if not RECURRENCE_LEDGER_FILE.exists():
+        return None
+    try:
+        text = RECURRENCE_LEDGER_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"^\s*current_wave\s*:\s*(\d+)\s*$", text, re.MULTILINE)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
 
 
 def _latest_manifest_wave() -> str | None:
@@ -181,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         "allowlists_yaml": _read_allowlists_current_wave(),
         "manifest_wave": _latest_manifest_wave(),
         "notice_wave": _latest_notice_wave(),
+        "recurrence_ledger_yaml": _recurrence_ledger_current_wave(),
     }
 
     # Gate is deferred when fewer than 2 sources resolve to a parseable wave.
