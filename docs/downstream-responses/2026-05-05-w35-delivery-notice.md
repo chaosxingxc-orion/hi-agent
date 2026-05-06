@@ -3,8 +3,8 @@
 **Date:** 2026-05-05
 **Wave:** 35
 Status: SHIP
-**Manifest:** `2026-05-06-5b1e4d25` (built at HEAD `5b1e4d25`)
-Functional HEAD: 5b1e4d25da56b17a4c65482dfdbaf7358bcbae10
+**Manifest:** `2026-05-06-ad521c07` (built at HEAD `ad521c07`)
+Functional HEAD: ad521c07932b48ae817f99e305158278fecdd48a
 
 > **W35 corrective re-roll** (2026-05-06): the original W35 ship at
 > manifest `2026-05-05-24cfa0a6` (verified=75.0, raw=94.5) is preserved
