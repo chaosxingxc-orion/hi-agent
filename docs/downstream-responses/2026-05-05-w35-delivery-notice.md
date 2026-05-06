@@ -5,6 +5,15 @@
 **Status:** SHIP
 **Manifest:** `2026-05-05-460a64bb` (built at HEAD `460a64bb`)
 Functional HEAD: 460a64bb65c8c5a797e086b499749842019fe966
+notice-pre-final-commit: true
+
+> Per Rule 14 §4.4, this notice cites the manifest's release_head
+> (`460a64bb`), not the post-publish CI-fix HEAD. The
+> `notice-pre-final-commit: true` marker tells `check_doc_consistency.py`
+> that the notice was written before subsequent CI/governance fix commits
+> that did not change the manifest's release_head. The closure semantics
+> are unchanged — the manifest, signoff, and evidence remain anchored at
+> `460a64bb` (verified=75.0).
 **Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
