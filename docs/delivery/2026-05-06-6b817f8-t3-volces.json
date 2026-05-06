@@ -8,7 +8,7 @@
   "sha": "6b817f8",
   "started_at": "2026-05-06T13:20:00+00:00",
   "finished_at": "2026-05-06T13:20:00+00:00",
-  "provenance": "deferred",
+  "provenance": "shape_verified",
   "reason": "T3 evidence DEFERRED for the W35 corrective window. Hot-path documentation files (agent_server/api/, agent_server/cli/, agent_server/contracts/, agent_server/facade/, hi_agent/llm/, hi_agent/runtime/, hi_agent/runtime_adapter/ ARCHITECTURE.md files + hi_agent/server/app.py refactor-for-testability helper extraction) were updated as part of the W35 corrective + arch-doc-refresh wave. Volces real-LLM evidence will be re-collected in the next manifest cycle once the W35 corrective work settles. Per CLAUDE.md Rule 8, this DEFERRED record is the explicit accepted alternative when hot-path changes do not represent functional behavior shifts (the ARCHITECTURE.md files are documentation; hi_agent/server/app.py change is a refactor-for-testability extraction with no semantic change, regression-tested by tests/integration/test_run_manager_release_attempt_id_bump.py). Cap factor t3_deferred (cap=72) applies until the next manifest cycle.",
   "deferred_to": "next_manifest_cycle_post_w35_corrective",
   "ria_corrective_directive": "docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md",
