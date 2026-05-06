@@ -177,3 +177,47 @@ class TestDevPostureKeepsDefaultFallback:
         record = run_store.get(run.run_id)
         assert record is not None
         assert record.tenant_id == "tenant-X"
+
+    def test_dev_posture_body_tenant_id_mismatch_warns_and_uses_middleware(
+        self, monkeypatch, manager, run_store, caplog
+    ):
+        """W35-T3 + W35 corrective C-4 (symmetric to research-posture
+        ``test_research_posture_body_tenant_id_mismatch_raises``).
+
+        Under dev posture, a body tenant_id that differs from the
+        authenticated middleware tenant_id MUST log a WARNING and use
+        the middleware value (auth-authoritative). It MUST NOT raise.
+
+        Covers the dev-side branch at run_manager.py:490-497.
+        """
+        monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+        ctx = TenantContext(tenant_id="tenant-A", user_id="u1", session_id="s1")
+        with caplog.at_level(logging.WARNING):
+            run = manager.create_run(
+                {
+                    "goal": "x",
+                    "task_id": "t-dev-mismatch-1",
+                    "tenant_id": "tenant-B",  # differs from middleware
+                },
+                workspace=ctx,
+            )
+        # Middleware (auth) wins.
+        record = run_store.get(run.run_id)
+        assert record is not None
+        assert record.tenant_id == "tenant-A", (
+            f"expected middleware tenant 'tenant-A' to win, got {record.tenant_id!r}"
+        )
+        # WARNING log explicitly mentions the mismatch + middleware-wins
+        # decision so a future inversion drift fails the test.
+        warning_msgs = [
+            rec.message for rec in caplog.records if rec.levelname == "WARNING"
+        ]
+        assert any(
+            "tenant_id" in msg.lower()
+            and "tenant-B" in msg
+            and "tenant-A" in msg
+            for msg in warning_msgs
+        ), (
+            f"Expected WARNING naming both body tenant-B and middleware "
+            f"tenant-A; got: {warning_msgs}"
+        )
