@@ -102,6 +102,51 @@ def test_dev_complete_spine_no_warning(
     assert relevant == []
 
 
+def test_reasoning_trace_dev_posture_empty_run_id_warns(
+    _dev_posture: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """C-4 coverage: empty run_id under dev posture warns and constructs.
+
+    Strict posture raises (covered by ``test_research_empty_run_id_raises``).
+    The dev-side warn branch (``reasoning.py`` lines 92-107) had no run_id
+    coverage prior to this test.
+    """
+    import logging
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning")
+    trace = ReasoningTrace(run_id="", stage_id="S2", tenant_id="tenant-A")
+    assert trace.run_id == ""
+    assert trace.stage_id == "S2"
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_spine_incomplete" in rec.message
+        and "run_id" in rec.message
+    ]
+    assert matched, "expected warning naming run_id under dev posture"
+
+
+def test_reasoning_trace_dev_posture_empty_stage_id_warns(
+    _dev_posture: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """C-4 coverage: empty stage_id under dev posture warns and constructs.
+
+    Strict posture raises (covered by ``test_research_empty_stage_id_raises``).
+    The dev-side warn branch had no stage_id coverage prior to this test.
+    """
+    import logging
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning")
+    trace = ReasoningTrace(run_id="run-1", stage_id="", tenant_id="tenant-A")
+    assert trace.run_id == "run-1"
+    assert trace.stage_id == ""
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_spine_incomplete" in rec.message
+        and "stage_id" in rec.message
+    ]
+    assert matched, "expected warning naming stage_id under dev posture"
+
+
 # --- Round-trip via from_dict ----------------------------------------------
 
 def test_from_dict_under_research_validates_spine(_research_posture: None) -> None:

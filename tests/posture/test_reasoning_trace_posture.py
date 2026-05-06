@@ -91,3 +91,147 @@ def test_reasoning_trace_from_trace_module_requires_run_id(monkeypatch, posture_
 
     with pytest.raises(TypeError):
         ReasoningTrace()  # missing run_id
+
+
+# ---------------------------------------------------------------------------
+# C-4 hidden-defect class — dev-side warn coverage for posture-aware
+# spine validation in hi_agent/contracts/reasoning_trace.py.
+#
+# Strict-side raises (via SpineCompletenessError) for empty run_id /
+# stage_id / kind. The dev-side warn branch was untested prior to W37.
+# ---------------------------------------------------------------------------
+
+
+def test_reasoning_trace_entry_dev_posture_empty_run_id_warns(monkeypatch, caplog):
+    """C-4: empty run_id under dev posture warns and constructs (entry)."""
+    import logging
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    from hi_agent.contracts.reasoning_trace import ReasoningTraceEntry
+
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning_trace")
+    entry = ReasoningTraceEntry(
+        run_id="",
+        stage_id="reflect",
+        step=0,
+        kind="thought",
+        content="missing run_id",
+    )
+    assert entry.run_id == ""
+    assert entry.stage_id == "reflect"
+    assert entry.kind == "thought"
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_entry_spine_incomplete" in rec.message
+        and "run_id" in rec.message
+    ]
+    assert matched, "expected warning naming run_id under dev posture"
+
+
+def test_reasoning_trace_entry_dev_posture_empty_stage_id_warns(monkeypatch, caplog):
+    """C-4: empty stage_id under dev posture warns and constructs (entry)."""
+    import logging
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    from hi_agent.contracts.reasoning_trace import ReasoningTraceEntry
+
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning_trace")
+    entry = ReasoningTraceEntry(
+        run_id="run-1",
+        stage_id="",
+        step=0,
+        kind="thought",
+        content="missing stage_id",
+    )
+    assert entry.run_id == "run-1"
+    assert entry.stage_id == ""
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_entry_spine_incomplete" in rec.message
+        and "stage_id" in rec.message
+    ]
+    assert matched, "expected warning naming stage_id under dev posture"
+
+
+def test_reasoning_trace_entry_dev_posture_empty_kind_warns(monkeypatch, caplog):
+    """C-4: empty kind under dev posture warns and constructs (entry).
+
+    ``kind`` is the third entry-shape spine field validated by
+    ``ReasoningTraceEntry.__post_init__`` (lines 75-87). The dev-side
+    warn branch was untested prior to W37.
+    """
+    import logging
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    from hi_agent.contracts.reasoning_trace import ReasoningTraceEntry
+
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning_trace")
+    entry = ReasoningTraceEntry(
+        run_id="run-1",
+        stage_id="reflect",
+        step=0,
+        kind="",
+        content="missing kind",
+    )
+    assert entry.run_id == "run-1"
+    assert entry.kind == ""
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_entry_spine_incomplete" in rec.message
+        and "kind" in rec.message
+    ]
+    assert matched, "expected warning naming kind under dev posture"
+
+
+def test_reasoning_trace_jsonl_dev_posture_empty_run_id_warns(monkeypatch, caplog):
+    """C-4: empty run_id under dev posture warns and constructs (JSONL trace).
+
+    Strict-side: ``ReasoningTrace.__post_init__`` (lines 127-140 in
+    ``hi_agent/contracts/reasoning_trace.py``) raises
+    ``SpineCompletenessError`` when run_id is empty under research/prod.
+    Dev-side: emits a WARNING and constructs anyway (JSONL back-compat).
+    The dev-side warn branch was untested prior to W37.
+    """
+    import logging
+
+    monkeypatch.setenv("HI_AGENT_POSTURE", "dev")
+    from hi_agent.contracts.reasoning_trace import ReasoningTrace
+
+    caplog.set_level(logging.WARNING, logger="hi_agent.contracts.reasoning_trace")
+    trace = ReasoningTrace(run_id="")
+    assert trace.run_id == ""
+    assert trace.entries == []
+    matched = [
+        rec for rec in caplog.records
+        if "reasoning_trace_legacy_spine_incomplete" in rec.message
+    ]
+    assert matched, "expected legacy spine warning under dev posture"
+
+
+def test_reasoning_trace_entry_strict_posture_empty_run_id_raises(monkeypatch):
+    """Sanity counter-test: strict posture rejects what dev allows.
+
+    Pairs with the dev-warn tests above to lock the strict/dev split.
+    """
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    from hi_agent.contracts.reasoning import SpineCompletenessError
+    from hi_agent.contracts.reasoning_trace import ReasoningTraceEntry
+
+    with pytest.raises(SpineCompletenessError, match="run_id"):
+        ReasoningTraceEntry(
+            run_id="",
+            stage_id="reflect",
+            step=0,
+            kind="thought",
+            content="missing run_id",
+        )
+
+
+def test_reasoning_trace_jsonl_strict_posture_empty_run_id_raises(monkeypatch):
+    """Sanity counter-test: strict posture rejects what dev allows (JSONL)."""
+    monkeypatch.setenv("HI_AGENT_POSTURE", "research")
+    from hi_agent.contracts.reasoning import SpineCompletenessError
+    from hi_agent.contracts.reasoning_trace import ReasoningTrace
+
+    with pytest.raises(SpineCompletenessError, match="run_id"):
+        ReasoningTrace(run_id="")
