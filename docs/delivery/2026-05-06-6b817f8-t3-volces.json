@@ -1,0 +1,20 @@
+{
+  "schema": "hi-agent.t3-evidence.v1",
+  "command": ["deferred-record"],
+  "mode": "deferred",
+  "provider": "volces",
+  "status": "deferred",
+  "verified_head": "6b817f812576254409156484fe4b38d31a6d9dd3",
+  "sha": "6b817f8",
+  "started_at": "2026-05-06T13:20:00+00:00",
+  "finished_at": "2026-05-06T13:20:00+00:00",
+  "provenance": "deferred",
+  "reason": "T3 evidence DEFERRED for the W35 corrective window. Hot-path documentation files (agent_server/api/, agent_server/cli/, agent_server/contracts/, agent_server/facade/, hi_agent/llm/, hi_agent/runtime/, hi_agent/runtime_adapter/ ARCHITECTURE.md files + hi_agent/server/app.py refactor-for-testability helper extraction) were updated as part of the W35 corrective + arch-doc-refresh wave. Volces real-LLM evidence will be re-collected in the next manifest cycle once the W35 corrective work settles. Per CLAUDE.md Rule 8, this DEFERRED record is the explicit accepted alternative when hot-path changes do not represent functional behavior shifts (the ARCHITECTURE.md files are documentation; hi_agent/server/app.py change is a refactor-for-testability extraction with no semantic change, regression-tested by tests/integration/test_run_manager_release_attempt_id_bump.py). Cap factor t3_deferred (cap=72) applies until the next manifest cycle.",
+  "deferred_to": "next_manifest_cycle_post_w35_corrective",
+  "ria_corrective_directive": "docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md",
+  "corrective_response": "docs/downstream-responses/2026-05-05-w35-corrective-response.md",
+  "rule_reference": "CLAUDE.md Rule 8: 'T3 evidence: DEFERRED — <reason>' is an explicit accepted alternative",
+  "wave": 35,
+  "wave_phase": "corrective",
+  "next_action": "Re-collect with provider=volces + valid VOLCES_API_KEY + correct llm_config.json setup at the next manifest cycle. The cap factor t3_deferred clears when the next docs/delivery/<date>-<sha>-t3-volces.json with status=pass is recorded for the post-corrective HEAD."
+}
