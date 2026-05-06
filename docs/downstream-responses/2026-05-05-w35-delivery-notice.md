@@ -4,12 +4,16 @@
 **Wave:** 35
 Status: SHIP
 **Manifest:** `2026-05-05-24cfa0a6` (built at HEAD `24cfa0a6`)
-Functional HEAD: 276917d89426e3eed92bc23c834a24665f6ffe91
+Functional HEAD: 24cfa0a67249d9824f9ecd39f60764a548fe2699
+notice-pre-final-commit: true
 
 > Per Rule 14 §4.4, this notice cites the manifest's release_head
-> (`24cfa0a6`). Subsequent W35-corrective-window commits (Tracks A–G,
-> hidden defect fixes H1/H2/H4, plus W36 architectural plans) advanced
-> Functional HEAD to `276917d8`. The W35 corrective response document
+> (`24cfa0a6`). The W35 corrective-window commits (Tracks A–G, hidden
+> defect fixes H1/H2/H4, plus W36 architectural plans) advanced repo
+> HEAD past the manifest release_head. The
+> `notice-pre-final-commit: true` marker tells `check_doc_consistency.py`
+> the divergence is the corrective-window pattern (notice anchored at
+> manifest, repo HEAD ahead). The W35 corrective response document
 > (`docs/downstream-responses/2026-05-05-w35-corrective-response.md`)
 > records the disposition of every corrective track. The closure
 > semantics of *this* notice remain anchored at the manifest release_head:

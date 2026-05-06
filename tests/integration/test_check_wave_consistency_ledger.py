@@ -105,7 +105,7 @@ def test_ledger_drift_fails_gate(tmp_path):
     """
     fixture_root = _build_fixture_repo(
         tmp_path,
-        current_wave_label="Wave 35",  # wave-literal-ok: fixture value, not a code-path wave reference
+        current_wave_label="Wave 35",  # wave-literal-ok: fixture value
         allowlists_wave=35,
         ledger_wave=33,  # DRIFT
     )
@@ -131,7 +131,7 @@ def test_ledger_agrees_passes_gate(tmp_path):
     the gate PASSes."""
     fixture_root = _build_fixture_repo(
         tmp_path,
-        current_wave_label="Wave 35",  # wave-literal-ok: fixture value, not a code-path wave reference
+        current_wave_label="Wave 35",  # wave-literal-ok: fixture value
         allowlists_wave=35,
         ledger_wave=35,  # AGREES
     )
@@ -150,7 +150,7 @@ def test_missing_ledger_does_not_block(tmp_path):
     sources still drive the comparison."""
     fixture_root = _build_fixture_repo(
         tmp_path,
-        current_wave_label="Wave 35",  # wave-literal-ok: fixture value, not a code-path wave reference
+        current_wave_label="Wave 35",  # wave-literal-ok: fixture value
         allowlists_wave=35,
         ledger_wave=35,
     )
