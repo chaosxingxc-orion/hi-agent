@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-05
 **Wave:** 35
-**Status:** SHIP
+Status: SHIP
 **Manifest:** `2026-05-05-24cfa0a6` (built at HEAD `24cfa0a6`)
 Functional HEAD: 24cfa0a67249d9824f9ecd39f60764a548fe2699
 notice-pre-final-commit: true
