@@ -351,29 +351,37 @@ def test_sse_events_emits_real_lifecycle(
     # Wait for terminal so the event store has flushed all lifecycle rows.
     _wait_for_terminal(real_client, run_id, timeout=10.0)
 
-    # Now stream events; the run is terminal so SSE returns immediately.
+    # Event-store flush race (observed on CI Linux runner): the run state
+    # turns terminal in run_record before the lifecycle event is flushed
+    # to the SQLiteEventStore. Poll the SSE stream until the terminal
+    # event is observed, with a bounded retry budget.
+    terminal_event_set = {"run_completed", "run_failed", "run_cancelled"}
+    deadline = time.monotonic() + 5.0
     event_types: list[str] = []
-    with real_client.stream(
-        "GET", f"/v1/runs/{run_id}/events", headers=_headers()
-    ) as resp:
-        assert resp.status_code == 200, resp.text
-        for line in resp.iter_lines():
-            if not line or not line.startswith("data:"):
-                continue
-            try:
-                payload = json.loads(line[len("data:") :].strip())
-            except json.JSONDecodeError:
-                continue
-            event_types.append(payload.get("event_type", ""))
+    while time.monotonic() < deadline:
+        event_types = []
+        with real_client.stream(
+            "GET", f"/v1/runs/{run_id}/events", headers=_headers()
+        ) as resp:
+            assert resp.status_code == 200, resp.text
+            for line in resp.iter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                try:
+                    payload = json.loads(line[len("data:") :].strip())
+                except json.JSONDecodeError:
+                    continue
+                event_types.append(payload.get("event_type", ""))
+        if any(et in terminal_event_set for et in event_types):
+            break
+        time.sleep(0.1)
 
     # The event store must contain at least the queued + started + a
     # terminal event for this run. If any of these are missing the
     # real-kernel binding is not flushing the SQLiteEventStore.
     assert "run_queued" in event_types, event_types
     assert "run_started" in event_types, event_types
-    terminal_seen = any(
-        et in {"run_completed", "run_failed", "run_cancelled"} for et in event_types
-    )
+    terminal_seen = any(et in terminal_event_set for et in event_types)
     assert terminal_seen, event_types
 
 
