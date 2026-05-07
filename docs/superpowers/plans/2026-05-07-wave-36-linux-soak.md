@@ -1,11 +1,12 @@
 # Wave 36 S-1 — 6h Linux Soak Plan
 
 **Date:** 2026-05-07
-**Wave:** W36 supplement (binding)
-**Reference:** RIA W36 supplement directive §2.1 (`hi-agent-w35-corrective-acceptance-and-w36-supplement-directive-2026-05-07.md`); W34-LINUX-SOAK-ROADMAP (`docs/downstream-responses/2026-05-05-w34-delivery-notice.md:140-146`); CLAUDE.md Rule 8 §architectural 7×24
+**Reissued:** 2026-05-07 (S-1 amendment) — three RIA-required changes per `docs/upstream-directives/2026-05-07-hi-agent-w36-supplement-acceptance-and-s1-amendment.md` §2: (A-S-1-1) M=5→M=1 honest deviation marker; (A-S-1-2) reject 4h fallback pre-authorization; (A-S-1-3) `-soak-240m.json` → `-soak-6h.json` filename realignment.
+**Wave:** W36 supplement (binding once amendment lands)
+**Reference:** RIA W36 supplement directive §2.1 (`hi-agent-w35-corrective-acceptance-and-w36-supplement-directive-2026-05-07.md`); RIA S-1 amendment (`hi-agent-w36-supplement-acceptance-and-s1-amendment-2026-05-07.md`); W34-LINUX-SOAK-ROADMAP (`docs/downstream-responses/2026-05-05-w34-delivery-notice.md:140-146`); CLAUDE.md Rule 8 §architectural 7×24
 **Owner:** TE (track lead) + GOV (CI workflow) + DX (env-var convention)
 
-> **Last refreshed:** 2026-05-07. HEAD `975b7911`.
+> **Last refreshed:** 2026-05-07 (reissue). HEAD `7ee6acaa`.
 
 ---
 
@@ -23,7 +24,7 @@ The plan also covers the two OS-limited chaos scenarios (`signal_storm`, `fd_exh
 |---|---|---|
 | Runner | `ubuntu-latest` (4 vCPU / 16 GB RAM) | W34 roadmap §145 |
 | Tenants (`--tenants`) | `50` | RIA §2.1 (workload N=50) |
-| Projects per tenant (`--projects-per-tenant`) | mapped via `--concurrency=50` so workload-pairs span 50 tenants × 1 project each (M=5 average measured per-tenant via concurrency saturation) | `scripts/run_soak.py:1029-1036` round-robin pair logic |
+| Projects per tenant (`--projects-per-tenant`) | `1` — **RIA-approved deviation** per `docs/upstream-directives/2026-05-07-hi-agent-w36-supplement-acceptance-and-s1-amendment.md` §2.1: workload runs at `--projects-per-tenant 1` (50 pairs) rather than the directive's literal 50×5=250; rationale is concurrency-saturation equivalence under runner constraint. M-equivalent (concurrency-saturation derived) reported separately, not as identity. | `scripts/run_soak.py:1029-1036` round-robin pair logic |
 | Concurrency (`--concurrency`) | `50` | RIA §2.1 (N=50 concurrent) |
 | Run interval (`--run-interval-seconds`) | `30.0` (chaos cadence) | RIA §2.1 (30s chaos cadence) |
 | Duration (`--duration`) | `6h` | RIA §2.1 + W34 roadmap |
@@ -33,7 +34,7 @@ The plan also covers the two OS-limited chaos scenarios (`signal_storm`, `fd_exh
 | Sample interval (`--sample-interval-seconds`) | `30.0` | run_soak default |
 | Per-run timeout | `180.0` (default) | `scripts/run_soak.py:923-928` |
 
-The harness already supports every field above; no new flags need to be added to `run_soak.py`. Evidence emission writes `<sha>-soak-240m.json` for any band ≥ 14400 s — 6h falls into the 240m band per the existing branch (`scripts/run_soak.py:719-720`). The evidence file we will commit is `docs/verification/<W36-head>-soak-240m.json`. (To-confirm: whether RIA wants a distinct `-soak-360m.json` or `-soak-6h.json` filename for forward narrative clarity. If yes, `_evidence_filename` adds one branch; this is the only `run_soak.py` change.)
+The harness supports every field above; one minor `_evidence_filename` branch is required by RIA amendment §2.3 (filename realignment). The 6h primary band emits `<sha>-soak-6h.json`; the 4h fallback band continues to emit `<sha>-soak-240m.json` (RIA-decided rename per `docs/upstream-directives/2026-05-07-hi-agent-w36-supplement-acceptance-and-s1-amendment.md` §2.3 — name-and-content alignment so a 6h run is filed under a band that matches its duration). The evidence file we commit at W36 head is `docs/verification/<W36-head>-soak-6h.json`. The single-line change in `_evidence_filename` is named in §5 below; CI workflow + `check_soak_evidence.py` extension match the naming.
 
 ## 3. Chaos Scenarios — `runtime_partial` → `real` Promotion
 
@@ -57,7 +58,11 @@ Both scenario files MUST register a `runtime_coupled: true` field in their evide
 
 ## 4. Evidence Shape
 
-### 4.1 Soak evidence file: `docs/verification/<W36-head>-soak-240m.json`
+### 4.1 Soak evidence file: `docs/verification/<W36-head>-soak-6h.json` (primary 6h band)
+
+The 4h fallback band — only reachable after RIA-explicit approval per §10 Risk-1 — uses `docs/verification/<W36-head>-soak-240m.json` with `requested_duration_label: "4h"`. The two filenames are content-aligned: `-soak-6h.json` MUST carry `requested_duration_seconds: 21600`; `-soak-240m.json` MUST carry `requested_duration_seconds: 14400`. `check_soak_evidence.py` enforces the cross-check.
+
+**Primary 6h band shape (this is the W36-S-1 closure target):**
 
 Shape is dictated by `_write_evidence` at `scripts/run_soak.py:726-817` and is unchanged. Required top-level fields after a real 6h pass:
 
@@ -190,12 +195,12 @@ Per Rule 15, every defect-closure / supplement-closure carries three rows:
 
 ## 10. Risk Registry
 
-1. **GitHub-runner 6h ceiling.** `ubuntu-latest` jobs default to 360-min `timeout-minutes`; we set explicit `timeout-minutes: 420` for the 30 min buffer. A Free-tier billing limit may still cancel; mitigation: schedule on the org's own runner pool if billed minutes become a constraint, OR fall back to a 4h band (`provenance: real (240m)` per `_classify_provenance:691-692`).
+1. **GitHub-runner 6h ceiling.** `ubuntu-latest` jobs default to 360-min `timeout-minutes`; we set explicit `timeout-minutes: 420` for the 30 min buffer. A Free-tier billing limit may still cancel. **Mitigation per RIA amendment §2.2: if the GitHub `ubuntu-latest` budget ceiling is hit during the 6h band, halt the soak and request explicit RIA approval (48h SLA) before falling back to a 4h band. Do not ship `provenance: real (240m)` as W36-S-1 closure without this approval.** The CI workflow MUST NOT silently downgrade duration; the 4h fallback path is gated by an explicit operator decision (RIA-side), recorded in `docs/upstream-directives/` if exercised. Implementation: workflow defines only the 6h job; a 4h job exists as a separate `workflow_dispatch`-only entry that requires manual invocation with a recorded RIA-approval reference in the dispatch comment.
 2. **Chaos-scenario non-determinism.** Signal storms and FD exhaustion produce non-deterministic timing. Mitigation: seed RNG in the new scenarios; assert on bounded ranges (e.g. "between 0 and 5 silent_degradation events"), not point values; keep `provenance: real` but with explicitly-documented bounded variance in the scenario docstring.
 3. **SQLite WAL contention at N=50.** Tier-1 retention adoption (A3 plan, parallel) lands chunked DELETEs on the same SQLite files; under N=50 concurrency, write-lock pressure may produce the `database is locked` class. Mitigation: WAL mode is already on; document expected p99 envelope; if observed p99 widens beyond `concurrency-methodology-v1.md` baseline, that is a **successful Lens 7 finding** and reframes the cap per §6 branch 2.
 4. **Soak-run interruption by orchestrator.** GitHub may evict the runner; the harness writes evidence at end-of-run, so a mid-run eviction loses all of it. Mitigation: `--resume` mode is W37 work; for W36 we accept the re-run cost and pick the next overnight slot. Branch 3 of §6 covers cap behaviour.
 5. **`--mid-soak-sigterm-after 180` interaction with chaos cadence.** A SIGTERM at 3h could land during a `signal_storm` injection; the harness already pauses worker polling on `server_restart_event` (`scripts/run_soak.py:1058,1098-1100`). Mitigation: the 30s chaos cadence offsets are random-enough that collision is rare; a second SIGTERM later in the run is a future enhancement, not W36 scope.
-6. **Filename-band drift.** `_evidence_filename` returns `-soak-240m.json` for any band ≥ 14400 s (`scripts/run_soak.py:719-720`). A 6h run is therefore filed under the same band as a 4h run. To-confirm with RIA whether `-soak-6h.json` is preferred for narrative clarity; harness change is single-line if yes.
+6. **Filename-band drift.** RESOLVED per RIA amendment §2.3: `_evidence_filename` adds a 6h branch returning `-soak-6h.json` for `requested_duration_seconds == 21600`; the existing 240m branch is reserved for the 4h fallback only. The single-line change lands as part of the W36-S-1 implementation.
 
 ## 11. References
 

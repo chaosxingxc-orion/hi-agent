@@ -7,6 +7,7 @@
 **Predecessor (commit-only):** 276917d8 "ALL 9 RIA items accepted as binding"
 
 > **Last refreshed:** 2026-05-07. HEAD `975b7911`.
+> **Reissued:** 2026-05-07 (afternoon) — S-1 amendment cycle per RIA acceptance directive.
 
 ---
 
@@ -58,7 +59,7 @@ rebadged as advisory.
 
 | # | ID | Source | Plan file | Owner | Disposition |
 |---|---|---|---|---|---|
-| 10 | S-1 6h Linux soak | supplement §2.1 | docs/superpowers/plans/2026-05-07-wave-36-linux-soak.md | TE + GOV + DX | ACCEPTED — plan published 2026-05-07 |
+| 10 | S-1 6h Linux soak | supplement §2.1 | docs/superpowers/plans/2026-05-07-wave-36-linux-soak.md | TE + GOV + DX | ACCEPTED with amendment — plan reissued 2026-05-07 per RIA amendment §2 (A-S-1-1 deviation marker, A-S-1-2 fallback gating, A-S-1-3 filename realignment) |
 | 11 | S-2 Postgres equivalence | supplement §2.2 | docs/superpowers/plans/2026-05-07-wave-36-postgres-equivalence.md | RO + GOV + TE | ACCEPTED — plan published 2026-05-07 |
 | 12 | S-3 plan-index | supplement §2.3 | docs/superpowers/plans/2026-05-07-wave-36-plan-index.md (this file) | GOV | ACCEPTED — this document |
 
@@ -141,6 +142,7 @@ is the structural fix.
 | `docs/superpowers/plans/2026-05-07-wave-36-linux-soak.md` | S-1 plan (item 10) |
 | `docs/superpowers/plans/2026-05-07-wave-36-postgres-equivalence.md` | S-2 plan (item 11) |
 | `docs/upstream-directives/2026-05-07-hi-agent-w35-corrective-acceptance-and-w36-supplement-directive.md` | Source directive (S-1/S-2/S-3 issuance) |
+| `docs/upstream-directives/2026-05-07-hi-agent-w36-supplement-acceptance-and-s1-amendment.md` | S-1 amendment directive (A-S-1-1 / A-S-1-2 / A-S-1-3) |
 | `docs/upstream-directives/2026-05-07-hi-agent-w35-corrective-acceptance-audit.md` | Source audit (W35 corrective M2 closure verification) |
 | `docs/upstream-directives/2026-05-05-hi-agent-wave36-engineering-expectations.md` | W36 entry directive (items 7-8-9) |
 | `docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md` | W35 corrective directive (items 1-6) |
