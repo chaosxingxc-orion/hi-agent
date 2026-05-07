@@ -4,22 +4,24 @@ Date: 2026-05-05
 Wave: 35 (corrective response)
 From: hi-agent platform team
 To: Research Intelligence Application (RIA) team
-Status: in-progress while corrective tracks (A through F) land
-Manifest: `2026-05-05-24cfa0a6` (built at HEAD `24cfa0a6`)
-Provenance: derived (this document references the W35 manifest and prior delivery notice; per-item evidence carries its own provenance once each track lands)
-Functional HEAD: `3bf04dff138343ce397a751e66ca81e10376e56a`
+Status: PASS — all 6 corrective items closed at HEAD ad521c07 per RIA audit 2026-05-07
+Manifest: `2026-05-06-ad521c07` (built at HEAD `ad521c07`)
+Provenance: measured (per-item evidence paths recorded against the corrective close HEAD; cross-checked by RIA's 2026-05-07 acceptance audit)
+Functional HEAD: `975b7911494502a829b45d96ce8c59bc5482d31f`
 Predecessor: `docs/downstream-responses/2026-05-05-w35-delivery-notice.md` (W35 delivery notice, manifest `2026-05-05-24cfa0a6`)
 Directives addressed:
 - `docs/upstream-directives/2026-05-05-hi-agent-w35-acceptance-audit.md`
 - `docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md`
 - `docs/upstream-directives/2026-05-05-hi-agent-wave36-engineering-expectations.md` (forward, separate response when due)
 
-> Per Rule 14 §4.4, this response cites the W35 manifest's release_head
-> (`24cfa0a6`). All commits since the manifest commit are docs-only
-> (closure-notice + signoff updates + this corrective response), so
-> `check_doc_consistency.py` accepts the head divergence under its
-> docs-only-gap exemption. The W35 corrective tracks below reference
-> their own evidence at the correction-window head as it lands.
+> Per Rule 14 §4.4, this response cites the W35 corrective-close manifest's
+> release_head (`ad521c07`). All commits since the manifest commit are
+> docs-only (this reissue + RIA-mirrored 2026-05-07 directives + W36
+> supplement plan-index), so `check_doc_consistency.py` accepts the head
+> divergence under its docs-only-gap exemption. RIA's 2026-05-07 acceptance
+> audit cross-checked each row's evidence at HEAD `ad521c07` and verified
+> all 6 items at M2; this reissue updates each row's Status from
+> IN-PROGRESS / TBD to PASS with measured-evidence paths.
 
 ---
 
@@ -35,14 +37,14 @@ We treat the corrective items as an extension of W35 rather than a regression of
 
 | Corrective ID | Status | Evidence path | Provenance | Three-part closure summary |
 |---|---|---|---|---|
-| C-1 (Prometheus label revert) | IN-PROGRESS (Track A) | tests/integration/test_idempotency_metrics.py + docs/observability/idempotency-metrics.md + hi_agent/observability/ARCHITECTURE.md | measured | (a) `hi_agent/observability/idempotency_metrics.py` revert four metrics from `{tenant_bucket}` to `{tenant_id}`; (b) `test_metric_label_set` asserts label name set per metric; (c) Cardinality-control policy paragraph — platform-side metrics carry `{tenant_id}`; bucketing is derived ops-side via PromQL recording rules; `hi_agent_llm_tokens_total` recorded as documented exception |
-| C-2 (provenance cap clarification) | IN-PROGRESS (Track B) | docs/governance/score_caps.yaml lifecycle_note OR scripts/build_release_manifest.py gate fix | derived | TBD pending Track B disposition: reading (a) implicit-resolution publishes a lifecycle_note on `provenance_unknown_or_synthetic`; reading (b) gate-scope-hole adds the missing detection at manifest-build time and either re-fires the cap or documents non-firing conditions |
-| C-3 (W35-T9 closure level) | IN-PROGRESS (Track C) — promoting to verified_at_release_head | tests/integration/test_run_manager_release_attempt_id_bump.py | measured | (a) Code fix already at `hi_agent/server/app.py:1340-1400` (verified by RIA audit); (b) New regression test landing at `tests/integration/test_run_manager_release_attempt_id_bump.py` asserting fresh `attempt_id`, `parent_run_id=run_id`, and `attempt_count` bump on re-lease; (c) Closure-taxonomy promotion from `code-fix-only` to `verified_at_release_head` recorded in `docs/governance/closure-taxonomy.md` and W35 delivery notice supplement |
-| C-4 (W35-T3 dev-side test) | IN-PROGRESS (Track D) | tests/integration/test_run_manager_tenant_strict.py | measured | (a) NONE — code already symmetric at `hi_agent/server/run_manager.py:442-518` (research/prod raises `TenantScopeError`; dev WARNs and uses middleware value); (b) New test `test_dev_posture_body_tenant_id_mismatch_warns_and_uses_middleware` asserts dual property (WARNING logged AND middleware value used, not body value); (c) Recurrence-ledger entry on the test-symmetry pattern — symmetric code with asymmetric tests is a defect class to be detected at PR time |
-| §5.1 wave-ledger drift | IN-PROGRESS (Track E) | docs/governance/recurrence-ledger.yaml + scripts/check_wave_consistency.py | measured | (a) Update `recurrence-ledger.yaml::current_wave` from `33` to `35`; (b) Extend `scripts/check_wave_consistency.py` to assert byte-match between `current-wave.txt`, `recurrence-ledger.yaml::current_wave`, latest manifest `wave`, and latest non-draft notice; new gate test constructs a deliberate drift and asserts the gate fails; (c) Rule 14 / W17 reinforcement note in CLAUDE.md narrow-trigger appendix that a wave-ledger drift detected after a manifest is published triggers a recurrence-ledger entry, not a silent fix |
-| §5.2 captain artifacts at parent HEAD | IN-PROGRESS (Track F) | docs/verification/<release_head>-* OR explicit signoff exemption | TBD (real if Volces re-run; derived if exemption clause) | (a) Either re-run clean-env / arch-7×24 / T3 Volces evidence at the W35 release_head and emit the `24cfa0a6-*` files OR add an explicit "non-hot-path docs-only" exemption clause to `wave35-signoff.json` naming the descendant scope; (b) New gate to detect parent-HEAD-evidence: `scripts/check_evidence_at_release_head.py` asserts that captain-recorded evidence files match the manifest `release_head` field, otherwise fires `clean_env_not_final_head` cap unless an explicit exemption is present; (c) Signoff schema enrichment — `wave35-signoff.json` schema gains optional `evidence_head_exemption` block (rationale, descendant-commit-scope, captain signature) |
+| C-1 (Prometheus label revert) | PASS | `hi_agent/observability/idempotency_metrics.py:88,108,137,158` + `tests/integration/test_idempotency_metrics.py:236-307` + `docs/observability/idempotency-metrics.md:185-204` + `hi_agent/observability/ARCHITECTURE.md:288-302` (ADR-OBS-2) | measured | (a) `hi_agent/observability/idempotency_metrics.py:88,108,137,158` reverts four metrics from `{tenant_bucket}` to `{tenant_id}`; (b) `tests/integration/test_idempotency_metrics.py:236-307::test_metric_label_set` asserts the frozenset label set per metric (drift guard); (c) Cardinality-control policy paragraph anchored in two places — `docs/observability/idempotency-metrics.md:185-204` AND `hi_agent/observability/ARCHITECTURE.md:288-302` (ADR-OBS-2): platform-side metrics carry `{tenant_id}`; bucketing is derived ops-side via PromQL recording rules; `hi_agent_llm_tokens_total` documented as W31 cardinality precedent |
+| C-2 (provenance cap clarification) | PASS | `docs/governance/score_caps.yaml:147-152` (`lifecycle_note`) | derived | (a) `docs/governance/score_caps.yaml:147-152` carries the `lifecycle_note` declaring **reading (a) implicit-resolution** with verification grep evidence at W35 release_head + post-W34 heads (zero `provenance:synthetic|unknown` files), re-fire trigger named, detection scope at `build_release_manifest.py::_compute_cap`; (b) latest `wave35-signoff.json::cap_factors_active` correctly omits the rule (gate evidence — only `t3_deferred` + `soak_evidence_not_real` fire); (c) lifecycle_note process-change discipline: any future cap-rule whose live state is implicit-resolution must declare its lifecycle inline at the `score_caps.yaml` row |
+| C-3 (W35-T9 closure level) | PASS — verified_at_release_head | `tests/integration/test_run_manager_release_attempt_id_bump.py` + `hi_agent/server/app.py:1218-1275` (`_bump_attempt_id_on_release` extraction) | measured | (a) `_bump_attempt_id_on_release` extracted at `hi_agent/server/app.py:1218-1275` for testability without semantic change; `_rehydrate_runs` calls helper at `app.py:1410-1413`; mirror-update at `app.py:1417-1436` preserved; (b) `tests/integration/test_run_manager_release_attempt_id_bump.py` (3 tests, 3/3 PASS) asserts fresh uuid4 `attempt_id`, `parent_run_id=run_id`, and `attempt_count` increment across both populated and zero-baseline branches; (c) Closure-taxonomy promotion from `code-fix-only` to `verified_at_release_head` recorded in `docs/governance/closure-taxonomy.md` and W35 delivery notice supplement (in-memory `ManagedRun` mirror update remains a documented scope choice) |
+| C-4 (W35-T3 dev-side test) | PASS | `tests/integration/test_run_manager_tenant_strict.py:181-223::test_dev_posture_body_tenant_id_mismatch_warns_and_uses_middleware` | measured | (a) NONE — code already symmetric at `hi_agent/server/run_manager.py:442-518` (research/prod raises `TenantScopeError`; dev WARNs and uses middleware value); (b) `tests/integration/test_run_manager_tenant_strict.py:181-223::test_dev_posture_body_tenant_id_mismatch_warns_and_uses_middleware` — caplog WARNING assertion (lines 215-220, both tenant ids named) + middleware-value-used assertion (line 207); 8/8 tests PASS; (c) Recurrence-ledger entry on the test-symmetry defect class (symmetric code with asymmetric tests is a defect detected at PR time) |
+| §5.1 wave-ledger drift | PASS | `recurrence-ledger.yaml::current_wave=35` + `scripts/check_wave_consistency.py` (5th source) + `tests/integration/test_check_wave_consistency_ledger.py` + ledger entry W32-D-recurrence | measured | (a) `current-wave.txt:1` and `recurrence-ledger.yaml::current_wave` both `35` (drift removed); (b) `scripts/check_wave_consistency.py` extended with 5th source via new helper `_recurrence_ledger_current_wave()` (L64-L88; sources dict updated at L207-L213); regression `tests/integration/test_check_wave_consistency_ledger.py` (3 cases — drift-fails, agree-passes, missing-ledger-does-not-block); CI wired at `.github/workflows/release-gate.yml:213`; (c) `recurrence-ledger.yaml:591-608` self-documents the gate-scope hole as entry W32-D-recurrence with `current_closure_level: verified_at_release_head` — the higher-leverage fix per RIA's 2026-05-07 audit §0.2 |
+| §5.2 captain artifacts at parent HEAD | PASS (path a chosen) | `wave35-signoff.json::evidence_exemption.kind="none"` + `scripts/check_signoff_evidence_exemption.py` (CI wired at `release-gate.yml:379`) + clean-env at `5b1e4d25` + arch-7×24 at `5ba9bb7` | measured | (a) Path (a) executed — re-rolled clean-env at intermediate corrective HEAD `5b1e4d25` (`docs/verification/5b1e4d25-default-offline-clean-env.json`) and arch-7×24 at `5ba9bb7` (`docs/verification/5ba9bb7-arch-7x24.json`); the remaining 6-commit gap to final HEAD `ad521c07` is governance-only and declared in `wave35-signoff.json::evidence_exemption.kind: "none"` block with all 5 required fields populated; (b) `scripts/check_signoff_evidence_exemption.py` enforces 5-field + enum + gov-only-gap reality check; CI wired at `.github/workflows/release-gate.yml:379` (live gate run PASS exit 0); (c) Signoff schema discipline — `wave35-signoff.json` carries the `evidence_exemption` block with full `hot_path_audit` so future asymmetries cannot ship silently. RIA 2026-05-07 audit §0.2 cited this as "the harder path chosen over the easier path" |
 
-`PARTIAL` is not used as a status — each row is `IN-PROGRESS` until its three-part closure lands at the corrective-window head, at which point the row becomes `PASS` and this document is reissued (or supplemented).
+`PARTIAL` is not used as a status — each row above has reached `PASS` with three-part closure landed at corrective-window HEAD `ad521c07`. RIA's 2026-05-07 acceptance audit cross-checked each row's evidence and verified all 6 items at maturity M2.
 
 ---
 
@@ -54,14 +56,16 @@ We treat the corrective items as an extension of W35 rather than a regression of
 | `docs/upstream-directives/2026-05-05-hi-agent-w35-corrective-directive.md` | Corrective directive (subject of this response) |
 | `docs/upstream-directives/2026-05-05-hi-agent-wave36-engineering-expectations.md` | W36 entry directive (separate response when due) |
 | `docs/downstream-responses/2026-05-05-w35-delivery-notice.md` | W35 delivery notice (subject of corrective) |
-| `docs/releases/wave35-signoff.json` | W35 signoff (release_head `24cfa0a6`) |
-| `docs/releases/platform-release-manifest-2026-05-05-24cfa0a6.json` | W35 release manifest |
+| `docs/releases/wave35-signoff.json` | W35 corrective-close signoff (manifest `2026-05-06-ad521c07`, release_head `ad521c07`) |
+| `docs/releases/platform-release-manifest-2026-05-06-ad521c07.json` | W35 corrective-close release manifest (latest); predecessor `2026-05-05-24cfa0a6` archived under `docs/releases/archive/W35/` |
+| `docs/upstream-directives/2026-05-07-hi-agent-w35-corrective-acceptance-audit.md` | RIA acceptance audit verifying M2 closure |
+| `docs/upstream-directives/2026-05-07-hi-agent-w35-corrective-acceptance-and-w36-supplement-directive.md` | RIA acceptance directive (basis for this PASS reissue) |
 | `docs/governance/score_caps.yaml` | Cap-factor canonical definitions (C-2) |
 | `docs/governance/recurrence-ledger.yaml` | Governance ledger (drift cited by §5.1) |
 | `docs/governance/systematic-audit-w35-2026-05-05.md` | Internal W35 audit (process-change anchor for several tracks) |
 | `hi_agent/observability/idempotency_metrics.py` | Label drift site (C-1 code fix) |
 | `hi_agent/server/run_manager.py` lines 442-518 | T3 symmetric code (C-4 test target) |
-| `hi_agent/server/app.py` lines 1340-1400 | T9 code path (C-3 closure level promotion target) |
+| `hi_agent/server/app.py:1218-1275` | T9 code path (`_bump_attempt_id_on_release` extracted for C-3 closure) |
 
 ---
 
@@ -83,6 +87,6 @@ The supplement will name each class instance individually with `IN-PROGRESS` or 
 ## 5. Sign-off
 
 Signed: hi-agent platform team
-Date: 2026-05-05
-Document maturity: M1 — in-progress; promotes to M2 after all six tracks (A through F) land at the corrective-window head and this document is reissued with each row marked `PASS` and three-part evidence paths populated.
-Status: in-progress while corrective tracks land
+Date: 2026-05-05 (initial); reissued 2026-05-07 (PASS)
+Document maturity: M2 — reissued at HEAD `975b7911` after RIA's 2026-05-07 acceptance audit cross-checked all six tracks at corrective-window HEAD `ad521c07` and verified each row at M2 with measured-evidence paths populated.
+Status: PASS — all 6 corrective items closed at HEAD ad521c07 per RIA audit 2026-05-07
