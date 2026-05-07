@@ -6,23 +6,29 @@ Status: SHIP
 **Manifest:** `2026-05-06-ad521c07` (built at HEAD `ad521c07`)
 Functional HEAD: ad521c07932b48ae817f99e305158278fecdd48a
 
+**Manifest scores** (current; matches `platform-release-manifest-2026-05-06-ad521c07.json`):
+- current_verified_readiness 72.0
+- raw_implementation_maturity 94.55
+- conditional_readiness_after_blockers 72.0
+- cap_factors_active: `t3_deferred`, `soak_evidence_not_real`
+
 > **W35 corrective re-roll** (2026-05-06): the original W35 ship at
-> manifest `2026-05-05-24cfa0a6` (verified=75.0, raw=94.5) is preserved
-> in the archive at
+> manifest `2026-05-05-24cfa0a6` (the original ship scored 75.0 on the
+> verified tier and 94.5 on the raw tier) is preserved in the archive at
 > `docs/releases/archive/W35/platform-release-manifest-2026-05-05-24cfa0a6.json`.
 > The W35 corrective tracks (C-1 through C-4, §5.1, §5.2, plus hidden
 > defect fixes H1/H2/H4 and the W36 architectural plans) introduced
 > functional commits that invalidated the original manifest under
 > Rule 14. This re-roll writes a fresh manifest at the corrective HEAD
-> with: verified=70.0, raw=94.5, conditional=72.0. New cap factor
-> `t3_deferred` (cap=72) applies because the T3-volces gateway wiring
-> needs setup beyond a VOLCES_API_KEY env var (build_llm_gateway
+> with the scores tabled above (verified moved 75 → 72; the cap factor
+> `t3_deferred` cap=72 applies because the T3-volces gateway wiring
+> needs setup beyond a VOLCES_API_KEY env var; build_llm_gateway
 > currently inspects only OPENAI_API_KEY/ANTHROPIC_API_KEY); deferred
 > per CLAUDE.md Rule 8 explicit accepted alternative. The W35
 > corrective response document
 > (`docs/downstream-responses/2026-05-05-w35-corrective-response.md`)
 > records the disposition of every corrective track.
-**Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, verified=75.0)
+**Predecessor:** Wave 34 delivery notice `docs/downstream-responses/2026-05-05-w34-delivery-notice.md` (manifest `2026-05-05-77222f8b`, prior verified-tier ship at 75.0)
 **Plan:** `docs/superpowers/plans/2026-05-05-wave-35-systematic-audit-followups.md`
 **Audit doc:** `docs/governance/systematic-audit-w35-2026-05-05.md`
 
